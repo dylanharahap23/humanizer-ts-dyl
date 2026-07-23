@@ -1251,6 +1251,98 @@ function varyNumberExpression(text: string): string {
 }
 
 /**
+ * LOGIC 12: Style Shift — Encyclopedia → Advice/Conversation
+ * Converts impersonal explanations into direct reader address
+ * or personal observation, matching 100% human text patterns
+ */
+function shiftToConversationalStyle(text: string, sourceText: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+  
+  // Determine style: advice (you) or personal (I)
+  const useAdviceStyle = !/\b(?:I|me|my|we|our)\b/i.test(sourceText);
+  
+  if (useAdviceStyle) {
+    // Convert 1-2 impersonal statements to direct "you" address
+    let changes = 0;
+    for (let i = 0; i < sentences.length && changes < 2; i++) {
+      if (sentences[i].length > 40 && !sentences[i].includes('you') && Math.random() < 0.4) {
+        sentences[i] = sentences[i]
+          .replace(/\bpeople\b/gi, 'you')
+          .replace(/\bsome individuals\b/gi, 'you')
+          .replace(/\bone\b/gi, 'you')
+          .replace(/\bit is\b/gi, "it's");
+        changes++;
+      }
+    }
+    
+    // Add one direct advice sentence if missing
+    if (!text.includes('you should') && !text.includes('try to') && Math.random() < 0.5) {
+      const adviceOptions = [
+        "The key is consistency more than anything else.",
+        "Pay attention to what your body tells you.",
+        "Start small and build from there.",
+        "Don't overthink it — just begin.",
+      ];
+      const idx = Math.floor(sentences.length * 0.7);
+      sentences.splice(idx, 0, adviceOptions[Math.floor(Math.random() * adviceOptions.length)]);
+    }
+  } else {
+    // Add one personal aside if the source has first person
+    if (Math.random() < 0.3) {
+      const asides = [
+        "At least that's been my experience.",
+        "I've seen this play out with people close to me.",
+        "Honestly, it varies so much from person to person.",
+      ];
+      sentences.push(asides[Math.floor(Math.random() * asides.length)]);
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * LOGIC 13: Natural Typo Injection
+ * Adds ONE real-looking typo per text, in a position where humans actually make them
+ */
+function injectNaturalTypo(text: string): string {
+  // Only inject ONE typo per text, at most
+  if (Math.random() > 0.2) return text; // 20% chance
+  
+  const commonTypos: Array<[RegExp, string]> = [
+    [/\bdefinitely\b/i, 'definately'],
+    [/\bseparate\b/i, 'seperate'],
+    [/\bnoticeable\b/i, 'noticable'],
+    [/\btheir\b/i, 'thier'],
+    [/\breceive\b/i, 'recieve'],
+  ];
+  
+  for (const [pattern, replacement] of commonTypos) {
+    if (pattern.test(text)) {
+      return text.replace(pattern, replacement);
+    }
+  }
+  
+  return text;
+}
+
+/**
+ * LOGIC 14: Remove AI List Markers
+ * Strips "One of the most important factors", "Another reason", "Finally"
+ */
+function removeListMarkers(text: string): string {
+  return text
+    .replace(/\bOne of the most important factors is\b/gi, '')
+    .replace(/\bAnother reason is\b/gi, '')
+    .replace(/\bAnother important factor is\b/gi, '')
+    .replace(/\bFinally,\s*/gi, '')
+    .replace(/\bOne major challenge is\b/gi, '')
+    .replace(/^,\s*/gm, '') // Clean up leading commas from removals
+    .replace(/\n\s*\n\s*\n/g, '\n\n'); // Clean up double spaces
+}
+
+/**
  * LOGIC 10: Targeted Sentence Fusion & Fission
  * Merges short adjacent sentences and splits long ones where AI patterns cluster
  */
@@ -1292,23 +1384,26 @@ function targetedSentenceRestructure(text: string): string {
 }
 
 /**
- * Master function: applies all 10 targeted human imprint transformations
+ * Master function: applies all targeted human imprint transformations
+ * Updated per professor's feedback (Logic 11-14)
  */
 export function applyTargetedHumanImprint(text: string, sourceText: string): string {
   if (!text || text.length < 100) return text;
   
   let result = text;
   
-  result = enforceBurstinessPerSentence(result);
-  result = injectIdiosyncrasy(result);
-  result = disruptStructure(result);
-  result = addSpecificity(result);
-  result = allowConditionalFirstPerson(result, sourceText);
-  result = breakNgramPatterns(result);
-  result = boostVocabularyEntropy(result);
-  result = injectTokenSurprise(result);          // ← LOGIC 8
-  result = varyNumberExpression(result);          // ← LOGIC 9
-  result = targetedSentenceRestructure(result);   // ← LOGIC 10
+  result = removeListMarkers(result);                // LOGIC 14
+  result = injectIdiosyncrasy(result);               // LOGIC 2
+  result = disruptStructure(result);                 // LOGIC 3
+  result = addSpecificity(result);                   // LOGIC 4
+  result = allowConditionalFirstPerson(result, sourceText); // LOGIC 5
+  result = breakNgramPatterns(result);               // LOGIC 6
+  result = boostVocabularyEntropy(result);           // LOGIC 7
+  result = injectTokenSurprise(result);              // LOGIC 8
+  result = varyNumberExpression(result);             // LOGIC 9
+  result = targetedSentenceRestructure(result);      // LOGIC 10
+  result = shiftToConversationalStyle(result, sourceText); // LOGIC 12
+  result = injectNaturalTypo(result);                // LOGIC 13
   
   return result;
 }
@@ -1707,8 +1802,8 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     result = makeDiscursiveEnglishMoreDirect(result);
   }
   
-  // NEW: Apply structural randomization + targeted human imprint for english-general and english-expository
-  if (tone === "english-general" || tone === "english-expository") {
+  // NEW: Apply structural randomization + targeted human imprint for english-general, english-expository, and english-discursive
+  if (tone === "english-general" || tone === "english-expository" || tone === "english-discursive") {
     result = humanizeStructureEnglish(result);
     result = applyTargetedHumanImprint(result, text);
   }
