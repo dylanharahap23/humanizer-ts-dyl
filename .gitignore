@@ -2,14 +2,14 @@
 # Dependencies
 node_modules/
 
-# Logs and temp files
-*.log
-*.tmp
-
 # Environment
 .env
 .env.local
 *.env.*
+
+# Logs and temp files
+*.log
+*.tmp
 
 # Editors
 .vscode/
@@ -20,17 +20,11 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.py~
-*.py.class
-*.py.swp
-*.py.swo
-*.py.tmp
-*.py.log
-*.py.env
-*.py.env.local
-*.py.env.*
-*.py.vscode/
-*.py.idea/
+.Python
+venv/
+.venv/
+env/
+ENV/
 
 # Build outputs
 dist/
@@ -41,6 +35,7 @@ target/
 *.dll
 *.so
 *.a
+*.o
 *.obj
 
 # Compression
@@ -72,17 +67,9 @@ coverage/
 htmlcov/
 .coverage
 
-# Cache
+# Testing
 .mypy_cache/
 .pytest_cache/
-.gradle/
-.npm/
-.yarn/
-.bazel-cache/
-.julia/
-.zig/
-
-# OS
-.DS_Store
-Thumbs.db
+.nyc_output/
+coverage/
 ```
