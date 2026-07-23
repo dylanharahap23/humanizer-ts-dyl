@@ -1170,7 +1170,129 @@ function boostVocabularyEntropy(text: string): string {
 }
 
 /**
- * Master function: applies all 7 targeted human imprint transformations
+ * LOGIC 8: Token-Level Perplexity Injection
+ * Replaces 3-5 common words with less predictable alternatives
+ * to lower per-token generated_prob below 0.99
+ */
+function injectTokenSurprise(text: string): string {
+  // Word pairs where the second is less common/predictable
+  const surpriseMap: Array<[RegExp, string]> = [
+    [/\bimportant\b/gi, 'crucial'],
+    [/\bimprove\b/gi, 'boost'],
+    [/\breduce\b/gi, 'cut'],
+    [/\bincrease\b/gi, 'ramp up'],
+    [/\bsignificant\b/gi, 'meaningful'],
+    [/\bbeneficial\b/gi, 'helpful'],
+    [/\bessential\b/gi, 'key'],
+    [/\bprimarily\b/gi, 'mainly'],
+    [/\bapproximately\b/gi, 'roughly'],
+    [/\bsufficient\b/gi, 'enough'],
+    [/\bhowever\b/gi, 'but'],
+    [/\btherefore\b/gi, 'so'],
+    [/\b additionally\b/gi, 'also'],
+    [/\bmoreover\b/gi, 'plus'],
+    [/\bconsequently\b/gi, 'as a result'],
+    [/\boptimal\b/gi, 'ideal'],
+    [/\badequate\b/gi, 'enough'],
+    [/\bconsistently\b/gi, 'regularly'],
+    [/\brecommended\b/gi, 'advised'],
+    [/\breplenishment\b/gi, 'refill'],
+  ];
+  
+  let result = text;
+  let changes = 0;
+  const maxChanges = 4; // 3-5 unpredictable swaps
+  
+  // Shuffle the map to randomize which replacements happen
+  const shuffled = [...surpriseMap].sort(() => Math.random() - 0.5);
+  
+  for (const [pattern, replacement] of shuffled) {
+    if (changes >= maxChanges) break;
+    if (pattern.test(result)) {
+      result = result.replace(pattern, replacement);
+      changes++;
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * LOGIC 9: Number Variation
+ * Varies how numbers are expressed to break AI precision patterns
+ */
+function varyNumberExpression(text: string): string {
+  let result = text;
+  
+  // "7-9 hours" → "7 to 9 hours" or "seven to nine hours"
+  result = result.replace(/(\d+)[–-](\d+)\s*(hours?|minutes?|days?)/gi, (match, low, high, unit) => {
+    const variants = [
+      `${low} to ${high} ${unit}`,
+      `somewhere between ${low} and ${high} ${unit}`,
+      `${low}–${high} ${unit}`,
+    ];
+    return variants[Math.floor(Math.random() * variants.length)];
+  });
+  
+  // "8 hours" → "around 8 hours" or "roughly eight hours"
+  result = result.replace(/\b(\d+)\s+(hours?|minutes?)\b/gi, (match, num, unit) => {
+    if (Math.random() < 0.4) {
+      const variants = [
+        `around ${num} ${unit}`,
+        `about ${num} ${unit}`,
+        `roughly ${num} ${unit}`,
+      ];
+      return variants[Math.floor(Math.random() * variants.length)];
+    }
+    return match;
+  });
+  
+  return result;
+}
+
+/**
+ * LOGIC 10: Targeted Sentence Fusion & Fission
+ * Merges short adjacent sentences and splits long ones where AI patterns cluster
+ */
+function targetedSentenceRestructure(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+  
+  // Find 2-3 consecutive sentences that all start with "Sleep also", "Sleep is", etc.
+  for (let i = 0; i < sentences.length - 2; i++) {
+    const first1 = sentences[i].substring(0, 15).toLowerCase();
+    const first2 = sentences[i + 1].substring(0, 15).toLowerCase();
+    
+    // If two adjacent sentences start with the same subject word, merge them
+    if (first1.split(' ')[0] === first2.split(' ')[0] && Math.random() < 0.5) {
+      sentences[i] = sentences[i].replace(/[.!?]$/, '') + ', and ' + 
+        sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
+      sentences.splice(i + 1, 1);
+      break; // Only do one merge per call
+    }
+  }
+  
+  // Find a long sentence (25+ words) and split it
+  for (let i = 0; i < sentences.length; i++) {
+    const words = sentences[i].split(/\s+/);
+    if (words.length > 25 && sentences[i].includes(', ')) {
+      const midPoint = Math.floor(words.length / 2);
+      const commaIdx = sentences[i].indexOf(', ', Math.floor(sentences[i].length * 0.4));
+      if (commaIdx > 10 && commaIdx < sentences[i].length - 10) {
+        const part1 = sentences[i].substring(0, commaIdx).trim() + '.';
+        const part2 = sentences[i].substring(commaIdx + 2).trim();
+        sentences[i] = part1;
+        sentences.splice(i + 1, 0, part2.charAt(0).toUpperCase() + part2.slice(1));
+        break;
+      }
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * Master function: applies all 10 targeted human imprint transformations
  */
 export function applyTargetedHumanImprint(text: string, sourceText: string): string {
   if (!text || text.length < 100) return text;
@@ -1184,6 +1306,9 @@ export function applyTargetedHumanImprint(text: string, sourceText: string): str
   result = allowConditionalFirstPerson(result, sourceText);
   result = breakNgramPatterns(result);
   result = boostVocabularyEntropy(result);
+  result = injectTokenSurprise(result);          // ← LOGIC 8
+  result = varyNumberExpression(result);          // ← LOGIC 9
+  result = targetedSentenceRestructure(result);   // ← LOGIC 10
   
   return result;
 }
@@ -1582,8 +1707,8 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     result = makeDiscursiveEnglishMoreDirect(result);
   }
   
-  // NEW: Apply structural randomization + targeted human imprint for english-general
-  if (tone === "english-general") {
+  // NEW: Apply structural randomization + targeted human imprint for english-general and english-expository
+  if (tone === "english-general" || tone === "english-expository") {
     result = humanizeStructureEnglish(result);
     result = applyTargetedHumanImprint(result, text);
   }
