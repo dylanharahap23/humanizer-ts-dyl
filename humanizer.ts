@@ -654,7 +654,6 @@ export function getEnglishHumanizerConfig(
       repetitionPenalty: 1,
       additionalInstruction: 
         "Recompose the long-term buying analysis around the source's decision rule. Merge factor-by-factor sections, preserve every uncertainty and criterion, use second person only for the buying decision, and add no brand, model, anecdote, or outside fact.",
-      ),
       postProcessTone: "english-consumer",
     };
   }
@@ -668,8 +667,7 @@ export function getEnglishHumanizerConfig(
       presencePenalty: 0,
       repetitionPenalty: 1,
       additionalInstruction: 
-        "Recompose the legal-policy explanation around enforcement authority and practical dependency. Split dense clauses, remove factor-by-factor signposts, preserve every qualification, and add no outside case, opinion, or crime category."
-      ),
+        "Recompose the legal-policy explanation around enforcement authority and practical dependency. Split dense clauses, remove factor-by-factor signposts, preserve every qualification, and add no outside case, opinion, or crime category.",
       postProcessTone: "english-policy",
     };
   }
@@ -712,8 +710,7 @@ export function getEnglishHumanizerConfig(
       presencePenalty: 0.03,
       repetitionPenalty: 1.01,
       additionalInstruction: 
-        "Use a reader-oriented reflective voice from the source claims only. Conditional second person is allowed, but preserve every hedge, fact, example, and causal relationship; add no illustrative detail."
-      ),
+        "Use a reader-oriented reflective voice from the source claims only. Conditional second person is allowed, but preserve every hedge, fact, example, and causal relationship; add no illustrative detail.",
       postProcessTone: "english-reflective",
     };
   }
@@ -727,8 +724,7 @@ export function getEnglishHumanizerConfig(
       presencePenalty: 0,
       repetitionPenalty: 1.01,
       additionalInstruction: 
-        "Recompose the explanation as a source-faithful practical guide. Reader address is allowed, but add no personal story, authority, example, or recommendation absent from the source."
-      ),
+        "Recompose the explanation as a source-faithful practical guide. Reader address is allowed, but add no personal story, authority, example, or recommendation absent from the source.",
       postProcessTone: "english-practical",
     };
   }
@@ -742,8 +738,7 @@ export function getEnglishHumanizerConfig(
       presencePenalty: 0,
       repetitionPenalty: 1.01,
       additionalInstruction: 
-        "Use direct everyday English and regroup the source claims by idea. Preserve uncertainty and practical details exactly; do not add a narrator, rhetorical questions, anecdotes, or outside knowledge."
-      ),
+        "Use direct everyday English and regroup the source claims by idea. Preserve uncertainty and practical details exactly; do not add a narrator, rhetorical questions, anecdotes, or outside knowledge.",
       postProcessTone: "english-discursive",
     };
   }
@@ -757,8 +752,7 @@ export function getEnglishHumanizerConfig(
       presencePenalty: 0,
       repetitionPenalty: 1.01,
       additionalInstruction: 
-        "Recompose from the source's claim units instead of rewriting sentence by sentence. Preserve the neutral point of view and factual scope, use ordinary vocabulary, and do not mirror the source's paragraph skeleton."
-      ),
+        "Recompose from the source's claim units instead of rewriting sentence by sentence. Preserve the neutral point of view and factual scope, use ordinary vocabulary, and do not mirror the source's paragraph skeleton.",
       postProcessTone: "english-expository",
     };
   }
@@ -787,8 +781,7 @@ export function getEnglishHumanizerConfig(
       presencePenalty: 0.03,
       repetitionPenalty: 1.01,
       additionalInstruction: 
-        "Keep the stated position clear and source-faithful. Vary emphasis through the reasoning itself; do not invent a narrator, anecdote, question, typo, or dramatic aside."
-      ),
+        "Keep the stated position clear and source-faithful. Vary emphasis through the reasoning itself; do not invent a narrator, anecdote, question, typo, or dramatic aside.",
       postProcessTone: "english-argument",
     };
   }
@@ -806,6 +799,7 @@ export function getEnglishHumanizerConfig(
       "Write direct, natural English. Start with the subject. Use varied sentence lengths. No reframing, no throat-clearing.",
     postProcessTone: "english-general",
   };
+}
 
 export function normalizeHumanizerTone(value: unknown): HumanizerTone {
   return value === "ielts" ? "ielts" : "casual";
