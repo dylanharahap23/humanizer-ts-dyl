@@ -70,6 +70,37 @@ Core rules:
 Return only the rewritten text.
 `;
 
+const ENGLISH_GENERAL_ANTI_DETECTION_LAYER = `
+STRUCTURE RULES (override default writing behavior):
+
+1. PARAGRAPH LENGTH — MUST BE UNEVEN
+   - One paragraph MUST be very short: 1-2 sentences, under 25 words.
+   - One paragraph MUST be noticeably long: 5-8 sentences.
+   - Other paragraphs should be medium: 3-4 sentences.
+   - End with a single short sentence, not a summary paragraph.
+
+2. PARAGRAPH OPENERS — NO ABSTRACT NOUN PHRASES
+   - Never start a paragraph with: "Central to this is", "Beyond physical", 
+     "Performance is shaped by", "The challenge is", "It reflects".
+   - Instead, open with: a concrete detail, a contrast with the last point,
+     a specific example, or a rephrasing of the idea.
+
+3. LISTS — BREAK THEM UP
+   - Never write "Factors such as A, B, C, D, and E all contribute..."
+   - If you must list items, spread them across at least two sentences.
+   - Maximum 3 items in any single list. More than 3 = split into multiple sentences.
+
+4. SHORT SENTENCES — INCLUDE AT LEAST TWO
+   - Include at least 2 standalone sentences under 12 words.
+   - Examples: "It's not that simple." "That's the catch." "Depends who you ask."
+   - Place them mid-text, not just at the end.
+
+5. SENTENCE STRUCTURE — MIX IT UP
+   - Avoid three sentences in a row that all follow Subject-Verb-Object.
+   - Use em-dashes or parentheses to insert asides into longer sentences.
+   - Allow one sentence fragment if it reads naturally.
+`;
+
 const ENGLISH_ACADEMIC_PROMPT = `
 You are a careful English academic editor. Rewrite the text so it reads like credible human academic writing while preserving the author's claims, terminology, level of certainty, and structure.
 
@@ -787,16 +818,17 @@ export function getEnglishHumanizerConfig(
   }
   
   // GENERAL profile — simplified, lower temperature
+  // GENERAL profile — with anti-detection structural rules
   return {
-    systemPrompt: `${CASUAL_NATURAL_PROMPT}`,
-    temperature: 0.85,
-    topP: 0.92,
+    systemPrompt: `${CASUAL_NATURAL_PROMPT}\n\n${ENGLISH_GENERAL_ANTI_DETECTION_LAYER}`,
+    temperature: 0.95,
+    topP: 0.98,
     maxTokens: 1600,
-    frequencyPenalty: 0.05,
-    presencePenalty: 0.05,
+    frequencyPenalty: 0.15,
+    presencePenalty: 0.1,
     repetitionPenalty: 1.02,
     additionalInstruction:
-      "Write direct, natural English. Start with the subject. Use varied sentence lengths. No reframing, no throat-clearing.",
+      "Write direct, natural English. Start with the subject. Vary paragraph length aggressively. Use at least two short sentences under 12 words. Break up lists. Open paragraphs with concrete details, not abstract nouns.",
     postProcessTone: "english-general",
   };
 }
@@ -850,6 +882,39 @@ function destroyThreeParagraphStructure(text: string): string {
     }
   }
 
+  return paragraphs.join('\n\n');
+}
+
+function humanizeStructureEnglish(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+  
+  // Force first paragraph to be shorter (max 2 sentences)
+  const firstSentences = splitSentences(paragraphs[0]);
+  if (firstSentences.length > 2) {
+    paragraphs[0] = firstSentences.slice(0, 2).join(' ');
+  }
+  
+  // Merge two middle paragraphs to create one long paragraph
+  const midIdx = Math.floor(paragraphs.length / 2);
+  if (midIdx < paragraphs.length - 1) {
+    paragraphs[midIdx] = paragraphs[midIdx] + ' ' + paragraphs[midIdx + 1];
+    paragraphs.splice(midIdx + 1, 1);
+  }
+  
+  // Insert an orphan short sentence before the last paragraph
+  if (paragraphs.length >= 2) {
+    const orphans = [
+      "Depends who you ask, though.",
+      "It's not that simple.",
+      "That's the thing, really.",
+      "Makes you think.",
+      "Not everyone agrees on that.",
+    ];
+    const orphan = orphans[Math.floor(Math.random() * orphans.length)];
+    paragraphs.splice(paragraphs.length - 1, 0, orphan);
+  }
+  
   return paragraphs.join('\n\n');
 }
 
@@ -1245,6 +1310,11 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   }
   if (tone === "english-discursive") {
     result = makeDiscursiveEnglishMoreDirect(result);
+  }
+  
+  // NEW: Apply structural randomization for english-general
+  if (tone === "english-general") {
+    result = humanizeStructureEnglish(result);
   }
 
   result = addHumanTouches(result, tone);
