@@ -918,6 +918,276 @@ function humanizeStructureEnglish(text: string): string {
   return paragraphs.join('\n\n');
 }
 
+// ============================================================
+// 7b. TARGETED HUMAN IMPRINT FUNCTIONS (professor's recommendations)
+// ============================================================
+
+/**
+ * LOGIC 1: Per-Sentence Perplexity Variance (Burstiness Real)
+ * Forces extreme sentence length variation
+ */
+function enforceBurstinessPerSentence(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+  
+  // Pick 2-3 sentences to compress to very short (3-6 words)
+  const shortCount = Math.min(3, Math.floor(sentences.length * 0.15));
+  const shortIndices = new Set<number>();
+  while (shortIndices.size < shortCount) {
+    const idx = Math.floor(Math.random() * sentences.length);
+    if (sentences[idx].split(/\s+/).length > 10) {
+      shortIndices.add(idx);
+    }
+  }
+  
+  for (const idx of shortIndices) {
+    const words = sentences[idx].split(/\s+/);
+    // Take just the core 4-6 words
+    const core = words.slice(0, Math.min(6, Math.floor(words.length * 0.4)));
+    sentences[idx] = core.join(' ') + '.';
+  }
+  
+  // Pick 1-2 pairs of adjacent sentences to merge into one long sentence
+  const mergeCount = Math.min(2, Math.floor(sentences.length * 0.1));
+  for (let m = 0; m < mergeCount; m++) {
+    const idx = Math.floor(Math.random() * (sentences.length - 1));
+    if (sentences[idx].length > 15 && sentences[idx + 1].length > 15) {
+      sentences[idx] = sentences[idx].replace(/[.!?]$/, '') + ' — ' + 
+        sentences[idx + 1].charAt(0).toLowerCase() + sentences[idx + 1].slice(1);
+      sentences.splice(idx + 1, 1);
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * LOGIC 2: Idiosyncratic Markers Injection
+ * Adds natural-looking personal punctuation and self-corrections
+ */
+function injectIdiosyncrasy(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+  
+  // 1. Add one parenthetical aside (15% chance)
+  if (Math.random() < 0.15) {
+    const idx = Math.floor(Math.random() * (sentences.length - 1)) + 1;
+    const asides = [
+      ' (though that depends on the situation)',
+      ' (not always, but often enough)',
+      ' (it varies, really)',
+      ' (hard to generalize)',
+    ];
+    const aside = asides[Math.floor(Math.random() * asides.length)];
+    sentences[idx] = sentences[idx].replace(/[.!?]$/, '') + aside + '.';
+  }
+  
+  // 2. Add one self-correction (12% chance)
+  if (Math.random() < 0.12) {
+    const idx = Math.floor(Math.random() * sentences.length);
+    if (sentences[idx].length > 30) {
+      const corrections = [
+        ' — or rather, ',
+        ' — well, actually, ',
+        ' — I mean, ',
+      ];
+      const correction = corrections[Math.floor(Math.random() * corrections.length)];
+      const words = sentences[idx].split(' ');
+      const midPoint = Math.floor(words.length / 2);
+      words.splice(midPoint, 0, correction.trim());
+      sentences[idx] = words.join(' ');
+    }
+  }
+  
+  // 3. Add one ellipsis for trailing thought (10% chance)
+  if (Math.random() < 0.10 && sentences.length > 2) {
+    const idx = sentences.length - 2; // second-to-last sentence
+    if (!sentences[idx].endsWith('...') && sentences[idx].length > 25) {
+      sentences[idx] = sentences[idx].replace(/[.!?]$/, '...');
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * LOGIC 3: Structure Disruption — More Aggressive
+ * Forces uneven paragraph lengths
+ */
+function disruptStructure(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+  
+  const sentenceCounts = paragraphs.map(p => splitSentences(p).length);
+  
+  // If all paragraphs are 3-5 sentences (AI fingerprint), break the pattern
+  const allInRange = sentenceCounts.every(n => n >= 3 && n <= 5);
+  
+  if (allInRange) {
+    // Merge paragraphs 2 and 3 into one long one
+    if (paragraphs.length >= 3) {
+      paragraphs[1] = paragraphs[1] + ' ' + paragraphs[2];
+      paragraphs.splice(2, 1);
+    }
+    
+    // Add a standalone orphan sentence in the middle
+    const orphans = [
+      "That's the short version, anyway.",
+      "Makes you think, doesn't it.",
+      "Simple enough in theory.",
+      "Harder than it sounds, though.",
+    ];
+    const orphan = orphans[Math.floor(Math.random() * orphans.length)];
+    const insertIdx = Math.floor(paragraphs.length / 2);
+    paragraphs.splice(insertIdx, 0, orphan);
+  }
+  
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * LOGIC 4: Specificity Replacement — Abstract → Concrete
+ * Replaces 1-2 generic phrases with more specific alternatives
+ */
+function addSpecificity(text: string): string {
+  const replacements: Array<[RegExp, string]> = [
+    [/\bmany people\b/gi, 'most people I know'],
+    [/\bsome individuals\b/gi, 'a few folks'],
+    [/\bin many countries\b/gi, 'across much of the world'],
+    [/\bseveral factors\b/gi, 'a handful of things'],
+    [/\ba significant number\b/gi, 'quite a lot'],
+    [/\bin recent years\b/gi, 'over the past decade or so'],
+  ];
+  
+  let result = text;
+  let replacementsMade = 0;
+  const maxReplacements = 2; // Only 1-2 per text
+  
+  for (const [pattern, replacement] of replacements) {
+    if (replacementsMade >= maxReplacements) break;
+    if (pattern.test(result) && Math.random() < 0.5) {
+      result = result.replace(pattern, replacement);
+      replacementsMade++;
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * LOGIC 5: Voice Imprinting — Conditional First-Person
+ * Adds one light first-person sentence if source has none
+ */
+function allowConditionalFirstPerson(text: string, sourceText: string): string {
+  const sourceHasFirstPerson = /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(sourceText);
+  if (sourceHasFirstPerson) return text;
+  
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+  
+  // 30% chance to inject one light first-person
+  if (Math.random() < 0.3) {
+    const openers = [
+      "I'd argue that ",
+      "From what I've seen, ",
+      "Honestly, I think ",
+      "In my experience, ",
+    ];
+    const opener = openers[Math.floor(Math.random() * openers.length)];
+    const targetIdx = Math.floor(sentences.length * 0.6); // Around 60% through
+    sentences[targetIdx] = opener + sentences[targetIdx].charAt(0).toLowerCase() + sentences[targetIdx].slice(1);
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * LOGIC 6: N-gram De-contamination
+ * Breaks patterns where 3+ consecutive sentences start the same way
+ */
+function breakNgramPatterns(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+  
+  for (let i = 0; i < sentences.length - 2; i++) {
+    const first1 = sentences[i].split(/\s+/)[0]?.toLowerCase();
+    const first2 = sentences[i + 1].split(/\s+/)[0]?.toLowerCase();
+    const first3 = sentences[i + 2].split(/\s+/)[0]?.toLowerCase();
+    
+    // Detect: "The X. The Y. The Z." pattern
+    if (first1 === 'the' && first2 === 'the' && first3 === 'the') {
+      // Change the middle sentence's structure
+      const words = sentences[i + 1].split(/\s+/);
+      if (words.length > 5) {
+        // Move the subject to later in the sentence
+        sentences[i + 1] = 'For ' + words.slice(1, 3).join(' ') + ', ' + words.slice(3).join(' ');
+      }
+    }
+    
+    // Detect: "X is Y. X is Z. X is W." or similar parallel structure
+    if (first1 === first2 && first2 === first3 && first1.length > 3) {
+      sentences[i + 1] = 'And ' + sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
+      break;
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * LOGIC 7: Vocabulary Entropy Boost
+ * Replaces 2-3 common words with lower-frequency alternatives
+ */
+function boostVocabularyEntropy(text: string): string {
+  const lowFrequencyMap: Record<string, string[]> = {
+    'good': ['solid', 'decent'],
+    'bad': ['rough', 'tricky'],
+    'important': ['key', 'big'],
+    'problem': ['headache', 'hassle'],
+    'many': ['plenty of', 'loads of'],
+    'difficult': ['tough', 'hard going'],
+    'very': ['pretty', 'quite'],
+    'really': ['genuinely', 'truly'],
+    'things': ['stuff', 'factors'],
+    'help': ['support', 'boost'],
+  };
+  
+  let result = text;
+  let changes = 0;
+  const maxChanges = 3;
+  
+  for (const [word, alternatives] of Object.entries(lowFrequencyMap)) {
+    if (changes >= maxChanges) break;
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    if (regex.test(result) && Math.random() < 0.4) {
+      const replacement = alternatives[Math.floor(Math.random() * alternatives.length)];
+      result = result.replace(regex, replacement);
+      changes++;
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Master function: applies all 7 targeted human imprint transformations
+ */
+export function applyTargetedHumanImprint(text: string, sourceText: string): string {
+  if (!text || text.length < 100) return text;
+  
+  let result = text;
+  
+  result = enforceBurstinessPerSentence(result);
+  result = injectIdiosyncrasy(result);
+  result = disruptStructure(result);
+  result = addSpecificity(result);
+  result = allowConditionalFirstPerson(result, sourceText);
+  result = breakNgramPatterns(result);
+  result = boostVocabularyEntropy(result);
+  
+  return result;
+}
+
 function applyStructuralChaos(text: string): string {
   if (text.length < 100) return text;
 
@@ -1312,9 +1582,10 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     result = makeDiscursiveEnglishMoreDirect(result);
   }
   
-  // NEW: Apply structural randomization for english-general
+  // NEW: Apply structural randomization + targeted human imprint for english-general
   if (tone === "english-general") {
     result = humanizeStructureEnglish(result);
+    result = applyTargetedHumanImprint(result, text);
   }
 
   result = addHumanTouches(result, tone);
