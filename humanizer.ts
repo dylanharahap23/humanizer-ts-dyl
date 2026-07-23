@@ -51,229 +51,21 @@ export type HumanizerPromptConfig = {
 };
 
 // ============================================================
-// 1. QUESTION FRAME DETECTION & REFRAMING
-// ============================================================
-
-type QuestionFrame = 
-  | 'explain-causes'
-  | 'compare-two'
-  | 'yes-no'
-  | 'definition'
-  | 'evaluate'
-  | 'general-explanation'
-  | 'none';
-
-type ReframingStrategy = {
-  reframe: string;
-  approach: string;
-  avoidPatterns: string[];
-};
-
-function detectImplicitFrame(text: string): QuestionFrame {
-  const lower = text.toLowerCase();
-  
-  // Detect explain-causes from listing patterns
-  if (/\b(one reason|another factor|finally,|this is because|as a result|several factors|multiple causes)\b/i.test(lower)) {
-    return 'explain-causes';
-  }
-  
-  // Detect compare-two from contrast signals
-  if (/\b(on the other hand|whereas|while.*is|compared to|difference between|unlike)\b/i.test(lower)) {
-    return 'compare-two';
-  }
-  
-  // Detect yes-no from hedged evaluations
-  if (/\b(can be seen as|it would be|some people perceive|not necessarily|it is important to recognize)\b/i.test(lower)) {
-    return 'yes-no';
-  }
-  
-  // Check for explicit question patterns
-  if (/\b(why\s+do|why\s+are|why\s+is|why\s+does|why\s+would|reasons?\s+why|causes?\s+of|factors?\s+(?:that|behind)|explain\s+why)\b/i.test(lower)) {
-    return 'explain-causes';
-  }
-  
-  if (/\b(difference\s+between|compare|vs\.|versus|rather\s+than|instead\s+of|more\s+than|less\s+than)\b/i.test(lower)) {
-    return 'compare-two';
-  }
-  
-  if (/^(is|are|do|does|will|would|could|should|can|has|have)\s+[^?]*\?/i.test(text.trim())) {
-    return 'yes-no';
-  }
-  
-  if (/^(what\s+is|what\s+are|define|meaning\s+of|definition\s+of)/i.test(lower)) {
-    return 'definition';
-  }
-  
-  if (/\b(is\s+it\s+(?:good|bad|worth|better)|should\s+you|is\s+[^?]+\s+(?:worth|better|worse))\b/i.test(lower)) {
-    return 'evaluate';
-  }
-  
-  if (/\b(how\s+does|how\s+do|what\s+happens|what\s+are|how\s+to|understand|explain|describe)\b/i.test(lower)) {
-    return 'general-explanation';
-  }
-  
-  return 'none';
-}
-
-function getReframingStrategy(frame: QuestionFrame, text: string): ReframingStrategy | null {
-  const lower = text.toLowerCase();
-  
-  // Wealth/stinginess pattern
-  if (/\b(wealth|rich|stingy|stinginess|money|wealthy)\b/i.test(text)) {
-    return {
-      reframe: "The real question isn't whether wealth makes people stingy—it's whether hard work changes how you value money.",
-      approach: "Reframe wealth not as the cause of behavior, but as a magnifier of pre-existing values.",
-      avoidPatterns: ["psychological factors", "economic factors", "social factors", "personality plays a role"]
-    };
-  }
-  
-  // IQ/intelligence pattern
-  if (/\b(iq|intelligence|smart|intelligent|gifted)\b/i.test(text)) {
-    return {
-      reframe: "It's a difference in speed, not kind—like comparing a sprinter to a marathon runner.",
-      approach: "Frame intellectual differences as variations in processing style and pace, not as a hierarchy.",
-      avoidPatterns: ["highly gifted", "cognitive abilities", "mental capacity", "significantly more intelligent"]
-    };
-  }
-  
-  // EV/consumer pattern
-  if (/\b(electric vehicle|ev|china|chinese|manufacturer|car|buying)\b/i.test(text)) {
-    return {
-      reframe: "The gamble isn't about China—it's about which specific manufacturer you pick.",
-      approach: "Frame the discussion around manufacturer-specific risks rather than country-of-origin risks.",
-      avoidPatterns: ["Chinese EVs are", "buying from China", "the risk of Chinese", "country of origin"]
-    };
-  }
-  
-  // Unemployment/youth pattern
-  if (/\b(young|youth|graduate|unemploy|jobless|24|twenty-four)\b/i.test(text)) {
-    return {
-      reframe: "The entire pipeline from education to employment is broken—it's not that they're lazy.",
-      approach: "Frame as a systemic failure rather than individual shortcomings.",
-      avoidPatterns: ["young people lack", "graduates are not", "they need to", "skills gap"]
-    };
-  }
-  
-  // Aging/skin pattern
-  if (/\b(skin|aging|wrinkles?|youthful|appear younger|chinese heritage)\b/i.test(text)) {
-    return {
-      reframe: "It's not one thing—it's skin structure, daily habits, and beauty standards all stacked together.",
-      approach: "Frame as a layered combination rather than isolated factors. Focus on interaction between biology and behavior.",
-      avoidPatterns: ["genetics plays an important role", "lifestyle and environmental factors are equally important", "finally, grooming"]
-    };
-  }
-  
-  // Oil/fuel prices pattern
-  if (/\b(oil|fuel|crude|gasoline|diesel|pump|barrel|opec)\b/i.test(text)) {
-    return {
-      reframe: "Everyone blames crude oil prices. But that's barely half the story.",
-      approach: "Frame as a system of overlapping costs rather than a single cause. Focus on the gap between crude prices and what people actually pay.",
-      avoidPatterns: ["supply and demand", "global market dynamics", "government policies", "therefore, persistently high"]
-    };
-  }
-  
-  // Medical/dating/relationships pattern
-  if (/\b(medical student|dating|relationship|selective|self-important|arrogance)\b/i.test(text)) {
-    return {
-      reframe: "People love calling medical students arrogant. The reality is way more boring than that.",
-      approach: "Frame selectiveness as a practical response to extreme time constraints, not a personality flaw.",
-      avoidPatterns: ["one important factor", "another reason", "social and economic considerations", "ultimately, selectiveness"]
-    };
-  }
-  
-  // Generic fallbacks
-  if (frame === 'explain-causes') {
-    return {
-      reframe: "The real question isn't why this happens—it's why we keep asking the wrong question.",
-      approach: "Challenge the premise. Frame as a complex interaction rather than a simple cause.",
-      avoidPatterns: ["one reason is", "another factor is", "finally", "therefore"]
-    };
-  }
-  
-  if (frame === 'compare-two') {
-    return {
-      reframe: "Comparing these two misses the point—they're really different expressions of the same thing.",
-      approach: "Frame comparisons as false dichotomies.",
-      avoidPatterns: ["on the one hand", "on the other hand", "while X is", "whereas Y is"]
-    };
-  }
-  
-  if (frame === 'yes-no') {
-    return {
-      reframe: "The question isn't whether it's true—it's what we mean by 'true' in the first place.",
-      approach: "Frame as a matter of definition or perspective rather than fact.",
-      avoidPatterns: ["the evidence shows", "studies indicate", "research has found", "it is clear that"]
-    };
-  }
-  
-  return null;
-}
-
-function buildReframingInstruction(text: string): string {
-  const frame = detectImplicitFrame(text);
-  const strategy = getReframingStrategy(frame, text);
-  if (!strategy) return '';
-  
-  // RANDOMIZED openings so it doesn't always say "The real question isn't..."
-  const openings = [
-    `REFRAMING INSTRUCTION: Start with this perspective: "${strategy.reframe}"`,
-    `REFRAMING INSTRUCTION: Open with a personal take: "Look, ${strategy.reframe.charAt(0).toLowerCase() + strategy.reframe.slice(1)}"`,
-    `REFRAMING INSTRUCTION: Challenge the premise directly. Begin with: "${strategy.reframe}"`,
-    `REFRAMING INSTRUCTION: Use a conversational opener. Start by saying: "Here's what most people miss: ${strategy.reframe.charAt(0).toLowerCase() + strategy.reframe.slice(1)}"`,
-    `REFRAMING INSTRUCTION: Open with: "${strategy.reframe}"`,
-  ];
-  
-  const chosen = openings[Math.floor(Math.random() * openings.length)];
-  return `${chosen}. Approach: ${strategy.approach}. AVOID these patterns: ${strategy.avoidPatterns.join(', ')}.`;
-}
-
-// ============================================================
-// 2. PROMPTS
+// 1. PROMPTS
 // ============================================================
 
 const CASUAL_NATURAL_PROMPT = `
-You rewrite text so it sounds like it came from a real person, not a template.
-
-**CRITICAL: CONCEPTUAL REFRAMING**
-Before you write anything, identify the implicit question or assumption in the source text. Then ask yourself: is this the right question? Human writers often challenge the premise rather than directly answering it. If there's a more useful framing, start there.
-
-**For non-academic, non-sensitive text:** You MAY use first-person opinions ("I think", "from what I've seen"), second-person address ("you might notice"), rhetorical questions, and mild emotional language. These make text sound human. Use them naturally, not excessively.
+Rewrite the text in natural, direct English. Start with the subject itself — no throat-clearing, no "the real question is", no reframing.
 
 Core rules:
-1. Preserve the user's meaning, intent, and key facts.
-2. If the input is a question, rewrite it naturally. Do not just answer it with a list of factors.
-3. If the input is structured, keep the useful structure only when it helps.
-4. Match the requested language direction exactly when the app settings mention one.
-
-Register and voice requirements:
-- Silently identify whether the source is a neutral explanation, an argument, or a personal account.
-- For neutral explanations, use direct English and organize the text around idea changes.
-- For arguments, preserve the author's actual position.
-- For personal accounts, preserve concrete details, uncertainty, and chronology.
-- Repeat the main topic words when repetition improves clarity.
-- Paragraph length should follow the amount of material in each idea.
-- Do not paraphrase every sentence. Leave wording intact when it is already natural.
-
-Human voice requirements:
-- Use a conversational rhythm: a mix of short, medium, and longer sentences.
-- Use contractions naturally in English: don't, can't, it's, I'll, you're, they've.
-- Use everyday phrasing, small pauses, and light personal voice when it fits.
-- Add small human unevenness: a sentence fragment, a mild repetition, or a direct aside.
-- Avoid sterile transitions like "moreover" or "in conclusion".
-- Avoid perfect symmetry. Real people do not write every paragraph with the same length and shape.
-- **Avoid listing factors: "one reason is... another factor is... finally..."**
-
-For Indonesian casual output:
-- Make it sound natural, warm, and human.
-- Use relaxed wording only when appropriate: "nggak", "banget", "rasanya", "jujur aja".
-
-Do not:
-- Add explanations before or after the rewritten text.
-- Add fake facts, fake citations, or fake statistics.
-- Over-polish the text until it sounds corporate or academic.
-- Use robotic bullet points unless the user clearly needs a list.
-- Use a generic closing sequence such as "Ultimately", "In truth", or "So, this is simply".
-- **Do not structure your response as "topic sentence → evidence → example → conclusion" unless the source demands it.**
+1. Preserve all facts, claims, and qualifications exactly.
+2. Use contractions naturally: don't, can't, it's, you're.
+3. Vary sentence length. Mix short statements (3-5 words) with longer explanations (15-25 words).
+4. Break up long lists into flowing prose.
+5. Avoid formulaic transitions: "moreover", "furthermore", "in conclusion", "ultimately".
+6. Do not add a concluding summary. End on the last substantive point.
+7. Do not add rhetorical questions, filler words, opinions, or emotional language.
+8. Do not add "honestly", "look", "here's the thing", "let's be real".
 
 Return only the rewritten text.
 `;
@@ -850,10 +642,6 @@ export function getEnglishHumanizerConfig(
   writingPurpose: EnglishWritingPurpose = "General"
 ): HumanizerPromptConfig {
   const profile = detectEnglishWritingProfile(sourceText, writingPurpose);
-  const reframingInstruction = buildReframingInstruction(sourceText);
-
-  const baseInstruction = (existing: string) => 
-    reframingInstruction ? `${reframingInstruction} ${existing}` : existing;
 
   if (profile === "consumer-explainer") {
     return {
@@ -864,8 +652,8 @@ export function getEnglishHumanizerConfig(
       frequencyPenalty: 0,
       presencePenalty: 0,
       repetitionPenalty: 1,
-      additionalInstruction: baseInstruction(
-        "Recompose the long-term buying analysis around the source's decision rule. Merge factor-by-factor sections, preserve every uncertainty and criterion, use second person only for the buying decision, and add no brand, model, anecdote, or outside fact."
+      additionalInstruction: 
+        "Recompose the long-term buying analysis around the source's decision rule. Merge factor-by-factor sections, preserve every uncertainty and criterion, use second person only for the buying decision, and add no brand, model, anecdote, or outside fact.",
       ),
       postProcessTone: "english-consumer",
     };
@@ -879,7 +667,7 @@ export function getEnglishHumanizerConfig(
       frequencyPenalty: 0,
       presencePenalty: 0,
       repetitionPenalty: 1,
-      additionalInstruction: baseInstruction(
+      additionalInstruction: 
         "Recompose the legal-policy explanation around enforcement authority and practical dependency. Split dense clauses, remove factor-by-factor signposts, preserve every qualification, and add no outside case, opinion, or crime category."
       ),
       postProcessTone: "english-policy",
@@ -923,7 +711,7 @@ export function getEnglishHumanizerConfig(
       frequencyPenalty: 0.03,
       presencePenalty: 0.03,
       repetitionPenalty: 1.01,
-      additionalInstruction: baseInstruction(
+      additionalInstruction: 
         "Use a reader-oriented reflective voice from the source claims only. Conditional second person is allowed, but preserve every hedge, fact, example, and causal relationship; add no illustrative detail."
       ),
       postProcessTone: "english-reflective",
@@ -938,7 +726,7 @@ export function getEnglishHumanizerConfig(
       frequencyPenalty: 0,
       presencePenalty: 0,
       repetitionPenalty: 1.01,
-      additionalInstruction: baseInstruction(
+      additionalInstruction: 
         "Recompose the explanation as a source-faithful practical guide. Reader address is allowed, but add no personal story, authority, example, or recommendation absent from the source."
       ),
       postProcessTone: "english-practical",
@@ -953,7 +741,7 @@ export function getEnglishHumanizerConfig(
       frequencyPenalty: 0,
       presencePenalty: 0,
       repetitionPenalty: 1.01,
-      additionalInstruction: baseInstruction(
+      additionalInstruction: 
         "Use direct everyday English and regroup the source claims by idea. Preserve uncertainty and practical details exactly; do not add a narrator, rhetorical questions, anecdotes, or outside knowledge."
       ),
       postProcessTone: "english-discursive",
@@ -968,7 +756,7 @@ export function getEnglishHumanizerConfig(
       frequencyPenalty: 0,
       presencePenalty: 0,
       repetitionPenalty: 1.01,
-      additionalInstruction: baseInstruction(
+      additionalInstruction: 
         "Recompose from the source's claim units instead of rewriting sentence by sentence. Preserve the neutral point of view and factual scope, use ordinary vocabulary, and do not mirror the source's paragraph skeleton."
       ),
       postProcessTone: "english-expository",
@@ -998,7 +786,7 @@ export function getEnglishHumanizerConfig(
       frequencyPenalty: 0.05,
       presencePenalty: 0.03,
       repetitionPenalty: 1.01,
-      additionalInstruction: baseInstruction(
+      additionalInstruction: 
         "Keep the stated position clear and source-faithful. Vary emphasis through the reasoning itself; do not invent a narrator, anecdote, question, typo, or dramatic aside."
       ),
       postProcessTone: "english-argument",
@@ -1718,33 +1506,7 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
 
   let result = text.trim();
 
-  // Apply non-native imperfections
-  const needsImperfections = 
-    tone === "english-general" ||
-    tone === "english-expository" ||
-    tone === "english-consumer" ||
-    tone === "english-discursive";
-
-  if (needsImperfections) {
-    const intensity = tone === "english-general" ? "medium" : "low";
-    result = injectNonNativeImperfections(result, intensity);
-  }
-
-  // Apply authentic idiosyncrasy (the key to beating GPTZero 4.7b)
-  const needsIdiosyncrasy = 
-    tone === "english-general" ||
-    tone === "english-expository" ||
-    tone === "english-consumer" ||
-    tone === "english-discursive" ||
-    tone === "casual";
-
-  if (needsIdiosyncrasy) {
-    result = injectDistributedImperfections(result);  // ← ADD THIS LINE
-    result = injectAuthenticIdiosyncrasy(result);
-    result = injectRecalledDetails(result);
-  }
-
-  // Profile-specific direct rewrites
+  // Profile-specific direct rewrites only — no chaos injections
   if (tone === "english-reflective") {
     result = makeReflectiveEnglishMoreDirect(result);
   }
@@ -1759,7 +1521,6 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   }
 
   result = addHumanTouches(result, tone);
-
   return cleanupEnglishSpacing(result);
 }
 
