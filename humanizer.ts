@@ -163,6 +163,24 @@ function getReframingStrategy(frame: QuestionFrame, text: string): ReframingStra
     };
   }
   
+  // Oil/fuel prices pattern
+  if (/\b(oil|fuel|crude|gasoline|diesel|pump|barrel|opec)\b/i.test(text)) {
+    return {
+      reframe: "Everyone blames crude oil prices. But that's barely half the story.",
+      approach: "Frame as a system of overlapping costs rather than a single cause. Focus on the gap between crude prices and what people actually pay.",
+      avoidPatterns: ["supply and demand", "global market dynamics", "government policies", "therefore, persistently high"]
+    };
+  }
+  
+  // Medical/dating/relationships pattern
+  if (/\b(medical student|dating|relationship|selective|self-important|arrogance)\b/i.test(text)) {
+    return {
+      reframe: "People love calling medical students arrogant. The reality is way more boring than that.",
+      approach: "Frame selectiveness as a practical response to extreme time constraints, not a personality flaw.",
+      avoidPatterns: ["one important factor", "another reason", "social and economic considerations", "ultimately, selectiveness"]
+    };
+  }
+  
   // Generic fallbacks
   if (frame === 'explain-causes') {
     return {
@@ -196,7 +214,17 @@ function buildReframingInstruction(text: string): string {
   const strategy = getReframingStrategy(frame, text);
   if (!strategy) return '';
   
-  return `REFRAMING INSTRUCTION: Start with this perspective: "${strategy.reframe}". Approach: ${strategy.approach}. AVOID these patterns: ${strategy.avoidPatterns.join(', ')}.`;
+  // RANDOMIZED openings so it doesn't always say "The real question isn't..."
+  const openings = [
+    `REFRAMING INSTRUCTION: Start with this perspective: "${strategy.reframe}"`,
+    `REFRAMING INSTRUCTION: Open with a personal take: "Look, ${strategy.reframe.charAt(0).toLowerCase() + strategy.reframe.slice(1)}"`,
+    `REFRAMING INSTRUCTION: Challenge the premise directly. Begin with: "${strategy.reframe}"`,
+    `REFRAMING INSTRUCTION: Use a conversational opener. Start by saying: "Here's what most people miss: ${strategy.reframe.charAt(0).toLowerCase() + strategy.reframe.slice(1)}"`,
+    `REFRAMING INSTRUCTION: Open with: "${strategy.reframe}"`,
+  ];
+  
+  const chosen = openings[Math.floor(Math.random() * openings.length)];
+  return `${chosen}. Approach: ${strategy.approach}. AVOID these patterns: ${strategy.avoidPatterns.join(', ')}.`;
 }
 
 // ============================================================
@@ -980,11 +1008,11 @@ export function getEnglishHumanizerConfig(
   // GENERAL profile — with increased temperature and all reframing
   return {
     systemPrompt: `${CASUAL_NATURAL_PROMPT}\n\n${reframingInstruction ? reframingInstruction + '\n\n' : ''}Match the source register. Do not force slang, fragments, rhetorical questions, or personal claims merely to sound human.`,
-    temperature: 1.4,        // Increased from 1.3
-    topP: 0.99,              // Increased from 0.98
+    temperature: 1.6,        // ← WAS 1.4, now higher for lower probability tokens
+    topP: 0.99,
     maxTokens: 1600,
-    frequencyPenalty: 0.35,  // Increased from 0.25
-    presencePenalty: 0.25,   // Increased from 0.18
+    frequencyPenalty: 0.45,  // ← WAS 0.35, discourage common words more
+    presencePenalty: 0.35,   // ← WAS 0.25, encourage novel tokens more
     repetitionPenalty: 1.02,
     additionalInstruction:
       "Use direct natural English, preserve strategic repetition, and let paragraph boundaries follow the ideas. Avoid balanced template structure, stock conclusions, or invented details.",
@@ -999,6 +1027,40 @@ export function normalizeHumanizerTone(value: unknown): HumanizerTone {
 // ============================================================
 // 5. AUTHENTIC IDIOSYNCRASY INJECTOR
 // ============================================================
+
+function injectDistributedImperfections(text: string): string {
+  if (!text || text.length < 60) return text;
+  const sentences = splitSentences(text);
+  
+  for (let i = 0; i < sentences.length; i++) {
+    // 6% chance: add a real typo somewhere in the sentence
+    if (Math.random() < 0.06) {
+      sentences[i] = sentences[i]
+        .replace(/\bthe\b/gi, () => Math.random() < 0.4 ? 'teh' : 'the')
+        .replace(/\btheir\b/gi, () => Math.random() < 0.4 ? 'thier' : 'their')
+        .replace(/\bbecause\b/gi, () => Math.random() < 0.3 ? 'becuase' : 'because');
+    }
+    
+    // 5% chance: drop an article for non-native feel
+    if (Math.random() < 0.05 && sentences[i].length > 20) {
+      sentences[i] = sentences[i].replace(/\bthe\s+([a-z]+)\b/gi, (_, noun) => 
+        Math.random() < 0.4 ? noun : `the ${noun}`
+      );
+    }
+    
+    // 4% chance: add a filler word
+    if (Math.random() < 0.04 && sentences[i].length > 30) {
+      const fillers = ['honestly', 'basically', 'you know', 'actually'];
+      const filler = fillers[Math.floor(Math.random() * fillers.length)];
+      const words = sentences[i].split(' ');
+      const pos = Math.floor(Math.random() * Math.min(3, words.length));
+      words.splice(pos, 0, filler);
+      sentences[i] = words.join(' ');
+    }
+  }
+  
+  return sentences.join(' ');
+}
 
 function injectAuthenticIdiosyncrasy(text: string): string {
   if (!text || text.length < 60) return text;
@@ -1677,6 +1739,7 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     tone === "casual";
 
   if (needsIdiosyncrasy) {
+    result = injectDistributedImperfections(result);  // ← ADD THIS LINE
     result = injectAuthenticIdiosyncrasy(result);
     result = injectRecalledDetails(result);
   }
