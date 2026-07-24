@@ -1,1 +1,1 @@
-Nothing should be ignored based on the provided file changes. The modified files (`humanizer.ts`, `route.ts`) are source code files that should not be added to .gitignore.
+(route.ts)

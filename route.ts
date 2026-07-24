@@ -33,6 +33,7 @@ import {
   humanizeStructureEnglish,
   injectRealisticHumanFlaws,
   isComprehensiveNeutralExplanation,
+  injectHumanSpecifics,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -2149,12 +2150,13 @@ export async function POST(req: Request) {
         signal: controller.signal,
       });
 
+      let systemPrompt: string | undefined;
       if (convPass.applied) {
         currentText = convPass.text;
         secondPassApplied = true;
         secondPassModel = SECOND_PASS_MODEL;
         // Check if personal observation prompt was used
-        const systemPrompt = buildConversationalSecondPassPrompt(config.postProcessTone, text);
+        systemPrompt = buildConversationalSecondPassPrompt(config.postProcessTone, text);
         if (systemPrompt === PERSONAL_OBSERVATION_PROMPT) {
           personalRewriteApplied = true;
         }
