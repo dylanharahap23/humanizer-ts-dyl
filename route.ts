@@ -18,6 +18,8 @@ import {
   getEnglishHumanizerConfig,
   getSystemPromptByTone,
   normalizeHumanizerTone,
+  isFormalEssay,
+  BLOG_STYLE_SECOND_PASS_PROMPT,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -1019,7 +1021,8 @@ function shouldUseConversationalSecondPass(
 }
 
 function buildConversationalSecondPassPrompt(
-  tone: HumanizerPromptConfig["postProcessTone"]
+  tone: HumanizerPromptConfig["postProcessTone"],
+  sourceText?: string
 ): string {
   if (tone === "english-consumer") {
     return `You are a human writer re-writing a piece that was just rewritten by AI. The previous rewrite is too clean, too well-structured, and reads as machine-generated. Your job is to "mess it up" — make it sound REAL.
@@ -1075,7 +1078,10 @@ Return only the rewrite.`;
 Return only the rewrite.`;
   }
   
-  // Generic fallback - lebih transformatif
+  // Generic fallback – choose between conversational rewrite and blog-style restructure
+  if (sourceText && isFormalEssay(sourceText)) {
+    return BLOG_STYLE_SECOND_PASS_PROMPT;
+  }
   return `Rewrite the draft into a more natural, conversational explanation.
 
 IMPORTANT: This is a REWRITE, not a light edit. Change the sentence order, merge short related points, and vary the paragraph structure. Do NOT preserve the original paragraph order or sentence sequence.
@@ -1598,7 +1604,8 @@ async function applyConversationalSecondPass({
     return { text, applied: false };
   }
 
-  const systemPrompt = buildConversationalSecondPassPrompt(tone);
+  const systemPrompt = buildConversationalSecondPassPrompt(tone, sourceText);
+  const isBlogPass = systemPrompt === BLOG_STYLE_SECOND_PASS_PROMPT;
   const sourceWordCountForPrompt = sourceText.split(/\s+/).filter(Boolean).length;
   const profileLengthDirective =
     tone === "english-policy"
@@ -1626,7 +1633,7 @@ async function applyConversationalSecondPass({
     signal,
     body: JSON.stringify({
       model: SECOND_PASS_MODEL,
-      temperature:
+      temperature: isBlogPass ? 0.9 : (
         tone === "english-argument"
           ? 0.2
           : tone === "english-policy"
@@ -1635,8 +1642,9 @@ async function applyConversationalSecondPass({
               ? 0.3
               : tone === "english-practical"
                 ? 0.3
-                : 0.7, // DINAIIKAN dari 0.35 → 0.55 agar lebih transformatif
-      top_p:
+                : 0.7
+      ),
+      top_p: isBlogPass ? 0.95 : (
         tone === "english-argument"
           ? 0.85
           : tone === "english-policy"
@@ -1645,7 +1653,8 @@ async function applyConversationalSecondPass({
             ? 0.88
             : tone === "english-practical"
               ? 0.88
-              : 0.9,
+              : 0.9
+      ),
       max_tokens: 1400,
       frequency_penalty: 0,
       presence_penalty: 0,
