@@ -1041,6 +1041,7 @@ function buildConversationalSecondPassPrompt(
   // CEK: apakah ini teks netral komprehensif?
   if (sourceText && isComprehensiveNeutralExplanation(sourceText) && 
       (tone === "english-general" || tone === "english-expository" || tone === "english-discursive")) {
+    console.log("[Selective Rewrite] Triggered for comprehensive neutral text");
     return SELECTIVE_REWRITE_PROMPT;
   }
 
@@ -1641,6 +1642,12 @@ async function applyConversationalSecondPass({
   const isPersonalPass = systemPrompt === PERSONAL_OBSERVATION_PROMPT;
   const isParatacticPass = systemPrompt === PARATACTIC_RAW_DRAFT_PROMPT;
   const isSelectiveRewrite = systemPrompt === SELECTIVE_REWRITE_PROMPT;
+  
+  // Log untuk debugging selective rewrite
+  if (isSelectiveRewrite) {
+    console.log("[Second Pass] Using SELECTIVE_REWRITE_PROMPT with high temperature for creative rewriting");
+  }
+  
   const sourceWordCountForPrompt = sourceText.split(/\s+/).filter(Boolean).length;
   const profileLengthDirective =
     tone === "english-policy"
@@ -1668,7 +1675,7 @@ async function applyConversationalSecondPass({
     signal,
     body: JSON.stringify({
       model: SECOND_PASS_MODEL,
-      temperature: isParatacticPass ? 1.2 : (isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
+      temperature: isParatacticPass ? 1.2 : (isSelectiveRewrite ? 1.3 : (isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
         tone === "english-argument"
           ? 0.2
           : tone === "english-policy"
@@ -1678,8 +1685,8 @@ async function applyConversationalSecondPass({
               : tone === "english-practical"
                 ? 0.3
                 : 0.7
-      ))),
-      top_p: isParatacticPass ? 0.98 : (isBlogPass ? 0.95 : (
+      )))),
+      top_p: isParatacticPass ? 0.98 : (isSelectiveRewrite ? 0.95 : (isBlogPass ? 0.95 : (
         tone === "english-argument"
           ? 0.85
           : tone === "english-policy"
@@ -1689,7 +1696,7 @@ async function applyConversationalSecondPass({
             : tone === "english-practical"
               ? 0.88
               : 0.9
-      )),
+      ))),
       max_tokens: 1400,
       frequency_penalty: 0,
       presence_penalty: 0,
@@ -2185,6 +2192,7 @@ export async function POST(req: Request) {
       // NEW: For selective rewrite, inject human-specific elements (numbers, names, questions)
       const isSelectiveRewritePass = systemPrompt === SELECTIVE_REWRITE_PROMPT;
       if (isSelectiveRewritePass && config.postProcessTone.startsWith("english-")) {
+        console.log("[Final Pass] Injecting human specifics for selective rewrite");
         currentText = injectHumanSpecifics(currentText, text);
       }
     }

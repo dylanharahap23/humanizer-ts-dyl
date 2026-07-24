@@ -3168,6 +3168,16 @@ export function isComprehensiveNeutralExplanation(text: string): boolean {
   const hasConclusion = /\b(?:in conclusion|to sum up|ultimately|in summary|overall,|in the end|despite these|although)\b/i.test(text);
   // Deteksi cakupan luas
   const hasComprehensive = /\b(?:various|several|many|all|comprehensive|overview|overall)\b/i.test(text);
+  
+  console.log("[isComprehensiveNeutralExplanation] Debug:", {
+    paragraphCount: paragraphs.length,
+    hasFirstPerson,
+    hasListMarkers,
+    hasConclusion,
+    hasComprehensive,
+    willTrigger: (hasListMarkers || hasComprehensive) && hasConclusion
+  });
+  
   return (hasListMarkers || hasComprehensive) && hasConclusion;
 }
 
