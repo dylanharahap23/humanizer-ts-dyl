@@ -2996,27 +2996,41 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     result = introduceInefficiency(result);
     
     // ============================================================
+    // HUMAN RECONSTRUCTION: meniru cara manusia menulis ulang dari ingatan
+    // ============================================================
+    // 8. Hancurkan pemetaan 1:1 kalimat
+    result = destroySentenceMapping(result);
+    // 9. Acak alur reasoning
+    result = reorderReasoningFlow(result);
+    // 10. Drop sebagian coverage (hilangkan 1-2 subtopik)
+    result = dropSomeCoverage(result);
+    // 11. Kompres informasi (gabungkan poin, hilangkan detail)
+    result = introduceCompression(result);
+    // 12. Simulasi attention drift
+    result = simulateAttentionDrift(result);
+    
+    // ============================================================
     // FINAL ASSAULT: Destroy AI Thinking Patterns (Professor's analysis)
     // ============================================================
-    // 8. Restrukturisasi diskursus (acak urutan, kurangi coverage, pindahkan kesimpulan)
+    // 13. Restrukturisasi diskursus (acak urutan, kurangi coverage, pindahkan kesimpulan)
     result = restructureDiscourse(result);
     
-    // 9. Tambahkan emotional escalation
+    // 14. Tambahkan emotional escalation
     result = injectEmotionalEscalation(result);
     
-    // 10. Tambahkan "wasted sentences" (kalimat sia-sia)
+    // 15. Tambahkan "wasted sentences" (kalimat sia-sia)
     result = addWastedSentences(result);
     
-    // 11. Perkenalkan attention drift (cerita samping)
+    // 16. Perkenalkan attention drift (cerita samping)
     result = introduceAttentionDrift(result);
     
-    // 12. Break teacher mode (ubah menjadi pertanyaan/ajakan)
+    // 17. Break teacher mode (ubah menjadi pertanyaan/ajakan)
     result = breakTeacherMode(result);
     
-    // 13. Tambahkan ambiguity (lemahkan kepastian)
+    // 18. Tambahkan ambiguity (lemahkan kepastian)
     result = addAmbiguity(result);
     
-    // 14. Personalize voice (tambahkan ciri khas penulis)
+    // 19. Personalize voice (tambahkan ciri khas penulis)
     result = personalizeVoice(result);
   }
   
@@ -4466,6 +4480,202 @@ export function personalizeVoice(text: string): string {
     "Live and learn, I guess.",
   ];
   sentences.push(signaturePhrases[Math.floor(Math.random() * signaturePhrases.length)]);
+
+  return sentences.join(' ');
+}
+
+// ============================================================
+// FUNGSI UNTUK MENIRU "HUMAN RECONSTRUCTION" (Professor's analysis)
+// ============================================================
+
+/**
+ * 1. Hancurkan pemetaan 1:1 kalimat – ubah jumlah dan urutan kalimat,
+ *    gabungkan beberapa kalimat menjadi satu, atau pecah dengan cara berbeda.
+ */
+export function destroySentenceMapping(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  // 1. Gabungkan 2 kalimat berurutan menjadi satu (dengan konjungsi sederhana)
+  for (let i = 0; i < sentences.length - 1; i++) {
+    if (Math.random() < 0.25 && sentences[i].length > 20 && sentences[i + 1].length > 20) {
+      const combined = sentences[i].replace(/[.!?]$/, '') + ', and ' + sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
+      sentences.splice(i, 2, combined);
+      break; // cukup satu kali
+    }
+  }
+
+  // 2. Pecah satu kalimat panjang menjadi 2 kalimat (di koma atau titik koma)
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    if (s.split(/\s+/).length > 20 && s.includes(', ')) {
+      const parts = s.split(/,\s+/);
+      if (parts.length >= 2) {
+        const mid = Math.floor(parts.length / 2);
+        const first = parts.slice(0, mid).join(', ') + '.';
+        const second = parts.slice(mid).join(', ').charAt(0).toUpperCase() + parts.slice(mid).join(', ').slice(1);
+        sentences.splice(i, 1, first, second);
+        break; // cukup satu kali
+      }
+    }
+  }
+
+  // 3. Ubah urutan 2 kalimat yang tidak kritis
+  if (sentences.length > 4) {
+    const idx1 = Math.floor(Math.random() * (sentences.length - 2)) + 1;
+    const idx2 = Math.min(idx1 + 1 + Math.floor(Math.random() * 2), sentences.length - 1);
+    if (idx1 !== idx2 && Math.random() < 0.3) {
+      [sentences[idx1], sentences[idx2]] = [sentences[idx2], sentences[idx1]];
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+/**
+ * 2. Acak urutan alur reasoning secara radikal – bukan sekadar pindah kesimpulan.
+ *    Pindahkan paragraf yang berisi "penyebab" ke posisi setelah "solusi", dll.
+ */
+export function reorderReasoningFlow(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4) {
+    text = forceParagraphSplit(text, 4);
+    paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  }
+  if (paragraphs.length < 4) return text;
+
+  // Identifikasi paragraf yang mungkin berisi "definisi", "penyebab", "solusi", "kesimpulan"
+  const definitionIdx = paragraphs.findIndex(p => /\b(definition|defined|is|are|refers to)\b/i.test(p) && p.length < 100);
+  const causeIdx = paragraphs.findIndex(p => /\b(cause|reason|factor|because|due to|lead to|contribute)\b/i.test(p));
+  const solutionIdx = paragraphs.findIndex(p => /\b(solution|treatment|therapy|prevent|manage|improve|recover)\b/i.test(p));
+  const conclusionIdx = paragraphs.findIndex(p => /\b(conclusion|summary|ultimately|in the end|therefore|thus)\b/i.test(p));
+
+  // Kumpulkan indeks yang valid
+  const indices = [definitionIdx, causeIdx, solutionIdx, conclusionIdx].filter(i => i >= 0 && i < paragraphs.length);
+  if (indices.length < 2) return text;
+
+  // Acak urutan paragraf yang teridentifikasi, sisanya tetap
+  const selected = indices.map(i => paragraphs[i]);
+  // Acak selected
+  for (let i = selected.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [selected[i], selected[j]] = [selected[j], selected[i]];
+  }
+  // Ganti di posisi asli dengan urutan baru
+  for (let i = 0; i < indices.length; i++) {
+    paragraphs[indices[i]] = selected[i];
+  }
+
+  // Sisipkan paragraf "pengalihan" (attention drift) di tengah
+  const driftParagraphs = [
+    "I remember reading a completely different article about this the other day—it said something else entirely. Not sure which one is right.",
+    "My friend once told me a story about this, but I can't remember the details now. Anyway, back to the point.",
+    "Honestly, I've never really understood why people care so much about this specific detail. But I guess it matters to some.",
+    "I was going to mention something else, but I forgot. Classic.",
+  ];
+  const insertIdx = Math.floor(paragraphs.length * 0.5) + 1;
+  paragraphs.splice(insertIdx, 0, driftParagraphs[Math.floor(Math.random() * driftParagraphs.length)]);
+
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * 3. Drop coverage: hapus 1-2 subtopik/poin secara acak,
+ *    sehingga tidak semua informasi asli dipertahankan.
+ */
+export function dropSomeCoverage(text: string): string {
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4) return text;
+
+  // Ambil paragraf tengah (bukan pembuka dan penutup)
+  const middle = paragraphs.slice(1, -1);
+  if (middle.length < 3) return text;
+
+  // Hapus 1-2 paragraf secara acak dari middle
+  const dropCount = Math.min(2, Math.floor(middle.length * 0.2) + 1);
+  const indicesToDrop = new Set<number>();
+  while (indicesToDrop.size < dropCount) {
+    indicesToDrop.add(Math.floor(Math.random() * middle.length));
+  }
+  const remainingMiddle = middle.filter((_, i) => !indicesToDrop.has(i));
+
+  // Gabung kembali
+  return [paragraphs[0], ...remainingMiddle, paragraphs[paragraphs.length - 1]].join('\n\n');
+}
+
+/**
+ * 4. Kompresi informasi: gabungkan beberapa poin menjadi satu pernyataan ringkas,
+ *    hilangkan detail yang tidak penting.
+ */
+export function introduceCompression(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  // Cari 2 kalimat yang membahas topik serupa (kata kunci overlap)
+  for (let i = 0; i < sentences.length - 1; i++) {
+    const words1 = sentences[i].toLowerCase().split(/\s+/).filter(w => w.length > 4);
+    const words2 = sentences[i + 1].toLowerCase().split(/\s+/).filter(w => w.length > 4);
+    const overlap = words1.filter(w => words2.includes(w));
+    if (overlap.length >= 2 && Math.random() < 0.4) {
+      // Gabungkan menjadi satu kalimat pendek
+      const combined = sentences[i].replace(/[.!?]$/, '') + ', and also ' + sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
+      // Potong menjadi maksimum 15 kata
+      const wordsCombined = combined.split(/\s+/);
+      if (wordsCombined.length > 20) {
+        const shortened = wordsCombined.slice(0, 15).join(' ') + ' ... (among other things).';
+        sentences.splice(i, 2, shortened);
+      } else {
+        sentences.splice(i, 2, combined);
+      }
+      break;
+    }
+  }
+
+  // Hapus satu kalimat yang berisi detail tambahan (misal "such as", "including")
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\b(such as|including|for example|like)\b/i.test(sentences[i]) && Math.random() < 0.3) {
+      sentences.splice(i, 1);
+      break;
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+/**
+ * 5. Simulasi attention drift: tambahkan pengalihan pikiran,
+ *    komentar pribadi, atau pernyataan "lupa" yang tidak menambah informasi.
+ */
+export function simulateAttentionDrift(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  const driftMarkers = [
+    "Wait, no—that's not what I meant.",
+    "Actually, I just remembered something else.",
+    "I think I'm getting off track here.",
+    "This reminds me of a completely unrelated thing.",
+    "I'm not sure why I even brought that up.",
+    "Oh well, moving on.",
+    "I should probably focus on the main point.",
+  ];
+
+  // Sisipkan 1-2 drift markers di posisi acak
+  const count = Math.min(2, Math.floor(sentences.length / 3) + 1);
+  for (let i = 0; i < count; i++) {
+    const pos = Math.floor(Math.random() * sentences.length);
+    const marker = driftMarkers[Math.floor(Math.random() * driftMarkers.length)];
+    sentences.splice(pos, 0, marker);
+  }
+
+  // Tambahkan satu kalimat yang menunjukkan "lupa" di akhir
+  const forgetfulEndings = [
+    "I forgot what else I was going to say.",
+    "Anyway, I think that's enough.",
+    "I'll leave it at that.",
+    "Not sure if that answered the question.",
+  ];
+  sentences.push(forgetfulEndings[Math.floor(Math.random() * forgetfulEndings.length)]);
 
   return sentences.join(' ');
 }
