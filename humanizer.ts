@@ -925,41 +925,43 @@ function humanizeStructureEnglish(text: string): string {
 /**
  * LOGIC 1: Per-Sentence Perplexity Variance (Burstiness Real)
  * Forces extreme sentence length variation
+ * 
+ * DEPRECATED: Replaced by enforceAggressiveBurstiness in applyAntiDetectionPass
  */
-function enforceBurstinessPerSentence(text: string): string {
-  const sentences = splitSentences(text);
-  if (sentences.length < 5) return text;
-  
-  // Pick 2-3 sentences to compress to very short (3-6 words)
-  const shortCount = Math.min(3, Math.floor(sentences.length * 0.15));
-  const shortIndices = new Set<number>();
-  while (shortIndices.size < shortCount) {
-    const idx = Math.floor(Math.random() * sentences.length);
-    if (sentences[idx].split(/\s+/).length > 10) {
-      shortIndices.add(idx);
-    }
-  }
-  
-  for (const idx of shortIndices) {
-    const words = sentences[idx].split(/\s+/);
-    // Take just the core 4-6 words
-    const core = words.slice(0, Math.min(6, Math.floor(words.length * 0.4)));
-    sentences[idx] = core.join(' ') + '.';
-  }
-  
-  // Pick 1-2 pairs of adjacent sentences to merge into one long sentence
-  const mergeCount = Math.min(2, Math.floor(sentences.length * 0.1));
-  for (let m = 0; m < mergeCount; m++) {
-    const idx = Math.floor(Math.random() * (sentences.length - 1));
-    if (sentences[idx].length > 15 && sentences[idx + 1].length > 15) {
-      sentences[idx] = sentences[idx].replace(/[.!?]$/, '') + ' — ' + 
-        sentences[idx + 1].charAt(0).toLowerCase() + sentences[idx + 1].slice(1);
-      sentences.splice(idx + 1, 1);
-    }
-  }
-  
-  return sentences.join(' ');
-}
+// function enforceBurstinessPerSentence(text: string): string {
+//   const sentences = splitSentences(text);
+//   if (sentences.length < 5) return text;
+//   
+//   // Pick 2-3 sentences to compress to very short (3-6 words)
+//   const shortCount = Math.min(3, Math.floor(sentences.length * 0.15));
+//   const shortIndices = new Set<number>();
+//   while (shortIndices.size < shortCount) {
+//     const idx = Math.floor(Math.random() * sentences.length);
+//     if (sentences[idx].split(/\s+/).length > 10) {
+//       shortIndices.add(idx);
+//     }
+//   }
+//   
+//   for (const idx of shortIndices) {
+//     const words = sentences[idx].split(/\s+/);
+//     // Take just the core 4-6 words
+//     const core = words.slice(0, Math.min(6, Math.floor(words.length * 0.4)));
+//     sentences[idx] = core.join(' ') + '.';
+//   }
+//   
+//   // Pick 1-2 pairs of adjacent sentences to merge into one long sentence
+//   const mergeCount = Math.min(2, Math.floor(sentences.length * 0.1));
+//   for (let m = 0; m < mergeCount; m++) {
+//     const idx = Math.floor(Math.random() * (sentences.length - 1));
+//     if (sentences[idx].length > 15 && sentences[idx + 1].length > 15) {
+//       sentences[idx] = sentences[idx].replace(/[.!?]$/, '') + ' — ' + 
+//         sentences[idx + 1].charAt(0).toLowerCase() + sentences[idx + 1].slice(1);
+//       sentences.splice(idx + 1, 1);
+//     }
+//   }
+//   
+//   return sentences.join(' ');
+// }
 
 /**
  * LOGIC 2: Idiosyncratic Markers Injection
@@ -1408,6 +1410,330 @@ export function applyTargetedHumanImprint(text: string, sourceText: string): str
   return result;
 }
 
+// ============================================================
+// LOGIC 15–30: AGGRESSIVE ANTI-DETECTION (berdasarkan analisis GPTZero 4.7b)
+// ============================================================
+
+function enforceAggressiveBurstiness(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  // Kompres 2 kalimat jadi sangat pendek (4–7 kata)
+  let compressed = 0;
+  for (let i = 0; i < sentences.length && compressed < 2; i++) {
+    const words = sentences[i].split(/\s+/);
+    if (words.length >= 8 && words.length <= 18 && Math.random() < 0.5) {
+      const core = words.slice(0, Math.min(7, words.length - 2));
+      sentences[i] = core.join(' ').replace(/[,.;]$/, '') + '.';
+      compressed++;
+    }
+  }
+
+  // Merge 2 kalimat medium jadi satu panjang (25–35 kata)
+  let merged = 0;
+  for (let i = 0; i < sentences.length - 1 && merged < 2; i++) {
+    const w1 = sentences[i].split(/\s+/).length;
+    const w2 = sentences[i + 1].split(/\s+/).length;
+    if (w1 >= 8 && w1 <= 16 && w2 >= 8 && w2 <= 16 && Math.random() < 0.4) {
+      sentences[i] = sentences[i].replace(/[.!?]$/, '') + ' — ' +
+        sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
+      sentences.splice(i + 1, 1);
+      merged++;
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+function boostTokenPerplexity(text: string): string {
+  const perplexityMap: Array<[RegExp, string[]]> = [
+    [/\bimportant\b/gi, ['crucial', 'key', 'real', 'big']],
+    [/\bcontribute[s]? to\b/gi, ['feed into', 'add to', 'drive']],
+    [/\bsignificant\b/gi, ['serious', 'real', 'actual', 'genuine']],
+    [/\bhowever,\b/gi, ['but', 'still,', 'mind you,']],
+    [/\btherefore\b/gi, ['so', 'which means']],
+    [/\bin order to\b/gi, ['to', 'just to']],
+    [/\bthe majority of\b/gi, ['most', 'loads of']],
+    [/\ba number of\b/gi, ['a bunch of', 'plenty of']],
+    [/\bin many cases\b/gi, ['often', 'a lot of the time']],
+    [/\bIt is important to note that\b/gi, ['', 'Worth saying:']],
+    [/\bplays a role\b/gi, ['matters', 'counts']],
+    [/\bmake it difficult\b/gi, ['makes it harder', 'gets in the way of']],
+    [/\bin some cases\b/gi, ['sometimes', 'at times']],
+    [/\ba variety of\b/gi, ['all sorts of', 'different']],
+    [/\bin terms of\b/gi, ['for', 'around', 'when it comes to']],
+    [/\bwith regard[s]? to\b/gi, ['about', 'on']],
+    [/\bOn the other hand\b/gi, ['Then again', 'But']],
+    [/\bFurthermore\b/gi, ['Plus', 'Also']],
+    [/\bMoreover\b/gi, ['And', 'Plus']],
+    [/\bIn addition\b/gi, ['Also', 'And']],
+    [/\bConsequently\b/gi, ['So', 'Which means']],
+    [/\bAs a result\b/gi, ['So', 'Because of that']],
+    [/\bUltimately\b/gi, ['In the end', 'At the end of the day']],
+    [/\bEssentially\b/gi, ['Basically', 'Really']],
+    [/\bGenerally speaking\b/gi, ['Usually', 'Most of the time']],
+  ];
+
+  let result = text;
+  let changes = 0;
+  const targetChanges = Math.floor(text.length / 200);
+  const shuffled = [...perplexityMap].sort(() => Math.random() - 0.5);
+
+  for (const [pattern, replacements] of shuffled) {
+    if (changes >= targetChanges) break;
+    if (pattern.test(result)) {
+      const replacement = replacements[Math.floor(Math.random() * replacements.length)];
+      result = result.replace(pattern, replacement);
+      changes++;
+    }
+  }
+  return result;
+}
+
+function diversifySentenceOpenings(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  for (let i = 0; i < sentences.length - 2; i++) {
+    const opener1 = sentences[i].toLowerCase().split(/\s+/).slice(0, 3).join(' ');
+    const opener2 = sentences[i + 1].toLowerCase().split(/\s+/).slice(0, 3).join(' ');
+    const opener3 = sentences[i + 2].toLowerCase().split(/\s+/).slice(0, 3).join(' ');
+
+    if (opener1 === opener2 || opener1 === opener3 || opener2 === opener3) {
+      const idx = (opener1 === opener2) ? i + 1 : i + 2;
+      const words = sentences[idx].split(/\s+/);
+      if (words.length > 6) {
+        const rest = words.slice(1).join(' ');
+        if (Math.random() < 0.5) {
+          sentences[idx] = `What happens is, ${rest.charAt(0).toLowerCase()}${rest.slice(1)}`;
+        } else {
+          sentences[idx] = `${rest}, ${words[0].toLowerCase()}`.trim() + '.';
+        }
+      }
+    }
+  }
+  return sentences.join(' ');
+}
+
+function reorderClauses(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  let reordered = 0;
+  for (let i = 0; i < sentences.length && reordered < 2; i++) {
+    const s = sentences[i];
+    const words = s.split(/\s+/);
+    const becauseMatch = s.match(/^(Because|Although|While|Since|When)\s+(.+?),\s+(.+)$/i);
+    if (becauseMatch && words.length < 25 && Math.random() < 0.6) {
+      const [, conjunction, becausePart, mainClause] = becauseMatch;
+      sentences[i] = `${mainClause} — ${conjunction.toLowerCase()} ${becausePart.toLowerCase()}.`;
+      reordered++;
+    }
+  }
+  return sentences.join(' ');
+}
+
+function humanizeReferences(text: string): string {
+  let result = text;
+  const expansions: Array<[RegExp, string]> = [
+    [/\bthis (can|may|might|will|does|leads?|creates?|causes?)\b/gi, 'this kind of thing '],
+    [/\bit (can|may|might|will)\b/gi, 'this stuff '],
+    [/\bthis leads to\b/gi, 'this is what leads to'],
+    [/\bthis means\b/gi, 'what this means is'],
+    [/\bthey (can|may|might|will|often|usually)\b/gi, 'these people '],
+  ];
+  for (const [pattern, replacement] of expansions) {
+    if (Math.random() < 0.3) result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
+function calibrateHedging(text: string): string {
+  let result = text;
+  result = result.replace(/\bmay (also )?(lead|cause|result|create|contribute)/gi,
+    (m) => m.replace(/^may /i, 'sometimes '));
+  const sentences = splitSentences(result);
+  if (sentences.length >= 5 && Math.random() < 0.4 && !/I'm sure|definitely|certainly/i.test(result)) {
+    const certainStatements = ["That's the honest truth of it.", "No way around that one.", "That's just how it is."];
+    const stmt = certainStatements[Math.floor(Math.random() * certainStatements.length)];
+    sentences.splice(Math.floor(sentences.length * 0.6), 0, stmt);
+    result = sentences.join(' ');
+  }
+  return result;
+}
+
+function varyDiscourseMarkers(text: string): string {
+  const markerMap: Array<[RegExp, string[]]> = [
+    [/\bHowever,\s+/gi, ['But ', 'Still, ', 'Mind you, ']],
+    [/\bTherefore,\s+/gi, ['So ', 'Which means ']],
+    [/\bMoreover,\s+/gi, ['Plus, ', 'And on top of that, ']],
+    [/\bIn addition,\s+/gi, ['Also, ', 'On top of that, ']],
+    [/\bFurthermore,\s+/gi, ['Plus, ', 'What\'s more, ']],
+    [/\bConsequently,\s+/gi, ['So ', 'Which is why ']],
+    [/\bAs a result,\s+/gi, ['So ', 'Because of that, ']],
+    [/\bUltimately,\s+/gi, ['In the end, ', 'Long story short, ']],
+    [/\bFor example,\s+/gi, ['Like, ', 'Take ', 'Say, ']],
+  ];
+  let result = text;
+  for (const [pattern, replacements] of markerMap) {
+    if (pattern.test(result)) {
+      result = result.replace(pattern, replacements[Math.floor(Math.random() * replacements.length)]);
+    }
+  }
+  return result;
+}
+
+function injectGrammaticalAsymmetry(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+  for (let i = 0; i < sentences.length - 1; i++) {
+    const w1 = sentences[i].split(/\s+/).length;
+    const w2 = sentences[i + 1].split(/\s+/).length;
+    if (w1 >= 5 && w1 <= 12 && w2 >= 5 && w2 <= 12 && Math.random() < 0.25) {
+      sentences[i] = sentences[i].replace(/[.!?]$/, ',');
+      sentences[i + 1] = sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
+      break;
+    }
+  }
+  return sentences.join(' ');
+}
+
+function normalizeNegatives(text: string): string {
+  return text
+    .replace(/\bIt is not uncommon\b/gi, "It's pretty common")
+    .replace(/\bnot infrequently\b/gi, "often enough")
+    .replace(/\bnot only\b/gi, "not just");
+}
+
+function stripMetadiscourse(text: string): string {
+  return text
+    .replace(/\bIt is worth noting that\s+/gi, '')
+    .replace(/\bImportantly,\s+/gi, '')
+    .replace(/\bIt is important to note that\s+/gi, '')
+    .replace(/\bNeedless to say,\s+/gi, '')
+    .replace(/\bAs we have seen,\s+/gi, '');
+}
+
+function injectDifficultyVariance(text: string): string {
+  const rareWords: Array<[RegExp, string]> = [
+    [/\bbig problem\b/gi, 'massive headache'],
+    [/\bvery common\b/gi, 'wildly common'],
+    [/\bvery difficult\b/gi, 'downright tough'],
+  ];
+  let changes = 0;
+  for (const [pattern, replacement] of rareWords) {
+    if (changes >= 2) break;
+    if (pattern.test(text) && Math.random() < 0.5) {
+      text = text.replace(pattern, replacement);
+      changes++;
+    }
+  }
+  return text;
+}
+
+function createBurstinessOutlier(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 2) return text;
+  if (Math.random() < 0.4 && paragraphs.length >= 3) {
+    paragraphs = [paragraphs[0], paragraphs.slice(1).join(' ')];
+  } else if (Math.random() < 0.3 && paragraphs.length >= 2) {
+    const firstSentences = splitSentences(paragraphs[0]);
+    if (firstSentences.length >= 2) {
+      paragraphs = [firstSentences[0], firstSentences.slice(1).join(' '), ...paragraphs.slice(1)];
+    }
+  }
+  return paragraphs.join('\n\n');
+}
+
+function normalizeEmDashUsage(text: string): string {
+  const emDashCount = (text.match(/ — /g) || []).length;
+  if (emDashCount > 3) {
+    let replaced = 0;
+    return text.replace(/ — /g, (match) => {
+      if (replaced < Math.floor(emDashCount * 0.3)) {
+        replaced++;
+        return Math.random() < 0.5 ? ', ' : ' (';
+      }
+      return match;
+    });
+  }
+  return text;
+}
+
+function varyInitialAdverbials(text: string): string {
+  const map: Array<[RegExp, string[]]> = [
+    [/\bAdditionally,\s+/gi, ['Plus, ', 'On top of that, ']],
+    [/\bFurther(?:more)?,\s+/gi, ['What\'s more, ', 'And then there\'s ']],
+    [/\bMoreover,\s+/gi, ['And on top of that, ', 'Plus, ']],
+  ];
+  for (const [pattern, replacements] of map) {
+    if (pattern.test(text)) {
+      text = text.replace(pattern, replacements[Math.floor(Math.random() * replacements.length)]);
+    }
+  }
+  return text;
+}
+
+function humanizeSentenceSubjects(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+  let changes = 0;
+  for (let i = 0; i < sentences.length && changes < 2; i++) {
+    const s = sentences[i];
+    const subjectMatch = s.match(/^The\s+(\w+(?:\s+\w+)?)\s+is\s+(.+)$/i);
+    if (subjectMatch && s.split(/\s+/).length < 20 && Math.random() < 0.5) {
+      const [, subject, rest] = subjectMatch;
+      sentences[i] = `${rest.charAt(0).toUpperCase() + rest.slice(1)}, that's the thing about ${subject.toLowerCase()}.`;
+      changes++;
+    }
+  }
+  return sentences.join(' ');
+}
+
+function varyClosurePattern(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+  const last = sentences[sentences.length - 1];
+  if (/,\s+and\s+\w+(\s+\w+)?\s+(are|is|can|may|might)\b/i.test(last) && Math.random() < 0.5) {
+    const punchOptions = ["All of it matters, in the end.", "It's all connected, really.", "Hard to untangle one from the other."];
+    sentences[sentences.length - 1] = punchOptions[Math.floor(Math.random() * punchOptions.length)];
+  }
+  return sentences.join(' ');
+}
+
+// MASTER FUNCTION
+function applyAntiDetectionPass(text: string, _sourceText: string): string {
+  if (!text || text.length < 100) return text;
+
+  let result = text;
+
+  // Pass 1: Bersihkan jejak AI yang paling kentara
+  result = stripMetadiscourse(result);
+  result = normalizeNegatives(result);
+  result = varyDiscourseMarkers(result);
+  result = varyInitialAdverbials(result);
+
+  // Pass 2: Restruktur kalimat
+  result = enforceAggressiveBurstiness(result);
+  result = diversifySentenceOpenings(result);
+  result = reorderClauses(result);
+  result = humanizeSentenceSubjects(result);
+
+  // Pass 3: Token-level entropy
+  result = boostTokenPerplexity(result);
+  result = humanizeReferences(result);
+  result = calibrateHedging(result);
+  result = injectDifficultyVariance(result);
+
+  // Pass 4: Struktur paragraf & finishing
+  result = createBurstinessOutlier(result);
+  result = injectGrammaticalAsymmetry(result);
+  result = varyClosurePattern(result);
+  result = normalizeEmDashUsage(result);
+
+  return result;
+}
+
 function applyStructuralChaos(text: string): string {
   if (text.length < 100) return text;
 
@@ -1788,7 +2114,12 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
 
   let result = text.trim();
 
-  // Profile-specific direct rewrites only — no chaos injections
+  // ===== ANTI-DETECTION PASS untuk semua profil English =====
+  if (tone.startsWith("english-") || tone === "casual") {
+    result = applyAntiDetectionPass(result, text);
+  }
+
+  // Profile-specific direct rewrites (tetap seperti sebelumnya)
   if (tone === "english-reflective") {
     result = makeReflectiveEnglishMoreDirect(result);
   }
@@ -1801,8 +2132,8 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   if (tone === "english-discursive") {
     result = makeDiscursiveEnglishMoreDirect(result);
   }
-  
-  // NEW: Apply structural randomization + targeted human imprint for english-general, english-expository, and english-discursive
+
+  // Existing structural & targeted human imprint (tetap)
   if (tone === "english-general" || tone === "english-expository" || tone === "english-discursive") {
     result = humanizeStructureEnglish(result);
     result = applyTargetedHumanImprint(result, text);
