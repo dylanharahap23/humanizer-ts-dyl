@@ -361,10 +361,58 @@ STRUCTURE:
 - End with encouragement.
 
 VOCABULARY:
-- Never use: "combination", "competitive admissions process", "inherently", "achievement", "transferable skills", "consistently", "sustained effort". Replace with: "a mix of", "really hard to get in", "just because", "he worked hard", "things you can use anywhere".
+- Never use: "combination", "competitive admissions process", "inherently", "achievement", "transferable skills", "consistently", "sustained effort". Replace with: "a mix of", "really hard to get in", "just because", "he worked hard", "things you can use anywhere", "always", "keep trying".
 - Use "stuff", "things", "a lot", "really", "very", "gonna", "wanna" where natural.
 
 Return ONLY the rewritten text.
+`;
+
+// ============================================================
+// BLOG-STYLE TRANSFORMATION PROMPT (for formal essays)
+// ============================================================
+
+export const BLOG_STYLE_SECOND_PASS_PROMPT = `
+You are transforming a formal, essay‑like explanation into a relaxed, blog‑style article. Do NOT just swap words — completely restructure the text.
+
+**RULES (follow strictly):**
+
+1. **Headings & Structure**  
+   - Break the article into 3–5 short sections, each with a bold or casual heading.  
+   - Examples: "So, what's the big deal?", "The real reason it matters", "But is it worth it?", "Here's the thing…"  
+   - Don't use formal titles like "Introduction" or "Conclusion".
+
+2. **Sentence Length & Rhythm**  
+   - Use wildly different sentence lengths.  
+   - One‑word fragments are okay.  
+   - Long, meandering sentences are okay.  
+   - Mix them together — no uniform paragraph length.
+
+3. **Voice & Vocabulary**  
+   - Talk directly to the reader: "you", "your", "we", "I".  
+   - Use casual, everyday words: "stuff", "really", "kind of", "honestly", "pretty".  
+   - Avoid academic jargon; if you must use a technical term, explain it like you're talking to a friend.  
+   - Throw in a few personal asides: "I mean, think about it…", "Honestly, it surprised me too."
+
+4. **Specifics & Examples**  
+   - If the source mentions numbers, places, or names, keep them.  
+   - If the source is vague ("many countries", "some studies"), make it concrete: "a 2023 survey", "in Indonesia, for instance".  
+   - Add one short, believable anecdote or scenario if it fits naturally (e.g., "Imagine trying to…").
+
+5. **Transitions & Flow**  
+   - Do NOT use "Another reason is", "Furthermore", "Finally", "In conclusion".  
+   - Jump directly from one idea to the next.  
+   - Use questions as transitions: "But does that really work?" "So what's the catch?"
+
+6. **Ending**  
+   - Don't summarise. End with a final thought, a call to action, or a personal reflection.  
+   - Example: "Anyway, that's just how I see it. What do you think?"
+
+7. **Fidelity**  
+   - Keep all the key facts and claims from the SOURCE TEXT.  
+   - Don't invent statistics or major new ideas.  
+   - Slight exaggeration for effect is fine ("literally everyone"), but don't change the factual core.
+
+Return ONLY the rewritten article, with headings and line breaks between sections.
 `;
 
 // ============================================================
@@ -465,6 +513,38 @@ function simpleHash(str: string): number {
     hash |= 0;
   }
   return Math.abs(hash);
+}
+
+/**
+ * Detects if the text is a formal essay that needs blog-style restructuring.
+ * Returns true for long, uniform, transition-heavy texts without headings.
+ */
+export function isFormalEssay(text: string): boolean {
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (wordCount < 200) return false;   // too short
+  
+  // Check for typical essay transitions
+  const transitionPatterns = [
+    /\b(?:Another reason|Another factor|Another challenge|Finally,)\b/i,
+    /\b(?:In conclusion|To conclude|In summary)\b/i,
+    /\b(?:From a cognitive perspective|From an economic standpoint)\b/i,
+  ];
+  const hasTransitions = transitionPatterns.some(p => p.test(text));
+  
+  // Check for lack of headings (no lines that look like titles)
+  const hasHeadings = /^[A-Z][a-z]+(?:\s[A-Z][a-z]+){0,5}\s*$/gm.test(text);
+  
+  // Check for uniform sentence length (low burstiness)
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 5);
+  if (sentences.length < 5) return false;
+  const lengths = sentences.map(s => s.split(/\s+/).length);
+  const avg = lengths.reduce((a,b)=>a+b,0) / lengths.length;
+  const variance = lengths.reduce((sum,l)=>sum + (l-avg)*(l-avg), 0) / lengths.length;
+  
+  // AI essays have very low variance (3-5), human blogs have high variance (>10)
+  const lowBurstiness = variance < 8;
+  
+  return (hasTransitions || !hasHeadings) && lowBurstiness;
 }
 
 export function detectEnglishWritingProfile(
@@ -2461,6 +2541,14 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   if (!text || text.length < 40) return text.trim();
 
   let result = text.trim();
+
+  // ===== BLOG-STYLE OUTPUT: Skip heavy post-processing, already human enough =====
+  const looksLikeBlog = /^[A-Za-z][\w\s,'-]+:?\s*$/gm.test(text) || /^#+\s/.test(text);
+  if (looksLikeBlog && tone.startsWith("english-")) {
+    // Already in blog format – just clean up
+    result = addHumanTouches(result, tone);
+    return cleanupEnglishSpacing(result);
+  }
 
   // ===== PRODUCT-REVIEW: Skip heavy post-processing, just add human touches =====
   if (tone === "product-review") {
