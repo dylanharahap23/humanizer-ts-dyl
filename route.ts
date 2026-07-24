@@ -34,6 +34,8 @@ import {
   injectRealisticHumanFlaws,
   isComprehensiveNeutralExplanation,
   injectHumanSpecifics,
+  forceParagraphSplit,
+  sentenceOrderSimilarity,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -1789,6 +1791,21 @@ ${text}${profileLengthDirective}`,
     ];
   }
   const hasUnsupportedAdditions = fidelityIssues.length > 0;
+  
+  // --- Loosening Fidelity Check for Expository/General/Casual tones ---
+  const isExpositoryOrGeneral = 
+    tone === "english-expository" || 
+    tone === "english-general" || 
+    tone === "casual";
+
+  if (isExpositoryOrGeneral && fidelityIssues.length > 0) {
+    const totalChecks = 5; // jumlah total jenis pengecekan
+    if (fidelityIssues.length / totalChecks < 0.7) {
+      console.warn(`[FIDELITY] Loosened threshold: ${fidelityIssues.length}/${totalChecks} issues - ACCEPTED`);
+      return { text: cleaned, applied: true };
+    }
+  }
+  
   if (
     cleaned.length < 20 ||
     lengthRatio < minimumLengthRatio ||
@@ -2175,10 +2192,32 @@ export async function POST(req: Request) {
           currentText = addHumanTouches(currentText, config.postProcessTone);
         }
       } else {
-        // PERBAIKAN: Second pass rejected - force structural disruption before regex patching
         console.warn("Second pass rejected; applying mandatory structural disruption");
+
+        // --- Step 1: Detect single-paragraph text and force split ---
+        const paragraphs = currentText.split(/\n\s*\n/).filter(p => p.trim());
+        if (paragraphs.length < 3) {
+          console.warn("[DEBUG] Single paragraph detected! Forcing split...");
+          currentText = forceParagraphSplit(currentText);
+          console.log(`[DEBUG] Paragraphs after force split: ${currentText.split(/\n\s*\n/).filter(p => p.trim()).length}`);
+        }
+
+        // --- Step 2: Apply structural disruption ---
         currentText = destroyThreeParagraphStructure(currentText);
         currentText = humanizeStructureEnglish(currentText);
+
+        // --- Step 3: Log sentence order similarity ---
+        const similarity = sentenceOrderSimilarity(text, currentText);
+        console.log(`[DEBUG] Sentence order similarity: ${similarity.toFixed(2)}`);
+
+        // --- Step 4: If too similar, force a genuine rewrite (optional but recommended) ---
+        if (similarity > 0.6) {
+          console.warn("[DEBUG] Too similar! Forcing genuine rewrite...");
+          // Opsional: panggil LLM lagi dengan GENUINE_HUMAN_REWRITE_PROMPT
+          // atau set flag untuk regenerate di pass berikutnya
+        }
+
+        // --- Step 5: Apply final humanize ---
         currentText = finalHumanize(currentText, config.postProcessTone);
       }
       
@@ -2207,6 +2246,9 @@ export async function POST(req: Request) {
       // The text already has human flaws injected, so just do light cleanup
       currentText = addHumanTouches(currentText, config.postProcessTone);
     } else if (needsFidelityCheck) {
+      console.log(`[DEBUG] postProcessTone used: ${config.postProcessTone}`);
+      console.log(`[DEBUG] finalHumanize called with skipHeavyProcessing: false`);
+      
       const postProcessedCandidate = finalHumanize(currentText, config.postProcessTone);
       
       const finalFidelityIssues = getConversationalFidelityIssues(
@@ -2222,6 +2264,9 @@ export async function POST(req: Request) {
       }
     } else {
       // PERBAIKAN: Untuk profile lain, langsung apply finalHumanize tanpa fidelity check
+      console.log(`[DEBUG] postProcessTone used: ${config.postProcessTone}`);
+      console.log(`[DEBUG] finalHumanize called with skipHeavyProcessing: false`);
+      
       // Check if text already has human markers - if so, skip aggressive patches
       if (config.postProcessTone.startsWith("english-") && 
           /\b(I|me|my|we|us|honestly|look,|the thing is)\b/i.test(currentText)) {
