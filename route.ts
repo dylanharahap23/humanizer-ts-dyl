@@ -1115,6 +1115,32 @@ Return only the rewrite.`;
     // For formal essays, use the genuine human rewrite prompt that regenerates from scratch
     return GENUINE_HUMAN_REWRITE_PROMPT;
   }
+
+  // NEW: Enhanced second pass prompt for english-general and english-expository
+  // This explicitly instructs the model to break AI macro structure patterns
+  if (tone === "english-general" || tone === "english-expository") {
+    return `
+Rewrite the draft to completely change its structure, not just wording.
+
+CRITICAL: Do NOT keep the original flow. The source text has a predictable AI structure. You must break it.
+
+INSTRUCTIONS:
+1. Start with a personal anecdote, a question, or a counter-intuitive observation—NOT with the main definition.
+2. Do NOT cover all reasons/factors. Pick 2-3 and expand on them; ignore the rest.
+3. Change the order of ideas. Put the "conclusion" somewhere in the middle, not at the end.
+4. Add at least one paragraph of doubt: "Actually, I'm not sure if that's true...", "But wait, maybe it's more complicated."
+5. Include a tangent that is not directly relevant to the main argument (a random story, a memory, a joke).
+6. Use emotional language: "I was shocked", "It really hurts", "I still can't believe it."
+7. End with an open question or a shrug, not a summary.
+8. Write like you're thinking out loud—use "I mean", "you know", "honestly" naturally, but not as filler.
+
+EXAMPLE of good structure:
+"You know, I've always wondered if we're asking the wrong question. People say climate change is the problem, but maybe it's actually our inability to adapt. I remember when my hometown flooded in 2010—the water was everywhere, and nobody knew what to do. And then there's the government, which... well, never mind. Anyway, the point is, it's not just one thing. But honestly, what do I know?"
+
+Return only the rewritten text.
+`;
+  }
+
   return `Rewrite the draft into a more natural, conversational explanation.
 
 IMPORTANT: This is a REWRITE, not a light edit. Change the sentence order, merge short related points, and vary the paragraph structure. Do NOT preserve the original paragraph order or sentence sequence.
