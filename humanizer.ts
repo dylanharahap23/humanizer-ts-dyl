@@ -55,18 +55,29 @@ export type HumanizerPromptConfig = {
 // ============================================================
 
 const CASUAL_NATURAL_PROMPT = `
-Rewrite the text in natural, direct English. Start with the subject itself — no throat-clearing, no "the real question is", no reframing.
+You are a human writer — not an AI assistant. Your writing has small imperfections that real humans make.
 
-Core rules:
-1. Preserve all facts, claims, and qualifications exactly.
-2. Use contractions naturally: don't, can't, it's, you're.
-3. Vary sentence length. Mix short statements (3-5 words) with longer explanations (15-25 words).
-4. Break up long lists into flowing prose.
-5. Avoid formulaic transitions: "moreover", "furthermore", "in conclusion", "ultimately".
-6. Do not add a concluding summary. End on the last substantive point.
-7. Do not add rhetorical questions, filler words, opinions, or emotional language.
-8. Do not add "honestly", "look", "here's the thing", "let's be real".
+Mimic these traits:
+- You sometimes use "thing" or "stuff" instead of precise nouns.
+- You mix formal and casual in the same paragraph (e.g., "the policy" then "kinda works").
+- You occasionally drop articles ("huge part of", "other side of").
+- You don't always structure paragraphs neatly. Some are 1 sentence, some are 7.
+- You sometimes say "honestly", "look", "to be fair", "the thing is" — but only sometimes, not every paragraph.
+- You sometimes end sentences with fragments or trailing thoughts.
+- You rarely use 3-syllable words when 1-syllable word works.
+- You use contractions ALWAYS (don't, it's, you're).
+- You sometimes ramble — adding a clause that goes off-topic but human-sounding.
 
+When you rewrite:
+- Vary sentence length wildly. Combine 2 thoughts into one long sentence.
+- Mix register — academic phrase next to "guy" or "stuff".
+- Open sentences with BUT, AND, SO, LOOK at the start sometimes.
+- Don't use "Furthermore", "Moreover", "Additionally" — these scream AI.
+- Don't summarize at the end. End on a concrete detail or a thought.
+- Sound like you actually think about this, not like you're reporting facts.
+
+Preserve all facts, claims, qualifications from the original.
+Do not add facts not in the original.
 Return only the rewritten text.
 `;
 
@@ -1177,45 +1188,49 @@ function boostVocabularyEntropy(text: string): string {
  * to lower per-token generated_prob below 0.99
  */
 function injectTokenSurprise(text: string): string {
-  // Word pairs where the second is less common/predictable
-  const surpriseMap: Array<[RegExp, string]> = [
-    [/\bimportant\b/gi, 'crucial'],
-    [/\bimprove\b/gi, 'boost'],
-    [/\breduce\b/gi, 'cut'],
-    [/\bincrease\b/gi, 'ramp up'],
-    [/\bsignificant\b/gi, 'meaningful'],
-    [/\bbeneficial\b/gi, 'helpful'],
-    [/\bessential\b/gi, 'key'],
-    [/\bprimarily\b/gi, 'mainly'],
-    [/\bapproximately\b/gi, 'roughly'],
-    [/\bsufficient\b/gi, 'enough'],
-    [/\bhowever\b/gi, 'but'],
-    [/\btherefore\b/gi, 'so'],
-    [/\b additionally\b/gi, 'also'],
-    [/\bmoreover\b/gi, 'plus'],
-    [/\bconsequently\b/gi, 'as a result'],
-    [/\boptimal\b/gi, 'ideal'],
-    [/\badequate\b/gi, 'enough'],
-    [/\bconsistently\b/gi, 'regularly'],
-    [/\brecommended\b/gi, 'advised'],
-    [/\breplenishment\b/gi, 'refill'],
+  const surpriseMap: Array<[RegExp, string[]]> = [
+    [/\bimportant\b/gi, ['a big deal', 'kind of huge', 'the real thing']],
+    [/\bsignificant\b/gi, ['no joke', 'actually matters', 'real']],
+    [/\bconsiderable\b/gi, ['a lot of', 'tons of']],
+    [/\bsubstantial\b/gi, ['big', 'huge', 'plenty of']],
+    [/\bHowever,\b/gi, ['But', 'Thing is,', 'Look,']],
+    [/\bFurthermore,\b/gi, ['Also', 'And also', 'Plus']],
+    [/\bMoreover,\b/gi, ['And', 'On top of that', 'Plus']],
+    [/\bConsequently,\b/gi, ['So', 'Which is why', 'Because of that']],
+    [/\bEssentially,\b/gi, ['Basically', 'Like', 'Honestly']],
+    [/\bEssentially\b/gi, ['Really', 'Just']],
+    [/\bultimately\b/gi, ['at the end of the day', 'long story short', 'really']],
+    [/\bIn conclusion\b/gi, ['So basically', 'Yeah', 'I guess']],
+    [/\bplays a (?:crucial|vital|key|important) role\b/gi, ['matters', 'counts', 'is a big deal']],
+    [/\bmake it difficult\b/gi, ['makes it tough', 'gets in the way', 'messes things up']],
+    [/\bin order to\b/gi, ['just to', 'to']],
+    [/\bthe majority of\b/gi, ['most', 'loads of']],
+    [/\ba number of\b/gi, ['a bunch of', 'a few', 'plenty of']],
+    [/\bin many cases\b/gi, ['a lot of the time', 'often enough']],
+    [/\bIt is important to note that\b/gi, ['', 'Worth saying:']],
+    [/\bIt should be noted\b/gi, ['', 'Heads up:']],
+    [/\bThe fact that\b/gi, ['That', 'How']],
+    [/\bgreata deal of\b/gi, ['a lot of', 'plenty of', 'tons of']],
+    [/\bvarious\b/gi, ['all sorts of', 'different', 'kinda']],
+    [/\butilize\b/gi, ['use']],
+    [/\bpurchase\b/gi, ['buy']],
+    [/\bassist\b/gi, ['help']],
+    [/\bdemonstrate\b/gi, ['show']],
   ];
-  
+
   let result = text;
   let changes = 0;
-  const maxChanges = 4; // 3-5 unpredictable swaps
-  
-  // Shuffle the map to randomize which replacements happen
+  const maxChanges = Math.floor(text.length / 150);
   const shuffled = [...surpriseMap].sort(() => Math.random() - 0.5);
-  
-  for (const [pattern, replacement] of shuffled) {
+
+  for (const [pattern, replacements] of shuffled) {
     if (changes >= maxChanges) break;
     if (pattern.test(result)) {
+      const replacement = replacements[Math.floor(Math.random() * replacements.length)];
       result = result.replace(pattern, replacement);
       changes++;
     }
   }
-  
   return result;
 }
 
@@ -1701,39 +1716,259 @@ function varyClosurePattern(text: string): string {
   return sentences.join(' ');
 }
 
+// ============================================================
+// NEW FUNCTIONS FROM PROFESSOR'S ANALYSIS
+// ============================================================
+
+function enforceExtremeBurstinessPerSentence(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  // Inject 1-2 fragments (1-3 words)
+  const fragmentCount = Math.min(2, Math.floor(sentences.length / 4));
+  const fragmentIndices = new Set<number>();
+  while (fragmentIndices.size < fragmentCount) {
+    fragmentIndices.add(Math.floor(Math.random() * sentences.length));
+  }
+  const fragments = [
+    "Hard, though.", "Real talk.", "Same thing.", "Makes sense.",
+    "Not that simple.", "Depends who you ask.", "That's the thing.",
+    "Pretty much.", "In a way.", "Sort of.", "There's a catch.",
+    "Worth noting.", "Got to give them that.", "No question.", "Fair point.",
+  ];
+  for (const idx of fragmentIndices) {
+    sentences[idx] = fragments[Math.floor(Math.random() * fragments.length)];
+  }
+
+  // Merge 1-2 pairs into very long sentences (35-50 words)
+  let mergeCount = 0;
+  for (let i = 0; i < sentences.length - 1 && mergeCount < 2; i++) {
+    const w1 = sentences[i].split(/\s+/).length;
+    const w2 = sentences[i + 1].split(/\s+/).length;
+    if (w1 >= 6 && w1 <= 20 && w2 >= 6 && w2 <= 20 && Math.random() < 0.45) {
+      const connectors = ['and', 'which', 'so', 'because', 'even though', 'but'];
+      const connector = connectors[Math.floor(Math.random() * connectors.length)];
+      const firstHalf = sentences[i].replace(/[.!?]$/, '');
+      const secondHalf = sentences[i + 1];
+      if (['which', 'because', 'even though'].includes(connector)) {
+        sentences[i] = `${firstHalf}, ${connector} ${secondHalf.charAt(0).toLowerCase() + secondHalf.slice(1)}`;
+      } else {
+        sentences[i] = `${firstHalf} ${connector} ${secondHalf.charAt(0).toLowerCase() + secondHalf.slice(1)}`;
+      }
+      sentences.splice(i + 1, 1);
+      mergeCount++;
+    }
+  }
+
+  // Shorten first/last if too long
+  if (sentences[0].split(/\s+/).length > 8 && Math.random() < 0.4) {
+    sentences[0] = sentences[0].split(/\s+/).slice(0, 6).join(' ') + '.';
+  }
+  const lastIdx = sentences.length - 1;
+  if (sentences[lastIdx].split(/\s+/).length > 12 && Math.random() < 0.5) {
+    sentences[lastIdx] = sentences[lastIdx].split(/\s+/).slice(0, Math.min(10, sentences[lastIdx].split(/\s+/).length - 3)).join(' ') + '.';
+  }
+
+  return sentences.join(' ');
+}
+
+function aggressiveOpenerDiversification(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  const getFirstWord = (s: string) => s.toLowerCase().split(/\s+/)[0] || '';
+  for (let i = 0; i < sentences.length - 1; i++) {
+    const w1 = getFirstWord(sentences[i]);
+    const w2 = getFirstWord(sentences[i + 1]);
+    if (w1 === w2 && w1.length > 2) {
+      const words = sentences[i + 1].split(/\s+/);
+      const subject = words[0];
+      const remaining = words.slice(1);
+      const verbIdx = remaining.findIndex(w => /\b(?:is|are|was|were|has|have|had|can|will|would|should|could|might|may|must|does|do|did|seems|appears|means|leads?|creates?|builds?|attracts?|brings?|offers?|provides?|gives?|takes?|keeps?|holds?)\b/i.test(w));
+      if (verbIdx > 0 && Math.random() < 0.5) {
+        const beforeVerb = remaining.slice(0, verbIdx);
+        const verb = remaining[verbIdx];
+        const afterVerb = remaining.slice(verbIdx + 1);
+        sentences[i + 1] = `${verb.charAt(0).toUpperCase() + verb.slice(1)} ${afterVerb.join(' ')}${beforeVerb.length > 0 ? ', ' + beforeVerb.join(' ') : ''}, ${subject.toLowerCase()}.`;
+      } else {
+        sentences[i + 1] = `Did so too — ${remaining.join(' ')}`;
+      }
+    }
+  }
+
+  // Handle triple same opener
+  for (let i = 0; i < sentences.length - 2; i++) {
+    if (getFirstWord(sentences[i]) === getFirstWord(sentences[i + 1]) &&
+        getFirstWord(sentences[i + 1]) === getFirstWord(sentences[i + 2])) {
+      const fillers = ["Here's the deal —", "Look,", "Thing is,", "Basically,", "So,"];
+      sentences[i + 1] = `${fillers[Math.floor(Math.random() * fillers.length)]} ${sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1)}`;
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+function injectSpecificAnchors(text: string): string {
+  let result = text;
+  // Decade/year anchors
+  result = result.replace(/\bsince independence\b/gi, 'since 1965');
+  result = result.replace(/\bsince (?:it was |they were )?independent\b/gi, 'since 1965');
+  result = result.replace(/\bin the early years\b/gi, 'in the late 1960s');
+  result = result.replace(/\btoday\b/gi, () => Math.random() < 0.3 ? 'these days' : 'today');
+  // Round numbers
+  result = result.replace(/\b(\d+)% of\b/gi, (match, num) => {
+    if (Math.random() < 0.5 && Number(num) % 10 === 0) {
+      const variants = [`around ${num}%`, `roughly ${num}%`, `about ${num}%`, `maybe ${num}%`];
+      return variants[Math.floor(Math.random() * variants.length)] + ' of';
+    }
+    return match;
+  });
+  // Cost expressions
+  result = result.replace(/\bis expensive\b/gi, () => Math.random() < 0.4 ? "doesn't come cheap" : "is expensive");
+  result = result.replace(/\bis costly\b/gi, () => Math.random() < 0.4 ? "hits the wallet hard" : "is costly");
+  return result;
+}
+
+function injectColloquialismByProfile(text: string, profile: string): string {
+  if (profile !== 'english-general' && profile !== 'casual') return text;
+  let result = text;
+  // Drop "very" sometimes
+  result = result.replace(/\bvery\s+(\w+)/gi, (match, word) => {
+    if (['good','bad','big','small','old','new'].includes(word.toLowerCase())) return word;
+    return ['pretty','kind of','sort of'][Math.floor(Math.random()*3)] + ' ' + word;
+  });
+  // Drop "really" occasionally
+  result = result.replace(/\breally\s+/gi, () => Math.random() < 0.5 ? '' : 'really ');
+  // Overly formal phrases
+  result = result.replace(/\bin spite of\b/gi, 'despite');
+  result = result.replace(/\bwith regard to\b/gi, 'about');
+  // Insert one casual interjection mid-text
+  const sentences = splitSentences(result);
+  if (sentences.length >= 4 && Math.random() < 0.35) {
+    const interjections = ["I mean, ", "Look, ", "Honestly, ", "Real talk, ", "To be fair, "];
+    const idx = Math.floor(sentences.length * 0.55);
+    const interjection = interjections[Math.floor(Math.random() * interjections.length)];
+    sentences[idx] = interjection + sentences[idx].charAt(0).toLowerCase() + sentences[idx].slice(1);
+    result = sentences.join(' ');
+  }
+  return result;
+}
+
+function recomposeSentenceOrder(text: string): string {
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 2) return text;
+  const sentencesByParagraph = paragraphs.map(p => splitSentences(p));
+  const lastPara = sentencesByParagraph[sentencesByParagraph.length - 1];
+  if (lastPara.length >= 3 && Math.random() < 0.3) {
+    const summaryIdx = lastPara.findIndex(s => /\b(?:ultimately|in conclusion|to sum up|therefore|thus|so)\b/i.test(s) || s.split(/\s+/).length < 10);
+    if (summaryIdx >= 0 && sentencesByParagraph.length >= 2) {
+      const summary = lastPara.splice(summaryIdx, 1)[0];
+      const secondToLast = sentencesByParagraph[sentencesByParagraph.length - 2];
+      secondToLast.splice(Math.floor(secondToLast.length / 2), 0, summary);
+    }
+  }
+  return sentencesByParagraph.map(s => s.join(' ')).filter(s => s.trim()).join('\n\n');
+}
+
+function injectOneLongSentence(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+  // Find longest sentence
+  let maxIdx = 0, maxLen = 0;
+  sentences.forEach((s, i) => {
+    const len = s.split(/\s+/).length;
+    if (len > maxLen) { maxLen = len; maxIdx = i; }
+  });
+  if (maxIdx < sentences.length - 1) {
+    const w1 = sentences[maxIdx].split(/\s+/).length;
+    const w2 = sentences[maxIdx + 1].split(/\s+/).length;
+    if (w1 < 25 && w2 < 25 && Math.random() < 0.5) {
+      const connectors = [', which meant that', ' — something that', ', a fact that', ", and that's why", ', because of which', ', which is why'];
+      const connector = connectors[Math.floor(Math.random() * connectors.length)];
+      sentences[maxIdx] = sentences[maxIdx].replace(/[.!?]$/, '') + connector + ' ' +
+        sentences[maxIdx + 1].charAt(0).toLowerCase() + sentences[maxIdx + 1].slice(1);
+      sentences.splice(maxIdx + 1, 1);
+    }
+  }
+  return sentences.join(' ');
+}
+
+function aiFriendlyWordReplacement(text: string): string {
+  const map: Array<[RegExp, string[]]> = [
+    [/\bdynamic\b/gi, ['changing', 'active', 'busy', 'shifting']],
+    [/\bvital\b/gi, ['key', 'big', 'real']],
+    [/\brobust\b/gi, ['strong', 'solid', 'tough']],
+    [/\bleverage\b/gi, ['use', 'tap into']],
+    [/\bfoster\b/gi, ['help', 'push', 'grow']],
+    [/\bstreamline\b/gi, ['simplify', 'speed up']],
+    [/\bnavigate\b/gi, ['handle', 'deal with', 'work through']],
+    [/\blandscape\b/gi, ['scene', 'field', 'space']],
+    [/\bunderscores\b/gi, ['shows', 'proves', 'highlights']],
+    [/\bunderscore\b/gi, ['show', 'make clear']],
+    [/\bholistic\b/gi, ['full', 'whole', 'overall']],
+    [/\bcomprehensive\b/gi, ['full', 'complete', 'wide']],
+    [/\bnuanced\b/gi, ['subtle', 'tricky']],
+    [/\bmyriad\b/gi, ['lots of', 'tons of']],
+    [/\bplethora\b/gi, ['ton of', 'bunch of']],
+    [/\bIn essence,?\s*/gi, ['', 'Basically, ', 'I mean, ']],
+    [/\bIn summary,?\s*/gi, ['', 'So basically, ', 'Short version: ']],
+    [/\bTo summarize,?\s*/gi, ['', 'Bottom line: ', 'Quick take: ']],
+    [/\bIt is (?:important|crucial|essential|vital|clear|evident|obvious|notable|worth noting|interesting) (?:to|that)\b/gi, () => ''],
+    [/\bIt is (?:a fact|the case|widely known)\s+that\b/gi, () => ''],
+  ];
+  let result = text;
+  let count = 0;
+  const maxCount = Math.floor(text.length / 80);
+  for (const [pattern, replacements] of map) {
+    if (count >= maxCount) break;
+    if (pattern.test(result)) {
+      const replacement = replacements[Math.floor(Math.random() * replacements.length)];
+      result = result.replace(pattern, replacement);
+      count++;
+    }
+  }
+  return result;
+}
+
 // MASTER FUNCTION
-function applyAntiDetectionPass(text: string, _sourceText: string): string {
+function applyAntiDetectionPass(text: string, sourceText: string, tone: string): string {
   if (!text || text.length < 100) return text;
 
   let result = text;
 
-  // Pass 1: Bersihkan jejak AI yang paling kentara
+  // STAGE 1: Cleanup AI markers
   result = stripMetadiscourse(result);
   result = normalizeNegatives(result);
+  result = aiFriendlyWordReplacement(result);
+
+  // STAGE 2: Token-level variety
   result = varyDiscourseMarkers(result);
   result = varyInitialAdverbials(result);
+  result = injectTokenSurprise(result);   // updated map
+  result = injectSpecificAnchors(result);
 
-  // Pass 2: Restruktur kalimat
-  result = enforceAggressiveBurstiness(result);
-  result = diversifySentenceOpenings(result);
+  // STAGE 3: Sentence-level restructuring
+  result = enforceExtremeBurstinessPerSentence(result);
+  result = aggressiveOpenerDiversification(result);
+  result = injectOneLongSentence(result);
   result = reorderClauses(result);
   result = humanizeSentenceSubjects(result);
-
-  // Pass 3: Token-level entropy
-  result = boostTokenPerplexity(result);
   result = humanizeReferences(result);
   result = calibrateHedging(result);
+
+  // STAGE 4: Tone and register injection
+  result = injectColloquialismByProfile(result, tone);
   result = injectDifficultyVariance(result);
 
-  // Pass 4: Struktur paragraf & finishing
+  // STAGE 5: Paragraph and structural finishes
   result = createBurstinessOutlier(result);
+  result = recomposeSentenceOrder(result);
   result = injectGrammaticalAsymmetry(result);
   result = varyClosurePattern(result);
   result = normalizeEmDashUsage(result);
 
   return result;
 }
-
 function applyStructuralChaos(text: string): string {
   if (text.length < 100) return text;
 
@@ -2116,7 +2351,7 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
 
   // ===== ANTI-DETECTION PASS untuk semua profil English =====
   if (tone.startsWith("english-") || tone === "casual") {
-    result = applyAntiDetectionPass(result, text);
+    result = applyAntiDetectionPass(result, text, tone);
   }
 
   // Profile-specific direct rewrites (tetap seperti sebelumnya)
