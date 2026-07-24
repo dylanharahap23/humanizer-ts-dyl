@@ -209,6 +209,8 @@ Fidelity rules:
 - Do not introduce I, we, you, rhetorical questions, forum reactions, fragments, filler, deliberate errors.
 - Do not claim that an obligation, jurisdiction, arrest, or transfer is certain when the source qualifies it.
 
+CRITICAL: DO NOT keep the same order of ideas. For example, if the original text has reasons A, B, C and then a conclusion, you might present C first, then A, then the conclusion, then B, or start with a doubt, then B, then A, then a counter-argument, then C. The goal is to make the flow feel like a natural conversation where ideas are brought up in a non-linear way.
+
 Return only the rewritten English text.
 `;
 
@@ -233,6 +235,8 @@ Fidelity rules:
 - Keep "analysts expect" as an attributed expectation.
 - Do not add manufacturer names, vehicle models, countries, price figures, dates, market-share data.
 - Do not turn the source into a numbered checklist, fragments, slogans, or a forum persona.
+
+CRITICAL: DO NOT keep the same order of ideas. For example, if the original text has reasons A, B, C and then a conclusion, you might present C first, then A, then the conclusion, then B, or start with a doubt, then B, then A, then a counter-argument, then C. The goal is to make the flow feel like a natural conversation where ideas are brought up in a non-linear way.
 
 Return only the rewritten English text.
 `;
@@ -291,6 +295,8 @@ CRITICAL INSTRUCTIONS:
 EXAMPLE of good structure:
 "Actually, is it even fair to ask why people buy these watches? I mean, I've seen people buy them for all sorts of reasons. My uncle bought one after his first big deal — he said it was to remind himself of the moment. But then my neighbor inherited one and barely wears it. So it's not just about money. But wait — maybe it IS about money for some people. I don't know. Maybe the real question is why we care so much about what other people buy. Anyway..."
 
+CRITICAL: DO NOT keep the same order of ideas. For example, if the original text has reasons A, B, C and then a conclusion, you might present C first, then A, then the conclusion, then B, or start with a doubt, then B, then A, then a counter-argument, then C. The goal is to make the flow feel like a natural conversation where ideas are brought up in a non-linear way.
+
 Return only the rewritten text.
 `;
 
@@ -328,6 +334,8 @@ Do not:
 - Do NOT use these transitions: "First", "Another reason", "Finally", "In conclusion"
 - Do NOT use placeholder names like "Sarah", "Alex", "John", "Mary" — use real-sounding details instead
 
+CRITICAL: DO NOT keep the same order of ideas. For example, if the original text has reasons A, B, C and then a conclusion, you might present C first, then A, then the conclusion, then B, or start with a doubt, then B, then A, then a counter-argument, then C. The goal is to make the flow feel like a natural conversation where ideas are brought up in a non-linear way.
+
 Return only the rewritten English text.
 `;
 
@@ -363,6 +371,8 @@ Do not:
 - Drop technical concepts such as working memory, cognitive overload, or the prefrontal cortex.
 - Do NOT use these transitions: "First", "Another reason", "Finally", "In conclusion"
 - Do NOT use placeholder names like "Sarah", "Alex", "John", "Mary" — use real-sounding details instead
+
+CRITICAL: DO NOT keep the same order of ideas. For example, if the original text has reasons A, B, C and then a conclusion, you might present C first, then A, then the conclusion, then B, or start with a doubt, then B, then A, then a counter-argument, then C. The goal is to make the flow feel like a natural conversation where ideas are brought up in a non-linear way.
 
 Return only the rewritten English text.
 `;
@@ -1206,31 +1216,31 @@ function ensureMultiParagraph(text: string): string {
 }
 
 /**
- * Memaksa teks 1 paragraf menjadi 3 paragraf berdasarkan jumlah kalimat
- * atau topic shift detection
+ * Memaksa teks terpecah menjadi minimal N paragraf jika jumlah kalimat mencukupi
+ * @param text - Teks input
+ * @param targetParagraphs - Jumlah paragraf target (default: 3)
  */
-export function forceParagraphSplit(text: string): string {
-  // Jika sudah punya minimal 3 paragraf, return asli
-  const existingParagraphs = text.split(/\n\s*\n/).filter(p => p.trim());
-  if (existingParagraphs.length >= 3) return text;
+export function forceParagraphSplit(text: string, targetParagraphs = 3): string {
+  const existing = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (existing.length >= targetParagraphs) return text;
   
   const sentences = splitSentences(text);
   if (sentences.length < 6) {
-    // Kalau terlalu pendek, buat 2 paragraf saja
+    // Jika terlalu pendek, buat 2 paragraf saja
     const mid = Math.floor(sentences.length / 2);
     return sentences.slice(0, mid).join(' ') + '\n\n' + sentences.slice(mid).join(' ');
   }
   
-  // Target: 3 paragraf dengan distribusi 30%, 40%, 30%
+  // Bagi rata menjadi targetParagraphs
   const total = sentences.length;
-  const p1End = Math.floor(total * 0.3);
-  const p2End = Math.floor(total * 0.7);
-  
-  const p1 = sentences.slice(0, p1End).join(' ');
-  const p2 = sentences.slice(p1End, p2End).join(' ');
-  const p3 = sentences.slice(p2End).join(' ');
-  
-  return p1 + '\n\n' + p2 + '\n\n' + p3;
+  const chunkSize = Math.floor(total / targetParagraphs);
+  const result: string[] = [];
+  for (let i = 0; i < targetParagraphs; i++) {
+    const start = i * chunkSize;
+    const end = i === targetParagraphs - 1 ? total : start + chunkSize;
+    result.push(sentences.slice(start, end).join(' '));
+  }
+  return result.join('\n\n');
 }
 
 export function destroyThreeParagraphStructure(text: string): string {
@@ -2940,13 +2950,22 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     result = injectCognitiveUncertainty(result);
   }
   
-  // --- STRUCTURAL DISRUPTION untuk general/expository (jika belum dilakukan di second pass) ---
+  // --- STRUCTURAL DISRUPTION untuk general/expository (di akhir proses) ---
   if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
-    result = disruptIdeaGraph(result);
+    // 1. Pastikan teks terpecah menjadi minimal 4 paragraf
+    result = forceParagraphSplit(result, 4);
+    // 2. Acak alur argumen (pindahkan kesimpulan, acak urutan)
+    result = reorderArgumentFlow(result);
+    // 3. Ubah framing (pertanyakan pertanyaan)
     result = reframeQuestion(result);
+    // 4. Tambahkan ketidakpastian dan counter-argument
     result = injectCognitiveUncertainty2(result);
+    // 5. Tambahkan personal arc (emosi, detail pribadi)
     result = injectPersonalArc(result);
+    // 6. Hapus connective words yang berlebihan
     result = stripConnectiveWords(result);
+    // 7. Terakhir, disrupt idea graph (tambahkan interupsi, doubt paragraphs)
+    result = disruptIdeaGraph(result);
   }
   
   return cleanupEnglishSpacing(result);
@@ -3528,6 +3547,10 @@ export function transformToPersonalOpinion(text: string): string {
 export function randomizeIdeaOrder(text: string): string {
   // Pecah menjadi paragraf
   let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4) {
+    text = forceParagraphSplit(text, 4);
+    paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  }
   if (paragraphs.length < 4) return text;
   
   // 1. Pindahkan paragraf terakhir ke posisi 2 (bukan kesimpulan di akhir)
@@ -3622,6 +3645,10 @@ export function stripConnectiveWords(text: string): string {
  */
 export function disruptIdeaGraph(text: string): string {
   let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4) {
+    text = forceParagraphSplit(text, 4);
+    paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  }
   if (paragraphs.length < 4) return text;
 
   // 1. Cari paragraf yang terlihat seperti kesimpulan
@@ -3788,6 +3815,54 @@ export function injectCognitiveUncertainty2(text: string): string {
   }
 
   return sentences.join(' ');
+}
+
+/**
+ * Fungsi khusus untuk mengacak urutan argumen (dari feedback dosen)
+ * Memindahkan kesimpulan ke posisi 2, mengacak paragraf tengah, dan menambahkan counter-argument
+ */
+export function reorderArgumentFlow(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4) {
+    text = forceParagraphSplit(text, 4);
+    paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  }
+  if (paragraphs.length < 4) return text;
+
+  // 1. Identifikasi paragraf yang terlihat seperti "kesimpulan" (akhir)
+  const conclusionIdx = paragraphs.findIndex(p =>
+    /\b(?:in conclusion|to sum up|ultimately|finally|in the end|so,|therefore|thus|all in all)\b/i.test(p)
+  );
+  // Jika tidak ditemukan, ambil paragraf terakhir sebagai dugaan kesimpulan
+  const targetIdx = conclusionIdx !== -1 ? conclusionIdx : paragraphs.length - 1;
+
+  // 2. Pindahkan kesimpulan ke posisi 2 (bukan akhir)
+  const conclusionPara = paragraphs.splice(targetIdx, 1)[0];
+  if (conclusionPara) {
+    paragraphs.splice(2, 0, conclusionPara);
+  }
+
+  // 3. Acak urutan paragraf lainnya (kecuali yang pertama dan terakhir? Bisa lebih liar)
+  // Ambil paragraf dari indeks 1 sampai length-2, lalu acak
+  const middle = paragraphs.slice(1, paragraphs.length - 1);
+  // Acak array middle
+  for (let i = middle.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [middle[i], middle[j]] = [middle[j], middle[i]];
+  }
+  paragraphs = [paragraphs[0], ...middle, paragraphs[paragraphs.length - 1]];
+
+  // 4. Sisipkan satu kalimat "keraguan" atau "counter-argument" di suatu tempat
+  const doubtSentences = [
+    "Actually, I'm not entirely sure that's the whole picture.",
+    "But wait — maybe that's not the main reason at all.",
+    "Then again, I could be wrong.",
+    "To be honest, I've never really understood why people focus on these factors.",
+  ];
+  const insertIdx = Math.floor(Math.random() * (paragraphs.length - 2)) + 1;
+  paragraphs.splice(insertIdx, 0, doubtSentences[Math.floor(Math.random() * doubtSentences.length)]);
+
+  return paragraphs.join('\n\n');
 }
 
 // ============================================================
