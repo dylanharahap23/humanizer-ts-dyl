@@ -15,12 +15,15 @@ import {
 import { isSupabaseServerConfigured } from "@/lib/supabase/server";
 import {
   finalHumanize,
+  addHumanTouches,
   getEnglishHumanizerConfig,
   getSystemPromptByTone,
   normalizeHumanizerTone,
   isFormalEssay,
+  isGenericExplanation,
   BLOG_STYLE_SECOND_PASS_PROMPT,
   GENUINE_HUMAN_REWRITE_PROMPT,
+  PERSONAL_OBSERVATION_PROMPT,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -1025,6 +1028,11 @@ function buildConversationalSecondPassPrompt(
   tone: HumanizerPromptConfig["postProcessTone"],
   sourceText?: string
 ): string {
+  // NEW: personal observation pass for generic explanations
+  if (sourceText && isGenericExplanation(sourceText)) {
+    return PERSONAL_OBSERVATION_PROMPT;
+  }
+
   if (tone === "english-consumer") {
     return `You are a human writer re-writing a piece that was just rewritten by AI. The previous rewrite is too clean, too well-structured, and reads as machine-generated. Your job is to "mess it up" — make it sound REAL.
 
@@ -1609,6 +1617,7 @@ async function applyConversationalSecondPass({
   const systemPrompt = buildConversationalSecondPassPrompt(tone, sourceText);
   const isBlogPass = systemPrompt === BLOG_STYLE_SECOND_PASS_PROMPT;
   const isGenuineHumanRewrite = systemPrompt === GENUINE_HUMAN_REWRITE_PROMPT;
+  const isPersonalPass = systemPrompt === PERSONAL_OBSERVATION_PROMPT;
   const sourceWordCountForPrompt = sourceText.split(/\s+/).filter(Boolean).length;
   const profileLengthDirective =
     tone === "english-policy"
@@ -1636,7 +1645,7 @@ async function applyConversationalSecondPass({
     signal,
     body: JSON.stringify({
       model: SECOND_PASS_MODEL,
-      temperature: isBlogPass ? 0.9 : (
+      temperature: isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
         tone === "english-argument"
           ? 0.2
           : tone === "english-policy"
@@ -1646,7 +1655,7 @@ async function applyConversationalSecondPass({
               : tone === "english-practical"
                 ? 0.3
                 : 0.7
-      ),
+      )),
       top_p: isBlogPass ? 0.95 : (
         tone === "english-argument"
           ? 0.85
@@ -2066,6 +2075,7 @@ export async function POST(req: Request) {
     // --- PASS 2: Conversational OR Style Repair ---
     let secondPassApplied = false;
     let secondPassModel: string | null = null;
+    let personalRewriteApplied = false;
 
     if (useTwoPass) {
       const firstPassHasUnsupportedAdditions =
@@ -2096,6 +2106,11 @@ export async function POST(req: Request) {
         currentText = convPass.text;
         secondPassApplied = true;
         secondPassModel = SECOND_PASS_MODEL;
+        // Check if personal observation prompt was used
+        const systemPrompt = buildConversationalSecondPassPrompt(config.postProcessTone, text);
+        if (systemPrompt === PERSONAL_OBSERVATION_PROMPT) {
+          personalRewriteApplied = true;
+        }
       } else {
         // PERBAIKAN: Second pass rejected - apply aggressive post-processing
         console.warn("Second pass not applied, applying aggressive humanization fallback");
@@ -2110,8 +2125,11 @@ export async function POST(req: Request) {
     const needsFidelityCheck = 
       config.postProcessTone === "english-sensitive" ||
       config.postProcessTone === "english-academic";
-
-    if (needsFidelityCheck) {
+    
+    // If personal rewrite was applied, skip heavy post-processing
+    if (personalRewriteApplied) {
+      currentText = addHumanTouches(currentText, config.postProcessTone);
+    } else if (needsFidelityCheck) {
       const postProcessedCandidate = finalHumanize(currentText, config.postProcessTone);
       
       const finalFidelityIssues = getConversationalFidelityIssues(

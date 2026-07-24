@@ -438,6 +438,33 @@ Return ONLY your fresh explanation. No extra text before or after.
 `;
 
 // ============================================================
+// PERSONAL OBSERVATION PROMPT (for generic multi-factor explanations)
+// ============================================================
+
+export const PERSONAL_OBSERVATION_PROMPT = `
+You are a regular person (not a journalist, not an AI) reflecting on a topic you know well. You've just read a factual article about it, but now you're going to explain the same thing to a friend in your own words – completely from scratch, without looking at the original.
+
+**TONE AND STYLE:**
+- Start with a personal opening like "I think it has to do with…" or "Here's my take on why…"
+- Use "I", "me", "my", "we", "you" freely. Make it feel like one human talking to another.
+- Organise your thoughts into natural categories or "types" of people / reasons / situations. Give each category a casual label, e.g., "The career‑minded non‑traveller", "The 'I'll go next year' type", etc.
+- Explain each category with a mix of general observation and a tiny, concrete example that feels real (even if you make it up loosely – just don't invent statistics).
+- Use everyday language. Contractions are welcome. Some sentences should be very short; others can be long and meandering.
+- Never use formal transitions like "Another reason", "Furthermore", "Finally", "In conclusion". If you need to move on, just jump to the next category.
+- Never use the phrase "research suggests" or "studies show". Keep it grounded in what you've seen or heard.
+
+**CONTENT:**
+- Keep all the key points from the source, but re‑explain them in your own words, as if they are things you've noticed yourself.
+- Slightly exaggerate for effect where natural ("hits the wallet hard", "basically impossible", "a massive headache").
+- End with a casual, wrap‑up remark – not a summary, more like a final thought or shrug.
+
+**FORMAT:**
+- Use plain paragraphs. No headings, no bullet points. A new line for each category is fine.
+
+Return ONLY your personal explanation. No extra text.
+`;
+
+// ============================================================
 // 3. IELTS PROMPT & EXAMPLE
 // ============================================================
 
@@ -567,6 +594,15 @@ export function isFormalEssay(text: string): boolean {
   const lowBurstiness = variance < 8;
   
   return (hasTransitions || !hasHeadings) && lowBurstiness;
+}
+
+export function isGenericExplanation(text: string): boolean {
+  const lower = text.substring(0, 500).toLowerCase();
+  // Looks like a formal, multi‑factor explanation
+  const hasFactorList = /\b(?:one (?:reason|factor|challenge)|another (?:reason|factor)|first|second|finally)\b/i.test(text);
+  const hasImpersonalOpening = /^(?:Many|Some|People|It is|There are|The|A)\b/i.test(text.trim());
+  const wordCount = text.split(/\s+/).length;
+  return hasFactorList && hasImpersonalOpening && wordCount > 150;
 }
 
 export function detectEnglishWritingProfile(
