@@ -20,6 +20,7 @@ import {
   normalizeHumanizerTone,
   isFormalEssay,
   BLOG_STYLE_SECOND_PASS_PROMPT,
+  GENUINE_HUMAN_REWRITE_PROMPT,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -1078,9 +1079,10 @@ Return only the rewrite.`;
 Return only the rewrite.`;
   }
   
-  // Generic fallback – choose between conversational rewrite and blog-style restructure
+  // Generic fallback – choose between conversational rewrite, blog-style restructure, or genuine human re-explain
   if (sourceText && isFormalEssay(sourceText)) {
-    return BLOG_STYLE_SECOND_PASS_PROMPT;
+    // For formal essays, use the genuine human rewrite prompt that regenerates from scratch
+    return GENUINE_HUMAN_REWRITE_PROMPT;
   }
   return `Rewrite the draft into a more natural, conversational explanation.
 
@@ -1606,6 +1608,7 @@ async function applyConversationalSecondPass({
 
   const systemPrompt = buildConversationalSecondPassPrompt(tone, sourceText);
   const isBlogPass = systemPrompt === BLOG_STYLE_SECOND_PASS_PROMPT;
+  const isGenuineHumanRewrite = systemPrompt === GENUINE_HUMAN_REWRITE_PROMPT;
   const sourceWordCountForPrompt = sourceText.split(/\s+/).filter(Boolean).length;
   const profileLengthDirective =
     tone === "english-policy"
