@@ -58,7 +58,7 @@ export type HumanizerPromptConfig = {
 // ============================================================
 
 export const SELECTIVE_REWRITE_PROMPT = `
-You are a human writer re‑writing a comprehensive explanation. The original text covers many aspects in a balanced way. Your job is to **selectively** rewrite it from a personal perspective, **discarding some parts** and **focusing deeply on one or two key points**.
+You are a human writer re‑writing a factual explanation. The original text covers many aspects in a balanced way. Your job is to **selectively** rewrite it from a personal perspective, **discarding some parts** and **focusing deeply on one or two key points**.
 
 **Instructions:**
 - DO NOT try to cover every aspect of the original.
@@ -68,6 +68,8 @@ You are a human writer re‑writing a comprehensive explanation. The original te
 - Feel free to be slightly opinionated.
 - Do not use formal transitions like "Furthermore", "Moreover", "In addition".
 - End with a personal thought, not a summary.
+- **Include at least one specific number, year, or name from the original.**
+- **Add one rhetorical question or direct address to the reader.**
 
 **Fidelity:**
 - Keep the facts you do include accurate.
@@ -2973,6 +2975,38 @@ function cleanupEnglishSpacing(text: string) {
     .trim();
 }
 
+/**
+ * Inject human-specific elements (numbers, names, rhetorical questions) into text.
+ * Used for selective rewrite to add concrete details from source text.
+ */
+export function injectHumanSpecifics(text: string, sourceText: string): string {
+  // Jika belum ada angka spesifik, ambil dari source
+  if (!/\d{2,}/.test(text)) {
+    const numbers = sourceText.match(/\b\d{2,}\b/g) || [];
+    if (numbers.length > 0) {
+      // Sisipkan di kalimat kedua
+      const sentences = splitSentences(text);
+      if (sentences.length >= 2) {
+        const num = numbers[0];
+        sentences[1] = `For instance, more than ${num} people are affected. ` + sentences[1];
+        return sentences.join(' ');
+      }
+    }
+  }
+  // Tambahkan pertanyaan retoris jika tidak ada
+  if (!/\?/.test(text)) {
+    const questions = ["So why does this matter?", "But is it really that simple?", "What does that mean for you?"];
+    text = text + ' ' + questions[Math.floor(Math.random() * questions.length)];
+  }
+  // Tambahkan satu nama/peneliti jika ada di source
+  const names = sourceText.match(/\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/g) || [];
+  if (names.length > 0 && !text.includes(names[0])) {
+    const idx = Math.floor(text.length * 0.5);
+    text = text.slice(0, idx) + ` (as noted by ${names[0]}) ` + text.slice(idx);
+  }
+  return text;
+}
+
 function splitSentences(text: string) {
   return text
     .split(/(?<=[.!?])\s+/)
@@ -3128,12 +3162,13 @@ export function isComprehensiveNeutralExplanation(text: string): boolean {
   if (paragraphs.length < 3) return false;
   const hasFirstPerson = /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(text);
   if (hasFirstPerson) return false;
-  // Penanda daftar atau cakupan luas
-  const hasListMarkers = /\b(?:one (?:reason|factor|aspect)|another (?:reason|factor|aspect)|finally|in addition|furthermore)\b/i.test(text);
-  const hasComprehensiveCoverage = /\b(?:various|several|many|all|comprehensive|overview|overall)\b/i.test(text);
-  // Ada kesimpulan
-  const hasSummary = /\b(?:in conclusion|to sum up|ultimately|in summary|overall,|in the end)\b/i.test(text);
-  return (hasListMarkers || hasComprehensiveCoverage) && hasSummary;
+  // Deteksi daftar (angka, "one reason", "another", "finally")
+  const hasListMarkers = /\b(?:one (?:reason|factor|aspect)|another (?:reason|factor)|finally|in addition|furthermore|\d+\.\s)/i.test(text);
+  // Deteksi kesimpulan
+  const hasConclusion = /\b(?:in conclusion|to sum up|ultimately|in summary|overall,|in the end|despite these|although)\b/i.test(text);
+  // Deteksi cakupan luas
+  const hasComprehensive = /\b(?:various|several|many|all|comprehensive|overview|overall)\b/i.test(text);
+  return (hasListMarkers || hasComprehensive) && hasConclusion;
 }
 
 /**

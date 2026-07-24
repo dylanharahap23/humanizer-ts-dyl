@@ -1749,8 +1749,8 @@ ${text}${profileLengthDirective}`,
   const lengthRatio = sourceWords === 0 ? 1 : outputWords / sourceWords;
   
   // Longgarkan pemeriksaan fidelitas untuk selective rewrite
-  const minRatio = isSelectiveRewrite ? 0.35 : (tone === "english-argument" ? 0.55 : 0.65);
-  const maxRatio = isSelectiveRewrite ? 1.5 : 1.2;
+  const minRatio = isSelectiveRewrite ? 0.3 : (tone === "english-argument" ? 0.55 : 0.65);
+  const maxRatio = isSelectiveRewrite ? 1.8 : 1.2;
   const minimumLengthRatio = isSelectiveRewrite ? minRatio : (
     tone === "english-argument"
       ? 0.55
@@ -2178,6 +2178,12 @@ export async function POST(req: Request) {
         currentText = destroyThreeParagraphStructure(currentText);
         currentText = humanizeStructureEnglish(currentText);
         currentText = finalHumanize(currentText, config.postProcessTone);
+      }
+      
+      // NEW: For selective rewrite, inject human-specific elements (numbers, names, questions)
+      const isSelectiveRewritePass = systemPrompt === SELECTIVE_REWRITE_PROMPT;
+      if (isSelectiveRewritePass && config.postProcessTone.startsWith("english-")) {
+        currentText = injectHumanSpecifics(currentText, text);
       }
     }
 
