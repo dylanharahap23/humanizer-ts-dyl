@@ -706,9 +706,9 @@ export function detectEnglishWritingProfile(
 
   const hasPersonalPointOfView =
     /\b(?:I|me|my|mine|we|us|our|ours|you|your|yours)\b/i.test(text);
-  const consumerVehicleTopicCount =
+  const consumerDurableGoodsTopicCount =
     text.match(
-      /\b(?:electric vehicles?|EVs?|manufacturer|ownership|battery|charging|software updates?|resale value|dealer network|spare parts?|replacement components?|warranty|after-sales support|battery diagnostics?)\b/gi
+      /\b(?:electric vehicles?|EVs?|laptop|smartphone|tablet|appliance|device|battery|charging|software updates?|resale value|dealer network|spare parts?|replacement components?|warranty|after-sales support|battery diagnostics?|manufacturer|ownership|hardware|repair costs?|lifespan|durability)\b/gi
     )?.length ?? 0;
   const consumerRiskHits = countPatternHits(text, [
     /\b(?:10-year|ten-year|ten years|10 years|long-term ownership)\b/i,
@@ -717,13 +717,15 @@ export function detectEnglishWritingProfile(
     /\b(?:feel technologically outdated|resale value|comparable gasoline vehicle)\b/i,
     /\b(?:dealer network|trained technicians|battery diagnostics?|repair costs?|waiting times?)\b/i,
     /\b(?:global sales|financial performance|battery production|international service network|local operations|investment plans?)\b/i,
+    /\b(?:built to last|well-built|durability|lifespan|how long it lasts|practical lifespan)\b/i,
+    /\b(?:processor|RAM|SSD|cooling|heat management|thermal|performance throttling)\b/i,
   ]);
 
   if (
     writingPurpose === "General" &&
     wordCount >= 250 &&
-    consumerVehicleTopicCount >= 8 &&
-    consumerRiskHits >= 4
+    consumerDurableGoodsTopicCount >= 6 &&
+    consumerRiskHits >= 3
   ) {
     return "consumer-explainer";
   }
@@ -1126,16 +1128,10 @@ export function humanizeStructureEnglish(text: string): string {
   }
   
   // Insert an orphan short sentence before the last paragraph
+  // REMOVED: Hardcoded orphans yang jadi fingerprint tool
+  // Filler contextual sekarang di-generate via LLM di second pass
   if (paragraphs.length >= 2) {
-    const orphans = [
-      "Depends who you ask, though.",
-      "It's not that simple.",
-      "That's the thing, really.",
-      "Makes you think.",
-      "Not everyone agrees on that.",
-    ];
-    const orphan = orphans[Math.floor(Math.random() * orphans.length)];
-    paragraphs.splice(paragraphs.length - 1, 0, orphan);
+    // Skip insertion of hardcoded orphan sentences
   }
   
   return paragraphs.join('\n\n');
@@ -1256,15 +1252,9 @@ function disruptStructure(text: string): string {
     }
     
     // Add a standalone orphan sentence in the middle
-    const orphans = [
-      "That's the short version, anyway.",
-      "Makes you think, doesn't it.",
-      "Simple enough in theory.",
-      "Harder than it sounds, though.",
-    ];
-    const orphan = orphans[Math.floor(Math.random() * orphans.length)];
-    const insertIdx = Math.floor(paragraphs.length / 2);
-    paragraphs.splice(insertIdx, 0, orphan);
+    // REMOVED: Hardcoded orphans yang jadi fingerprint tool
+    // Filler contextual sekarang di-generate via LLM di second pass
+    // Skip insertion of hardcoded orphan sentences
   }
   
   return paragraphs.join('\n\n');
@@ -1402,7 +1392,8 @@ function boostVocabularyEntropy(text: string): string {
 function isGrammaticallyBroken(text: string): boolean {
   return /\bwithout no\b/i.test(text) ||
          /\bnot un\w+/i.test(text) ||
-         /\b(a|an)\s+(actually|really|no joke|kind of huge)\b/i.test(text);
+         /\b(a|an)\s+(actually|really|no joke|kind of huge)\b/i.test(text) ||
+         /\bat (buy|sell|use)\b/i.test(text);  // BUG FIX: "at buy" error dari humanizeReferences
 }
 
 function injectTokenSurprise(text: string): string {
@@ -1720,9 +1711,14 @@ function boostTokenPerplexity(text: string): string {
   for (const [pattern, replacements] of shuffled) {
     if (changes >= targetChanges) break;
     if (pattern.test(result)) {
+      const original = result;  // save for grammar check
       const replacement = replacements[Math.floor(Math.random() * replacements.length)];
       result = result.replace(pattern, replacement);
-      changes++;
+      if (isGrammaticallyBroken(result)) {
+        result = original;  // revert
+      } else {
+        changes++;
+      }
     }
   }
   return result;
@@ -1790,13 +1786,8 @@ function calibrateHedging(text: string): string {
   let result = text;
   result = result.replace(/\bmay (also )?(lead|cause|result|create|contribute)/gi,
     (m) => m.replace(/^may /i, 'sometimes '));
-  const sentences = splitSentences(result);
-  if (sentences.length >= 5 && Math.random() < 0.4 && !/I'm sure|definitely|certainly/i.test(result)) {
-    const certainStatements = ["That's the honest truth of it.", "No way around that one.", "That's just how it is."];
-    const stmt = certainStatements[Math.floor(Math.random() * certainStatements.length)];
-    sentences.splice(Math.floor(sentences.length * 0.6), 0, stmt);
-    result = sentences.join(' ');
-  }
+  // REMOVED: Hardcoded certainStatements yang jadi fingerprint tool
+  // Filler contextual sekarang di-generate via LLM di second pass
   return result;
 }
 
@@ -1822,18 +1813,10 @@ function varyDiscourseMarkers(text: string): string {
 }
 
 function injectGrammaticalAsymmetry(text: string): string {
-  const sentences = splitSentences(text);
-  if (sentences.length < 4) return text;
-  for (let i = 0; i < sentences.length - 1; i++) {
-    const w1 = sentences[i].split(/\s+/).length;
-    const w2 = sentences[i + 1].split(/\s+/).length;
-    if (w1 >= 5 && w1 <= 12 && w2 >= 5 && w2 <= 12 && Math.random() < 0.25) {
-      sentences[i] = sentences[i].replace(/[.!?]$/, ',');
-      sentences[i + 1] = sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
-      break;
-    }
-  }
-  return sentences.join(' ');
+  // REMOVED: Fungsi ini secara aktif merusak grammar dengan mengganti titik jadi koma
+  // tanpa konjungsi, menghasilkan comma-splice/run-on yang tidak gramatikal.
+  // Manusia asli pakai \"and\", \"but\", dll., bukan titik-jadi-koma polos.
+  return text;
 }
 
 function normalizeNegatives(text: string): string {
@@ -1850,6 +1833,49 @@ function stripMetadiscourse(text: string): string {
     .replace(/\bIt is important to note that\s+/gi, '')
     .replace(/\bNeedless to say,\s+/gi, '')
     .replace(/\bAs we have seen,\s+/gi, '');
+}
+
+/**
+ * De-jargonizing pass untuk casual/general/expository register
+ * Menurunkan presisi jargon teknis jadi bahasa sehari-hari
+ */
+function deJargonForCasualRegister(text: string, tone: string): string {
+  // Hanya apply untuk tone casual/general/expository, bukan academic/sensitive
+  if (tone === "english-academic" || tone === "english-sensitive") {
+    return text;
+  }
+  
+  const map: Array<[RegExp, string[]]> = [
+    [/\belectronic components\b/gi, ['the parts inside', 'the internals']],
+    [/\bperformance throttling\b/gi, ['slowing down', 'running slower']],
+    [/\bhardware failure\b/gi, ['stuff breaking down', 'parts giving out']],
+    [/\bpower circuits\b/gi, ['the power system', 'the electronics']],
+    [/\boperating temperatures\b/gi, ['how hot it runs']],
+    [/\bpractical lifespan\b/gi, ['how long it actually lasts']],
+    [/\bdurability of its hardware\b/gi, ['how well-built it is']],
+    [/\bthermal management\b/gi, ['cooling', 'heat handling']],
+    [/\bprocessing power\b/gi, ['muscle', 'oomph']],
+    [/\bstorage capacity\b/gi, ['space for files']],
+  ];
+  
+  let result = text;
+  let changes = 0;
+  const maxChanges = Math.floor(text.length / 250);
+  
+  for (const [pattern, replacements] of map) {
+    if (changes >= maxChanges) break;
+    if (pattern.test(result)) {
+      const original = result;
+      const replacement = replacements[Math.floor(Math.random() * replacements.length)];
+      result = result.replace(pattern, replacement);
+      if (isGrammaticallyBroken(result)) {
+        result = original;
+      } else {
+        changes++;
+      }
+    }
+  }
+  return result;
 }
 
 function injectDifficultyVariance(text: string): string {
@@ -2186,9 +2212,14 @@ function aiFriendlyWordReplacement(text: string): string {
   for (const [pattern, replacements] of map) {
     if (count >= maxCount) break;
     if (pattern.test(result)) {
+      const original = result;  // save for grammar check
       const replacement = replacements[Math.floor(Math.random() * replacements.length)];
       result = result.replace(pattern, replacement);
-      count++;
+      if (isGrammaticallyBroken(result)) {
+        result = original;  // revert
+      } else {
+        count++;
+      }
     }
   }
   return result;
@@ -2645,6 +2676,8 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   // ===== ANTI-DETECTION PASS untuk semua profil English =====
   if (tone.startsWith("english-") || tone === "casual") {
     result = applyAntiDetectionPass(result, text, tone);
+    // Apply de-jargonizing untuk casual/general/expository register
+    result = deJargonForCasualRegister(result, tone);
   }
 
   // Profile-specific direct rewrites (tetap seperti sebelumnya)
