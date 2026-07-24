@@ -2935,24 +2935,30 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   result = addHumanTouches(result, tone);
   
   // ============================================================
-  // FINAL LAYER: Human Author, Bukan AI Editor
+  // FINAL LAYER: Destroy GPTZero 16 Layers (Professor's analysis)
   // ============================================================
   if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
-    // 1. Loss: hapus 15-35% informasi (lupa)
+    // 1. Tambahkan kalimat idle (Layer 7, 13)
+    result = injectIdleSentences(result);
+    
+    // 2. Ciptakan fokus tidak merata (Layer 8, 15)
+    result = createUnevenFocus(result);
+    
+    // 3. Zoom in/out (Layer 12)
+    result = zoomInOut(result);
+    
+    // 4. Force information loss (Layer 16) - versi lebih agresif
     result = forceInformationLoss(result);
     
-    // 2. Obsesi: pilih 1-2 ide dan kembangkan berlebihan
-    result = createObsessionLoop(result);
+    // 5. Tambahkan organic mistakes (Layer 10, 14)
+    result = organicMistakes(result);
     
-    // 3. Hancurkan suara editor: tambahkan interjeksi, emosi, lupa
-    result = destroyEditorialVoice(result);
-    
-    // 4. Bersihkan sisa "or even" / "is also common" dari fungsi lama
+    // 6. Hapus sisa "or even" / "is also common" dari fungsi lama
     result = result.replace(/ — or even /g, ' ');
     result = result.replace(/ is also common\./g, '. ');
     result = result.replace(/ or even /g, ' ');
     
-    // 5. Bersihkan spacing
+    // 7. Bersihkan spacing
     result = cleanupEnglishSpacing(result);
   }
   
@@ -2962,28 +2968,6 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
 // ============================================================
 // 11. HELPER FUNCTIONS
 // ============================================================
-
-/**
- * Menghapus 15-35% klaim secara acak – meniru manusia yang lupa
- */
-export function forceInformationLoss(text: string): string {
-  const sentences = splitSentences(text);
-  if (sentences.length < 6) return text;
-
-  // Hapus 15-35% kalimat secara acak
-  const lossRatio = 0.15 + Math.random() * 0.2;
-  const removeCount = Math.floor(sentences.length * lossRatio);
-  const indicesToRemove = new Set<number>();
-  while (indicesToRemove.size < removeCount) {
-    // Jangan hapus kalimat pertama (pembuka) dan terakhir (penutup)
-    const idx = Math.floor(Math.random() * (sentences.length - 2)) + 1;
-    if (!indicesToRemove.has(idx)) indicesToRemove.add(idx);
-  }
-  const remaining = sentences.filter((_, i) => !indicesToRemove.has(i));
-
-  // Gabungkan sisa kalimat
-  return remaining.join(' ');
-}
 
 /**
  * Pilih 1-2 ide/klaim, lalu kembangkan secara obsesif (2-3 variasi pengulangan)
@@ -3073,6 +3057,221 @@ export function destroyEditorialVoice(text: string): string {
     "I guess that's it.",
   ];
   sentences.push(forgetfulEndings[Math.floor(Math.random() * forgetfulEndings.length)]);
+
+  return sentences.join(' ');
+}
+
+// ============================================================
+// NEW PROFESSOR LAYERS: Destroy GPTZero 16 Layers
+// ============================================================
+
+/**
+ * Tambahkan kalimat "idle" yang tidak menambah informasi baru
+ * Meniru manusia yang sering berhenti, mengulang, atau mengisi ruang kosong
+ * Layer 7 & 13: Every Sentence Must Be "Information Productive" & "Have a Purpose"
+ */
+export function injectIdleSentences(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  const idlePool = [
+    "Actually, I'm not sure why I'm even writing this.",
+    "Yeah, I know.",
+    "I mean, it's obvious, right?",
+    "Anyway.",
+    "Not that it really matters.",
+    "I guess that's just how it is.",
+    "Hmm.",
+    "Let me think about that for a second.",
+    "Well, anyway.",
+    "You know what I mean?",
+    "It's hard to explain, honestly.",
+    "But whatever.",
+    "I don't know, maybe I'm wrong.",
+    "It's just a thought.",
+    "Anyway, moving on.",
+  ];
+
+  // Sisipkan 3-5 kalimat idle di posisi acak
+  const count = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) {
+    const pos = Math.floor(Math.random() * sentences.length);
+    const idle = idlePool[Math.floor(Math.random() * idlePool.length)];
+    sentences.splice(pos, 0, idle);
+  }
+
+  return sentences.join(' ');
+}
+
+/**
+ * Pilih 1-2 ide untuk dikembangkan secara berlebihan (80% fokus),
+ * sisanya hanya disebutkan sekilas (20%)
+ * Meniru manusia yang punya "obsession" dan lupa membahas hal lain
+ * Layer 8 & 15: Semantic Compression Too High & Uniform Importance Distribution
+ */
+export function createUnevenFocus(text: string): string {
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+
+  // Pilih 1 paragraf untuk "dikembangkan" (diperluas)
+  const focusIdx = Math.floor(Math.random() * (paragraphs.length - 2)) + 1;
+  const focusPara = paragraphs[focusIdx];
+
+  if (focusPara) {
+    // Ambil 1-2 kalimat dari paragraf fokus, lalu ulangi dengan variasi 2-3 kali
+    const sentences = splitSentences(focusPara);
+    if (sentences.length > 1) {
+      const selected = sentences.slice(0, Math.min(2, sentences.length));
+      const expanded: string[] = [];
+      for (const s of selected) {
+        expanded.push(s);
+        // Tambahkan 2-3 variasi dari kalimat yang sama (pengulangan obsesif)
+        for (let i = 0; i < 2 + Math.floor(Math.random() * 2); i++) {
+          const variant = s
+            .replace(/\b(is|are|was|were)\b/i, (m) => ['is', 'are', 'was', 'were'][Math.floor(Math.random() * 4)] || m)
+            .replace(/\b(very|really|quite)\b/gi, (m) => ['extremely', 'incredibly', 'pretty', 'rather'][Math.floor(Math.random() * 4)] || m);
+          expanded.push(variant);
+        }
+      }
+      paragraphs[focusIdx] = expanded.join(' ');
+    }
+  }
+
+  // Persingkat paragraf lain (20% sisanya)
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (i !== focusIdx && Math.random() < 0.4) {
+      const sentences = splitSentences(paragraphs[i]);
+      if (sentences.length > 2) {
+        // Ambil hanya 1-2 kalimat pertama
+        paragraphs[i] = sentences.slice(0, 1 + Math.floor(Math.random() * 1)).join(' ');
+      }
+    }
+  }
+
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * Tambahkan "zoom in": detail konkret personal (grocery bill, neighbor, etc.)
+ * dan "zoom out": kembali ke makro, meniru perubahan resolusi manusia
+ * Layer 12: No Change in Resolution (Always Macro, Never Zoom In)
+ */
+export function zoomInOut(text: string): string {
+  let result = text;
+
+  const zoomInPool = [
+    "I mean, just last week I saw my grocery bill and almost fell off my chair.",
+    "My neighbor was telling me the other day how he's struggling to pay his electricity bill.",
+    "It's funny, I used to think $20 was a lot for a meal, now it's barely a snack.",
+    "I've been cutting back on coffee just to save a few bucks.",
+    "My friend lost his job last month and he's still looking.",
+    "You see it everywhere—people are just trying to get by.",
+  ];
+
+  const zoomOutPool = [
+    "But if you look at the bigger picture, the trends are pretty clear.",
+    "Of course, economists will tell you a different story.",
+    "It's all connected to global supply chains and interest rates.",
+    "That's just how the system works, I guess.",
+    "But that's a conversation for another time.",
+  ];
+
+  // Sisipkan 1-2 zoom-in detail di tengah
+  const sentences = splitSentences(result);
+  if (sentences.length > 4) {
+    const insertPos = Math.floor(sentences.length * 0.5);
+    const zoomIn = zoomInPool[Math.floor(Math.random() * zoomInPool.length)];
+    sentences.splice(insertPos, 0, zoomIn);
+
+    // Tambahkan zoom-out setelahnya
+    const zoomOutPos = Math.min(insertPos + 2, sentences.length);
+    const zoomOut = zoomOutPool[Math.floor(Math.random() * zoomOutPool.length)];
+    sentences.splice(zoomOutPos, 0, zoomOut);
+
+    result = sentences.join(' ');
+  }
+
+  return result;
+}
+
+/**
+ * Hapus 20-30% klaim secara acak – meniru manusia yang lupa
+ * Jangan hapus pembuka dan penutup, tapi hapus sebagian besar detail
+ * Layer 16: Human Memory is Lossy (Forget 20-30% Facts)
+ */
+export function forceInformationLoss(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 6) return text;
+
+  // Hapus 20-30% kalimat secara acak
+  const lossRatio = 0.2 + Math.random() * 0.15;
+  const removeCount = Math.floor(sentences.length * lossRatio);
+  const indicesToRemove = new Set<number>();
+  while (indicesToRemove.size < removeCount) {
+    // Jangan hapus 2 kalimat pertama dan 2 kalimat terakhir
+    const idx = Math.floor(Math.random() * (sentences.length - 4)) + 2;
+    if (!indicesToRemove.has(idx)) indicesToRemove.add(idx);
+  }
+  const remaining = sentences.filter((_, i) => !indicesToRemove.has(i));
+
+  return remaining.join(' ');
+}
+
+/**
+ * Tambahkan kesalahan organik: false starts, self-corrections, change-of-mind
+ * Bukan sekedar "or even" yang disuntikkan
+ * Layer 10 & 14: Artificial Chaos vs Organic Noise (False Starts, Real Mistakes)
+ */
+export function organicMistakes(text: string): string {
+  let result = text;
+
+  const falseStarts = [
+    "Wait, no—",
+    "Actually, scratch that—",
+    "Hold on—",
+    "I mean, well—",
+    "Hmm, let me rephrase—",
+    "No, that's not right—",
+  ];
+
+  const selfCorrections = [
+    "—or at least that's what I think—",
+    "—well, maybe not—",
+    "—actually, I take that back—",
+    "—on second thought—",
+    "—I should probably rephrase that—",
+  ];
+
+  const sentences = splitSentences(result);
+  if (sentences.length < 5) return result;
+
+  // 1. Ubah 1-2 kalimat jadi false start + correction
+  for (let i = 0; i < sentences.length && i < 2; i++) {
+    if (Math.random() < 0.25) {
+      const fs = falseStarts[Math.floor(Math.random() * falseStarts.length)];
+      sentences[i] = fs + ' ' + sentences[i].charAt(0).toLowerCase() + sentences[i].slice(1);
+    }
+  }
+
+  // 2. Sisipkan self-correction di tengah kalimat panjang
+  for (let i = 0; i < sentences.length; i++) {
+    if (sentences[i].split(/\s+/).length > 12 && Math.random() < 0.2) {
+      const sc = selfCorrections[Math.floor(Math.random() * selfCorrections.length)];
+      const words = sentences[i].split(' ');
+      const pos = Math.floor(words.length * 0.5);
+      words.splice(pos, 0, sc);
+      sentences[i] = words.join(' ');
+    }
+  }
+
+  // 3. Tambahkan 1 kalimat yang "berubah pikiran" di akhir
+  const changeOfMind = [
+    "Actually, I think I was wrong about that last point.",
+    "No, wait, that's not what I meant at all.",
+    "Hmm, maybe I should look this up before I say anything else.",
+    "I just realized I'm confusing two different things.",
+  ];
+  sentences.push(changeOfMind[Math.floor(Math.random() * changeOfMind.length)]);
 
   return sentences.join(' ');
 }
