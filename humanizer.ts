@@ -3788,10 +3788,7 @@ export function injectCognitiveUncertainty2(text: string): string {
   }
 
   return sentences.join(' ');
-}
-  
-  return result;
-}
+
 
 // ============================================================
 // FIX 5: Inject Real Uncertainty — Bukan Fake Typos
@@ -3860,7 +3857,6 @@ export function injectCognitiveUncertainty(text: string): string {
   return sentences.join(' ');
 }
 
-
 // ============================================================
 // STRUCTURAL DISRUPTION FUNCTIONS (untuk mengacak "idea graph")
 // ============================================================
@@ -3872,16 +3868,12 @@ export function injectCognitiveUncertainty(text: string): string {
 export function disruptIdeaGraph(text: string): string {
   let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
   if (paragraphs.length < 4) return text;
-
-  // 1. Cari paragraf yang terlihat seperti kesimpulan
   const conclusionIndices: number[] = [];
   paragraphs.forEach((p, i) => {
     if (/\b(ultimately|in conclusion|to sum up|finally|in the end|so,|therefore|thus|all in all)\b/i.test(p)) {
       conclusionIndices.push(i);
     }
   });
-
-  // 2. Pindahkan kesimpulan ke posisi 2 (bukan akhir)
   if (conclusionIndices.length > 0) {
     const idx = conclusionIndices[0];
     const conclusionPara = paragraphs.splice(idx, 1)[0];
@@ -3889,8 +3881,6 @@ export function disruptIdeaGraph(text: string): string {
       paragraphs.splice(2, 0, conclusionPara);
     }
   }
-
-  // 3. Ambil paragraf tengah dan pindahkan ke awal
   if (paragraphs.length > 4) {
     const midIdx = Math.floor(paragraphs.length / 2);
     const midPara = paragraphs.splice(midIdx, 1)[0];
@@ -3898,8 +3888,6 @@ export function disruptIdeaGraph(text: string): string {
       paragraphs.splice(0, 0, midPara);
     }
   }
-
-  // 4. Sisipkan paragraf "keraguan" atau "counter-argument" di posisi acak
   const doubtParagraphs = [
     "Actually, I'm not entirely sure that's the whole picture. There's probably more to it.",
     "But wait — maybe that's not the main reason at all. Could it be something else?",
@@ -3908,8 +3896,6 @@ export function disruptIdeaGraph(text: string): string {
   ];
   const insertIdx = Math.floor(paragraphs.length * 0.6);
   paragraphs.splice(insertIdx, 0, doubtParagraphs[Math.floor(Math.random() * doubtParagraphs.length)]);
-
-  // 5. Tambahkan kalimat "interupsi" di tengah paragraf yang panjang
   for (let i = 0; i < paragraphs.length; i++) {
     const sentences = splitSentences(paragraphs[i]);
     if (sentences.length > 3 && Math.random() < 0.3) {
@@ -3920,11 +3906,10 @@ export function disruptIdeaGraph(text: string): string {
         " — or so I thought — ",
         " (I mean, who knows, right?) ",
       ];
-      sentences[interruptIdx] = sentences[interruptIdx].replace(/^/, interruptions[Math.floor(Math.random() * interruptions.length)]);
+      sentences[interruptIdx] = interruptions[Math.floor(Math.random() * interruptions.length)] + sentences[interruptIdx];
       paragraphs[i] = sentences.join(' ');
     }
   }
-
   return paragraphs.join('\n\n');
 }
 
@@ -3934,13 +3919,10 @@ export function disruptIdeaGraph(text: string): string {
 export function reframeQuestion(text: string): string {
   const questionFraming = /\b(?:reason|because|since|due to|why|what makes)\b/i;
   if (!questionFraming.test(text)) return text;
-
   const sentences = splitSentences(text);
   if (sentences.length < 3) return text;
-
   const answerIdx = sentences.findIndex(s => /\b(?:reason|because|since|due to)\b/i.test(s) && !s.includes('?'));
   if (answerIdx === -1) return text;
-
   const reframings = [
     "Actually, is that even the right question to ask? ",
     "But maybe the real question isn't why they buy it, but what they're really after. ",
@@ -3949,7 +3931,6 @@ export function reframeQuestion(text: string): string {
   ];
   sentences[answerIdx] = reframings[Math.floor(Math.random() * reframings.length)] +
     sentences[answerIdx].charAt(0).toLowerCase() + sentences[answerIdx].slice(1);
-
   return sentences.join(' ');
 }
 
@@ -3958,7 +3939,6 @@ export function reframeQuestion(text: string): string {
  */
 export function injectPersonalArc(text: string): string {
   let result = text;
-
   const hasFirstPerson = /\b(?:I|me|my|we|our)\b/i.test(text);
   if (!hasFirstPerson) {
     const openers = [
@@ -3968,7 +3948,6 @@ export function injectPersonalArc(text: string): string {
     ];
     result = openers[Math.floor(Math.random() * openers.length)] + result;
   }
-
   const sentences = splitSentences(result);
   if (sentences.length > 4) {
     const emotionMarkers = [
@@ -3981,7 +3960,6 @@ export function injectPersonalArc(text: string): string {
     sentences.splice(idx, 0, emotionMarkers[Math.floor(Math.random() * emotionMarkers.length)]);
     result = sentences.join(' ');
   }
-
   if (Math.random() < 0.4) {
     const details = [
       "My cousin in Switzerland actually owns one.",
@@ -3993,7 +3971,6 @@ export function injectPersonalArc(text: string): string {
     sentences.splice(insertIdx, 0, details[Math.floor(Math.random() * details.length)]);
     result = sentences.join(' ');
   }
-
   return result;
 }
 
@@ -4003,7 +3980,6 @@ export function injectPersonalArc(text: string): string {
 export function injectCognitiveUncertainty2(text: string): string {
   const sentences = splitSentences(text);
   if (sentences.length < 5) return text;
-
   for (let i = 0; i < sentences.length; i++) {
     const s = sentences[i];
     if (/\b(is|are|will|must|always|never)\b/i.test(s) &&
@@ -4018,7 +3994,6 @@ export function injectCognitiveUncertainty2(text: string): string {
       sentences[i] = s.replace(/[.!?]$/, '') + doubts[Math.floor(Math.random() * doubts.length)];
     }
   }
-
   const counterArgs = [
     "But then again, some people would say the exact opposite.",
     "Though I'm not sure that's always true.",
@@ -4027,7 +4002,6 @@ export function injectCognitiveUncertainty2(text: string): string {
   ];
   const insertIdx = Math.floor(sentences.length * 0.5) + 1;
   sentences.splice(insertIdx, 0, counterArgs[Math.floor(Math.random() * counterArgs.length)]);
-
   for (let i = 0; i < sentences.length; i++) {
     const s = sentences[i];
     if (/\b(so|therefore|thus|ultimately|in the end)\b/i.test(s) && !s.includes('?')) {
@@ -4035,7 +4009,6 @@ export function injectCognitiveUncertainty2(text: string): string {
       break;
     }
   }
-
   return sentences.join(' ');
 }
 
