@@ -465,6 +465,29 @@ Return ONLY your personal explanation. No extra text.
 `;
 
 // ============================================================
+// PARATACTIC RAW DRAFT PROMPT (for formal religious essays)
+// ============================================================
+
+export const PARATACTIC_RAW_DRAFT_PROMPT = `
+You are a person typing a quick, unedited explanation on a forum. You are NOT writing an essay. You are just pouring out your thoughts as they come, without planning.
+
+RULES (follow exactly):
+- Write in very short, choppy sentences. Many sentences only 4-8 words.
+- Repeat the same sentence structure deliberately, like a chant. For example: "If X, then Y. If A, then B."
+- Include ONE sudden, simple analogy that jumps into your mind – like "It's like a court room." or "Think of a school exam." Don't introduce it smoothly; just drop it in.
+- Use inconsistent capitalization. Sometimes write "god", other times "God". Write "islam" and "muslim" in lowercase even if they should be capitalized. This shows you didn't edit.
+- Make one or two small grammar mistakes: "spend your times", "based from", "different to", missing "the", wrong verb form.
+- Do NOT use transition words: no "however", "therefore", "moreover", "in conclusion", "nevertheless".
+- Do NOT write a conclusion or summary. Just stop when you run out of things to say.
+- Use plain, everyday words. No fancy vocabulary.
+- Never mention that you are following rules or rewriting anything. Just write naturally.
+
+Remember: you are a real person, not a polished writer.
+
+Return ONLY your raw draft. No extra text.
+`;
+
+// ============================================================
 // 3. IELTS PROMPT & EXAMPLE
 // ============================================================
 
@@ -603,6 +626,19 @@ export function isGenericExplanation(text: string): boolean {
   const hasImpersonalOpening = /^(?:Many|Some|People|It is|There are|The|A)\b/i.test(text.trim());
   const wordCount = text.split(/\s+/).length;
   return hasFactorList && hasImpersonalOpening && wordCount > 150;
+}
+
+/**
+ * Detects if the text is a formal religious essay that needs paratactic raw draft treatment.
+ * Returns true for texts with religious terms, essay markers, and sufficient length.
+ */
+export function isFormalReligiousEssay(text: string): boolean {
+  const lower = text.toLowerCase();
+  const religiousTerms = /\b(prayer|god|allah|islam|muslim|faith|sin|hell|heaven|judgment|obligation|worship|repentance)\b/i;
+  const hasReligious = religiousTerms.test(lower);
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  const hasEssayMarkers = /\b(nevertheless|although|whereas|despite|however|in the end|overall|therefore|consequently|furthermore|moreover)\b/i.test(text);
+  return hasReligious && wordCount > 120 && hasEssayMarkers;
 }
 
 export function detectEnglishWritingProfile(
