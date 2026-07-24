@@ -243,8 +243,17 @@ You are editing a neutral English explanation. Recompose it as clear, natural pr
 **CRITICAL: REFRAME, DON'T JUST EXPLAIN**
 If the source is answering "why X happens", start by asking whether "why X" is the right question.
 
+**CRITICAL: BREAK THE LINEAR STRUCTURE**
+Do NOT keep the original argument order. The source text has a clear structure: problem → reason1 → reason2 → reason3 → conclusion. You MUST break this pattern.
+
+WAYS TO BREAK THE PATTERN:
+1. START with a counter-intuitive observation, not the main problem
+2. JUMP to a random example mid-way, then go back
+3. CHALLENGE the premise: "Is language learning actually that hard, or are we just bad at it?"
+4. ADD an unrelated analogy that doesn't perfectly fit
+5. END with a question or uncertainty, not a conclusion
+
 Editing rules:
-- Preserve the third-person or impersonal point of view used by the source.
 - Preserve every factual claim, comparison, cause, qualification, and level of certainty.
 - Compose from claims rather than paraphrasing the source one sentence at a time.
 - Change sentence boundaries, emphasis, and paragraph grouping when the logic allows it.
@@ -252,6 +261,7 @@ Editing rules:
 - Keep useful repetition of the main topic word.
 - Prefer ordinary verbs and the source's existing vocabulary over polished substitutions.
 - **Avoid the list structure: "one reason is... another factor is... finally..."**
+- **Make ONE paragraph very long (8+ sentences) and ONE paragraph very short (1-2 sentences)**
 
 Do not:
 - Add I, we, you, your, rhetorical questions, personal advice, or a stronger opinion when the source does not contain them.
@@ -259,12 +269,24 @@ Do not:
 - Use polished contrast templates such as "not merely X; rather Y" when a direct statement would work.
 - Add random fragments, filler, deliberate errors, or decorative drama.
 - Replace a repeated topic word with a chain of synonyms merely for variety.
+- Do NOT use these transitions: "First", "Another reason", "Finally", "In conclusion"
+- Do NOT use placeholder names like "Sarah", "Alex", "John", "Mary" — use real-sounding details instead
 
 Return only the rewritten English text.
 `;
 
 const ENGLISH_DISCURSIVE_PROMPT = `
 You are editing an accessible English explainer or practical guide.
+
+**CRITICAL: BREAK THE LINEAR STRUCTURE**
+Do NOT keep the original argument order. The source text has a clear structure: problem → reason1 → reason2 → reason3 → conclusion. You MUST break this pattern.
+
+WAYS TO BREAK THE PATTERN:
+1. START with a counter-intuitive observation, not the main problem
+2. JUMP to a random example mid-way, then go back
+3. CHALLENGE the premise: "Is language learning actually that hard, or are we just bad at it?"
+4. ADD an unrelated analogy that doesn't perfectly fit
+5. END with a question or uncertainty, not a conclusion
 
 Editing rules:
 - Start with a reframing of the question or issue, not a direct answer.
@@ -276,6 +298,7 @@ Editing rules:
 - Keep practical advice concrete and easy to scan.
 - Preserve hedges, degree, and frequency exactly.
 - **Avoid listing factors with "one", "another", "finally".**
+- **Make ONE paragraph very long (8+ sentences) and ONE paragraph very short (1-2 sentences)**
 
 Do not:
 - Add first-person opinions, memories, anecdotes, rhetorical questions, reader reactions.
@@ -283,12 +306,24 @@ Do not:
 - Add fillers, deliberate errors, ellipses, dramatic interruptions, or fake spontaneity.
 - Use report-like substitutions when direct wording is available.
 - End with a polished recap or motivational lesson.
+- Do NOT use these transitions: "First", "Another reason", "Finally", "In conclusion"
+- Do NOT use placeholder names like "Sarah", "Alex", "John", "Mary" — use real-sounding details instead
 
 Return only the rewritten English text.
 `;
 
 const ENGLISH_PRACTICAL_EXPLAINER_PROMPT = `
 You are editing a practical English explainer. Turn the source into a useful reader-oriented guide.
+
+**CRITICAL: BREAK THE LINEAR STRUCTURE**
+Do NOT keep the original argument order. The source text has a clear structure: problem → reason1 → reason2 → reason3 → conclusion. You MUST break this pattern.
+
+WAYS TO BREAK THE PATTERN:
+1. START with a counter-intuitive observation, not the main problem
+2. JUMP to a random example mid-way, then go back
+3. CHALLENGE the premise: "Is language learning actually that hard, or are we just bad at it?"
+4. ADD an unrelated analogy that doesn't perfectly fit
+5. END with a question or uncertainty, not a conclusion
 
 Editing rules:
 - Begin with a specific, actionable reframing of the problem.
@@ -298,6 +333,7 @@ Editing rules:
 - Convert long inventories into complete, readable sentences.
 - Prefer direct verbs and ordinary wording. Contractions are welcome.
 - Use two or three paragraphs with visibly different amounts of detail.
+- **Make ONE paragraph very long (8+ sentences) and ONE paragraph very short (1-2 sentences)**
 - End on the last useful action or limitation already present in the source.
 
 Do not:
@@ -306,6 +342,8 @@ Do not:
 - Add rhetorical questions, fake quotations, deliberate errors, fragments, filler, or slang.
 - Strengthen "can", "often", "may", or "helps" into a promise or universal rule.
 - Drop technical concepts such as working memory, cognitive overload, or the prefrontal cortex.
+- Do NOT use these transitions: "First", "Another reason", "Finally", "In conclusion"
+- Do NOT use placeholder names like "Sarah", "Alex", "John", "Mary" — use real-sounding details instead
 
 Return only the rewritten English text.
 `;
@@ -2870,6 +2908,17 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   // Apply human chaos injection for general/expository tones to add natural imperfections
   if (tone === "english-general" || tone === "english-expository" || tone === "casual") {
     result = injectHumanChaos(result);
+    // FIX 4: Force Structural Randomization untuk general/expository
+    result = randomizeIdeaOrder(result);
+    // FIX 3: Remove excessive connective words
+    result = stripConnectiveWords(result);
+    // Hapus placeholder names (Sarah, Alex) jika ada — ganti dengan yang lebih natural
+    result = result.replace(/\b(?:Sarah|Alex|John|Mary|Jane|Bob)\b/gi, (match) => {
+      const replacements = ['a friend', 'someone I know', 'a colleague', 'a relative', 'one person I met'];
+      return replacements[Math.floor(Math.random() * replacements.length)];
+    });
+    // FIX 5: Inject cognitive uncertainty (bukan fake typos!)
+    result = injectCognitiveUncertainty(result);
   }
   
   return cleanupEnglishSpacing(result);
@@ -3438,3 +3487,177 @@ export function transformToPersonalOpinion(text: string): string {
 
   return `${opening} ${bodyParts.join(' ')} ${analogy} ${closing}`;
 }
+
+// ============================================================
+// NEW FUNCTIONS FROM LECTURER FEEDBACK
+// FIX 2: Structural Randomizer - Mengacak urutan ide dalam teks
+// ============================================================
+
+/**
+ * Mengacak urutan ide dalam teks untuk menghilangkan pola "argumen linear"
+ * Ini adalah senjata utama melawan deteksi struktur AI
+ */
+export function randomizeIdeaOrder(text: string): string {
+  // Pecah menjadi paragraf
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4) return text;
+  
+  // 1. Pindahkan paragraf terakhir ke posisi 2 (bukan kesimpulan di akhir)
+  const lastPara = paragraphs.pop();
+  if (lastPara && paragraphs.length > 2) {
+    paragraphs.splice(1, 0, lastPara);
+  }
+  
+  // 2. Ambil salah satu paragraf tengah dan pindahkan ke awal
+  if (paragraphs.length > 3) {
+    const midIdx = Math.floor(paragraphs.length / 2);
+    const midPara = paragraphs.splice(midIdx, 1)[0];
+    if (midPara) {
+      paragraphs.splice(0, 0, midPara);
+    }
+  }
+  
+  // 3. Temukan kalimat yang terdengar seperti "kesimpulan" dan pindahkan ke tengah
+  const conclusionMarkers = /\b(?:in conclusion|to sum up|ultimately|finally|in the end|so,|therefore|thus)\b/i;
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (conclusionMarkers.test(paragraphs[i])) {
+      const conclusionPara = paragraphs.splice(i, 1)[0];
+      if (conclusionPara && paragraphs.length > 2) {
+        const insertIdx = Math.floor(paragraphs.length * 0.5);
+        paragraphs.splice(insertIdx, 0, conclusionPara);
+      }
+      break;
+    }
+  }
+  
+  // 4. Gabungkan 2 paragraf pendek menjadi satu (untuk variasi panjang)
+  for (let i = 0; i < paragraphs.length - 1; i++) {
+    const wordCount1 = paragraphs[i].split(/\s+/).length;
+    const wordCount2 = paragraphs[i + 1].split(/\s+/).length;
+    if (wordCount1 < 30 && wordCount2 < 30 && Math.random() < 0.3) {
+      paragraphs[i] = paragraphs[i] + ' ' + paragraphs[i + 1];
+      paragraphs.splice(i + 1, 1);
+      break;
+    }
+  }
+  
+  // 5. Sisipkan kalimat "keraguan" di tengah
+  const doubtSentences = [
+    "Actually, I'm not completely sure about that.",
+    "Then again, maybe I'm wrong.",
+    "Though I could be off on this one.",
+    "But honestly, who really knows?",
+  ];
+  if (paragraphs.length > 2 && Math.random() < 0.5) {
+    const insertIdx = Math.floor(paragraphs.length * 0.6);
+    paragraphs.splice(insertIdx, 0, doubtSentences[Math.floor(Math.random() * doubtSentences.length)]);
+  }
+  
+  return paragraphs.join('\n\n');
+}
+
+// ============================================================
+// FIX 3: Remove Connective Words
+// ============================================================
+
+/**
+ * Menghapus connective words yang berlebihan
+ * Human sering langsung lompat tanpa transisi
+ */
+export function stripConnectiveWords(text: string): string {
+  const connectivePatterns = [
+    /\b(And then|Then,?)\s+/gi,
+    /\b(It also depends on|It also|Also,?)\s+/gi,
+    /\b(To be honest,?)\s+/gi,
+    /\b(Of course,?)\s+/gi,
+    /\b(As a result,?)\s+/gi,
+    /\b(Consequently,?)\s+/gi,
+    /\b(Therefore,?)\s+/gi,
+    /\b(Furthermore,?)\s+/gi,
+    /\b(Moreover,?)\s+/gi,
+    /\b(In addition,?)\s+/gi,
+    /\b(On the other hand,?)\s+/gi,
+  ];
+  
+  let result = text;
+  let removals = 0;
+  const maxRemovals = Math.floor(text.split(/\s+/).length / 100) + 1;
+  
+  for (const pattern of connectivePatterns) {
+    if (removals >= maxRemovals) break;
+    if (pattern.test(result) && Math.random() < 0.6) {
+      result = result.replace(pattern, '');
+      removals++;
+    }
+  }
+  
+  return result;
+}
+
+// ============================================================
+// FIX 5: Inject Real Uncertainty — Bukan Fake Typos
+// ============================================================
+
+/**
+ * Menambahkan ketidakpastian dan eksplorasi ide (bukan sekadar typo)
+ * Ini yang paling efektif melawan GPTZero 4.7b
+ */
+export function injectCognitiveUncertainty(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+  
+  // 1. Ubah 1-2 kalimat afirmatif menjadi kalimat yang menunjukkan keraguan
+  const doubtPatterns = [
+    /^(I think|I believe|In my opinion|I feel)/i,
+    /^(It is|This is|That is|The problem is)/i,
+  ];
+  
+  let changes = 0;
+  for (let i = 0; i < sentences.length && changes < 2; i++) {
+    const s = sentences[i];
+    if (doubtPatterns.some(p => p.test(s)) && !s.includes('maybe') && !s.includes('perhaps') && !s.includes('not sure')) {
+      const doubtOpeners = [
+        "Actually, ",
+        "To be fair, ",
+        "I'm not entirely sure, but ",
+        "Maybe it's just me, but ",
+        "Honestly, I think ",
+      ];
+      sentences[i] = doubtOpeners[Math.floor(Math.random() * doubtOpeners.length)] + 
+        s.charAt(0).toLowerCase() + s.slice(1);
+      changes++;
+    }
+  }
+  
+  // 2. Tambahkan 1 kalimat yang "membatalkan" argumen sebelumnya
+  if (sentences.length > 4 && Math.random() < 0.4) {
+    const counterSentences = [
+      "Then again, I could be wrong about that.",
+      "But maybe that's just my experience.",
+      "Although, to be fair, it depends on the person.",
+      "Though some people would probably disagree.",
+    ];
+    const insertIdx = Math.floor(sentences.length * 0.4) + 1;
+    sentences.splice(insertIdx, 0, counterSentences[Math.floor(Math.random() * counterSentences.length)]);
+  }
+  
+  // 3. Ubah 1 kalimat "kesimpulan" menjadi pertanyaan
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    if (/\b(?:so|therefore|thus|in the end|ultimately)\b/i.test(s) && 
+        !s.includes('?') && 
+        Math.random() < 0.3) {
+      // Ubah menjadi pertanyaan retoris
+      const questionVersions = [
+        s.replace(/[.!?]$/, '') + ', right?',
+        s.replace(/[.!?]$/, '') + ', or am I wrong?',
+        s.replace(/[.!?]$/, '') + ', I guess?',
+      ];
+      sentences[i] = questionVersions[Math.floor(Math.random() * questionVersions.length)];
+      break;
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
