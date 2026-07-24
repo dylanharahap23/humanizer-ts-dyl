@@ -24,6 +24,8 @@ import {
   BLOG_STYLE_SECOND_PASS_PROMPT,
   GENUINE_HUMAN_REWRITE_PROMPT,
   PERSONAL_OBSERVATION_PROMPT,
+  destroyThreeParagraphStructure,
+  humanizeStructureEnglish,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -1729,11 +1731,17 @@ ${text}${profileLengthDirective}`,
           ? 0.58
           : 0.65;
 
+  const allowSecondPerson = 
+    tone === "english-practical" ||
+    tone === "english-consumer" ||
+    tone === "english-expository" ||   // ← PERBAIKAN: Izinkan second-person untuk expository
+    tone === "english-general";        // ← PERBAIKAN: Izinkan second-person untuk general
+
   const fidelityIssues = [
     ...getConversationalFidelityIssues(
       sourceText,
       cleaned,
-      tone === "english-practical" || tone === "english-consumer" || tone === "english-general"  // ← PERBAIKAN: Izinkan second-person untuk english-general
+      allowSecondPerson
     ),
     ...(tone === "english-policy"
       ? getPolicyFidelityIssues(sourceText, cleaned)
@@ -1767,9 +1775,7 @@ function needsEnglishStyleRepair(
   _sourceText: string,
   tone: HumanizerPromptConfig["postProcessTone"]
 ) {
-  return (
-    tone === "english-academic" || tone === "english-sensitive"
-  );
+  return tone.startsWith("english-");   // ← PERBAIKAN: Aktif untuk semua English tones
 }
 
 async function repairEnglishStyle({
@@ -2084,7 +2090,8 @@ export async function POST(req: Request) {
           currentText,
           config.postProcessTone === "english-practical" ||
             config.postProcessTone === "english-consumer" ||
-            config.postProcessTone === "english-general"  // ← PERBAIKAN: Izinkan second-person untuk english-general di first pass
+            config.postProcessTone === "english-expository" ||  // ← PERBAIKAN: Izinkan second-person untuk expository di first pass
+            config.postProcessTone === "english-general"        // ← PERBAIKAN: Izinkan second-person untuk general di first pass
         ).length > 0;
       const secondPassInput =
         config.postProcessTone === "english-argument" ||
@@ -2112,8 +2119,10 @@ export async function POST(req: Request) {
           personalRewriteApplied = true;
         }
       } else {
-        // PERBAIKAN: Second pass rejected - apply aggressive post-processing
-        console.warn("Second pass not applied, applying aggressive humanization fallback");
+        // PERBAIKAN: Second pass rejected - force structural disruption before regex patching
+        console.warn("Second pass rejected; applying mandatory structural disruption");
+        currentText = destroyThreeParagraphStructure(currentText);
+        currentText = humanizeStructureEnglish(currentText);
         currentText = finalHumanize(currentText, config.postProcessTone);
       }
     }

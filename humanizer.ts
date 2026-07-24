@@ -1076,7 +1076,7 @@ function ensureMultiParagraph(text: string): string {
   return text;
 }
 
-function destroyThreeParagraphStructure(text: string): string {
+export function destroyThreeParagraphStructure(text: string): string {
   let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
   if (paragraphs.length < 3) return text;
 
@@ -1108,7 +1108,7 @@ function destroyThreeParagraphStructure(text: string): string {
   return paragraphs.join('\n\n');
 }
 
-function humanizeStructureEnglish(text: string): string {
+export function humanizeStructureEnglish(text: string): string {
   let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
   if (paragraphs.length < 3) return text;
   
@@ -1399,10 +1399,16 @@ function boostVocabularyEntropy(text: string): string {
  * Replaces 3-5 common words with less predictable alternatives
  * to lower per-token generated_prob below 0.99
  */
+function isGrammaticallyBroken(text: string): boolean {
+  return /\bwithout no\b/i.test(text) ||
+         /\bnot un\w+/i.test(text) ||
+         /\b(a|an)\s+(actually|really|no joke|kind of huge)\b/i.test(text);
+}
+
 function injectTokenSurprise(text: string): string {
   const surpriseMap: Array<[RegExp, string[]]> = [
     [/\bimportant\b/gi, ['a big deal', 'kind of huge', 'the real thing']],
-    [/\bsignificant\b/gi, ['no joke', 'actually matters', 'real']],
+    [/\bsignificant\b/gi, ['big', 'real', 'major']],
     [/\bconsiderable\b/gi, ['a lot of', 'tons of']],
     [/\bsubstantial\b/gi, ['big', 'huge', 'plenty of']],
     [/\bHowever,\b/gi, ['But', 'Thing is,', 'Look,']],
@@ -1438,9 +1444,14 @@ function injectTokenSurprise(text: string): string {
   for (const [pattern, replacements] of shuffled) {
     if (changes >= maxChanges) break;
     if (pattern.test(result)) {
+      const original = result;  // save
       const replacement = replacements[Math.floor(Math.random() * replacements.length)];
       result = result.replace(pattern, replacement);
-      changes++;
+      if (isGrammaticallyBroken(result)) {
+        result = original;  // revert
+      } else {
+        changes++;
+      }
     }
   }
   return result;
