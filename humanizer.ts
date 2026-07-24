@@ -3096,7 +3096,7 @@ function splitSentences(text: string) {
  * Detects if sentence order between source and candidate is too similar
  * Returns a similarity score from 0 to 1 (higher = more similar)
  */
-function sentenceOrderSimilarity(source: string, candidate: string): number {
+export function sentenceOrderSimilarity(source: string, candidate: string): number {
   const srcSentences = splitSentences(source);
   const candSentences = splitSentences(candidate);
   
