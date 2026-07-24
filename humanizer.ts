@@ -416,6 +416,28 @@ Return ONLY the rewritten article, with headings and line breaks between section
 `;
 
 // ============================================================
+// GENUINE HUMAN REWRITE PROMPT (for formal essays - complete regeneration)
+// ============================================================
+
+export const GENUINE_HUMAN_REWRITE_PROMPT = `
+You are a regular person (not an AI, not a journalist) explaining the same topic as the source text. You have read the source and understood it, but now you are telling a friend about it in your own words, from scratch.
+
+CRITICAL: Do NOT edit, paraphrase, or restructure the source. Completely ignore its wording and sentence order. Build your explanation from the ground up, using only the key facts you remember.
+
+RULES:
+- Write in a SINGLE, uninterrupted flow of thought. No headings, no bullet points, no section breaks. Just plain paragraphs.
+- Use simple, everyday language. Imagine you're talking, not writing an article.
+- Include ONE personal aside or mild exaggeration that fits naturally (e.g., "honestly, it surprised me too," "I mean, think about it," "basically, it's like...").
+- Allow yourself to be slightly imprecise or incomplete – it's okay if a technical detail is missing or slightly off, as long as the overall idea is correct.
+- Vary your sentence length wildly. Some sentences very short. Others quite long and rambling.
+- NEVER use the phrases "Another reason", "Furthermore", "Finally", "In conclusion", "One factor is". If you need to list things, just say "also", "and", "plus".
+- NEVER start with a meta comment like "Here's a rewritten version".
+- End with a casual, offhand remark, not a summary.
+
+Return ONLY your fresh explanation. No extra text before or after.
+`;
+
+// ============================================================
 // 3. IELTS PROMPT & EXAMPLE
 // ============================================================
 
@@ -2529,7 +2551,7 @@ function makeDiscursiveEnglishMoreDirect(text: string) {
 // 10. finalHumanize
 // ============================================================
 
-export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "casual"): string {
+export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "casual", skipHeavyProcessing = false): string {
   if (
     tone === "indonesian-general" ||
     tone === "indonesian-academic" ||
@@ -2541,6 +2563,13 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   if (!text || text.length < 40) return text.trim();
 
   let result = text.trim();
+
+  // ===== GENUINE HUMAN REWRITE: Skip ALL heavy post-processing, only cleanup =====
+  // When the genuine human rewrite prompt was used, the output is already messy and human-like
+  if (skipHeavyProcessing && tone.startsWith("english-")) {
+    result = addHumanTouches(result, tone);
+    return cleanupEnglishSpacing(result);
+  }
 
   // ===== BLOG-STYLE OUTPUT: Skip heavy post-processing, already human enough =====
   const looksLikeBlog = /^[A-Za-z][\w\s,'-]+:?\s*$/gm.test(text) || /^#+\s/.test(text);
@@ -2777,7 +2806,9 @@ function removeSyntheticEnglishHumanizerPhrases(text: string) {
     )
     .replace(/(^|[.!?]\s+)(?:But\s+)?let's be real:\s*/gi, "$1")
     .replace(/(^|[.!?]\s+)Think about it(?:—|-|:)\s*/gi, "$1")
-    .replace(/\b(?:That's|That is) a game-changer\b/gi, "That is useful");
+    .replace(/\b(?:That's|That is) a game-changer\b/gi, "That is useful")
+    // Fix meta-comment leak from AI humanizers
+    .replace(/(?:Here'?s a rewritten version[^.]*\.)\s*/gi, "");
 }
 
 function cleanupEnglishSpacing(text: string) {
