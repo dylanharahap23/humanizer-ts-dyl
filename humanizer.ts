@@ -82,39 +82,8 @@ EXAMPLES OF THE STYLE YOU SHOULD MIMIC (but don't copy):
 "For instance, it takes time to become the best in a sport. Same applies here."
 
 Return ONLY the rewritten text. No explanations before or after.
+
 `;
-
-const ENGLISH_GENERAL_ANTI_DETECTION_LAYER = `
-STRUCTURE RULES (override default writing behavior):
-
-1. PARAGRAPH LENGTH — MUST BE UNEVEN
-   - One paragraph MUST be very short: 1-2 sentences, under 25 words.
-   - One paragraph MUST be noticeably long: 5-8 sentences.
-   - Other paragraphs should be medium: 3-4 sentences.
-   - End with a single short sentence, not a summary paragraph.
-
-2. PARAGRAPH OPENERS — NO ABSTRACT NOUN PHRASES
-   - Never start a paragraph with: "Central to this is", "Beyond physical", 
-     "Performance is shaped by", "The challenge is", "It reflects".
-   - Instead, open with: a concrete detail, a contrast with the last point,
-     a specific example, or a rephrasing of the idea.
-
-3. LISTS — BREAK THEM UP
-   - Never write "Factors such as A, B, C, D, and E all contribute..."
-   - If you must list items, spread them across at least two sentences.
-   - Maximum 3 items in any single list. More than 3 = split into multiple sentences.
-
-4. SHORT SENTENCES — INCLUDE AT LEAST TWO
-   - Include at least 2 standalone sentences under 12 words.
-   - Examples: "It's not that simple." "That's the catch." "Depends who you ask."
-   - Place them mid-text, not just at the end.
-
-5. SENTENCE STRUCTURE — MIX IT UP
-   - Avoid three sentences in a row that all follow Subject-Verb-Object.
-   - Use em-dashes or parentheses to insert asides into longer sentences.
-   - Allow one sentence fragment if it reads naturally.
-`;
-
 const ENGLISH_ACADEMIC_PROMPT = `
 You are a careful English academic editor. Rewrite the text so it reads like credible human academic writing while preserving the author's claims, terminology, level of certainty, and structure.
 
@@ -762,7 +731,7 @@ export function getEnglishHumanizerConfig(
   if (profile === "practical-explainer") {
     return {
       systemPrompt: ENGLISH_PRACTICAL_EXPLAINER_PROMPT,
-      temperature: 0.52,
+      temperature: 0.92,
       topP: 0.88,
       maxTokens: 1600,
       frequencyPenalty: 0,
@@ -776,7 +745,7 @@ export function getEnglishHumanizerConfig(
   if (profile === "discursive") {
     return {
       systemPrompt: ENGLISH_DISCURSIVE_PROMPT,
-      temperature: 0.58,
+      temperature: 0.95,
       topP: 0.9,
       maxTokens: 1600,
       frequencyPenalty: 0,
@@ -790,7 +759,7 @@ export function getEnglishHumanizerConfig(
   if (profile === "expository") {
     return {
       systemPrompt: ENGLISH_EXPOSITORY_PROMPT,
-      temperature: 0.62,
+      temperature: 0.93,
       topP: 0.92,
       maxTokens: 1600,
       frequencyPenalty: 0,
@@ -1956,8 +1925,8 @@ function aiFriendlyWordReplacement(text: string): string {
     [/\bIn essence,?\s*/gi, ['', 'Basically, ', 'I mean, ']],
     [/\bIn summary,?\s*/gi, ['', 'So basically, ', 'Short version: ']],
     [/\bTo summarize,?\s*/gi, ['', 'Bottom line: ', 'Quick take: ']],
-    [/\bIt is (?:important|crucial|essential|vital|clear|evident|obvious|notable|worth noting|interesting) (?:to|that)\b/gi, ['']],
-    [/\bIt is (?:a fact|the case|widely known)\s+that\b/gi, ['']],
+    // Removed problematic empty replacements that can create broken sentences
+    // The stripMetadiscourse function already handles these cases more safely
   ];
   let result = text;
   let count = 0;
@@ -2412,7 +2381,7 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   // Existing structural & targeted human imprint (tetap)
   if (tone === "english-general" || tone === "english-expository" || tone === "english-discursive") {
     result = humanizeStructureEnglish(result);
-    result = applyTargetedHumanImprint(result, text);
+    // Removed applyTargetedHumanImprint to avoid double processing with applyAntiDetectionPass
   }
 
   result = addHumanTouches(result, tone);
