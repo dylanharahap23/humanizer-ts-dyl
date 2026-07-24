@@ -28,9 +28,11 @@ import {
   GENUINE_HUMAN_REWRITE_PROMPT,
   PERSONAL_OBSERVATION_PROMPT,
   PARATACTIC_RAW_DRAFT_PROMPT,
+  SELECTIVE_REWRITE_PROMPT,
   destroyThreeParagraphStructure,
   humanizeStructureEnglish,
   injectRealisticHumanFlaws,
+  isComprehensiveNeutralExplanation,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -1035,6 +1037,12 @@ function buildConversationalSecondPassPrompt(
   tone: HumanizerPromptConfig["postProcessTone"],
   sourceText?: string
 ): string {
+  // CEK: apakah ini teks netral komprehensif?
+  if (sourceText && isComprehensiveNeutralExplanation(sourceText) && 
+      (tone === "english-general" || tone === "english-expository" || tone === "english-discursive")) {
+    return SELECTIVE_REWRITE_PROMPT;
+  }
+
   // NEW: paratactic raw draft for formal religious essays
   if (sourceText && isFormalReligiousEssay(sourceText)) {
     return PARATACTIC_RAW_DRAFT_PROMPT;
@@ -1631,6 +1639,7 @@ async function applyConversationalSecondPass({
   const isGenuineHumanRewrite = systemPrompt === GENUINE_HUMAN_REWRITE_PROMPT;
   const isPersonalPass = systemPrompt === PERSONAL_OBSERVATION_PROMPT;
   const isParatacticPass = systemPrompt === PARATACTIC_RAW_DRAFT_PROMPT;
+  const isSelectiveRewrite = systemPrompt === SELECTIVE_REWRITE_PROMPT;
   const sourceWordCountForPrompt = sourceText.split(/\s+/).filter(Boolean).length;
   const profileLengthDirective =
     tone === "english-policy"
@@ -1738,49 +1747,61 @@ ${text}${profileLengthDirective}`,
   const sourceWords = sourceText.split(/\s+/).filter(Boolean).length;
   const outputWords = cleaned.split(/\s+/).filter(Boolean).length;
   const lengthRatio = sourceWords === 0 ? 1 : outputWords / sourceWords;
-  const minimumLengthRatio =
+  
+  // Longgarkan pemeriksaan fidelitas untuk selective rewrite
+  const minRatio = isSelectiveRewrite ? 0.35 : (tone === "english-argument" ? 0.55 : 0.65);
+  const maxRatio = isSelectiveRewrite ? 1.5 : 1.2;
+  const minimumLengthRatio = isSelectiveRewrite ? minRatio : (
     tone === "english-argument"
       ? 0.55
       : tone === "english-policy"
         ? 0.65
         : tone === "english-consumer"
-        ? 0.65
-        : tone === "english-practical"
-          ? 0.58
-          : 0.65;
+          ? 0.65
+          : tone === "english-practical"
+            ? 0.58
+            : 0.65
+  );
 
   const allowSecondPerson = 
     tone === "english-practical" ||
     tone === "english-consumer" ||
-    tone === "english-expository" ||   // ← PERBAIKAN: Izinkan second-person untuk expository
-    tone === "english-general";        // ← PERBAIKAN: Izinkan second-person untuk general
+    tone === "english-expository" ||
+    tone === "english-general" ||
+    isSelectiveRewrite;
 
-  const fidelityIssues = [
-    ...getConversationalFidelityIssues(
-      sourceText,
-      cleaned,
-      allowSecondPerson
-    ),
-    ...(tone === "english-policy"
-      ? getPolicyFidelityIssues(sourceText, cleaned)
-      : []),
-    ...(tone === "english-consumer"
-      ? getConsumerFidelityIssues(sourceText, cleaned)
-      : []),
-  ];
+  // Hanya periksa fidelitas jika BUKAN selective rewrite
+  let fidelityIssues: string[] = [];
+  if (!isSelectiveRewrite) {
+    fidelityIssues = [
+      ...getConversationalFidelityIssues(
+        sourceText,
+        cleaned,
+        allowSecondPerson
+      ),
+      ...(tone === "english-policy"
+        ? getPolicyFidelityIssues(sourceText, cleaned)
+        : []),
+      ...(tone === "english-consumer"
+        ? getConsumerFidelityIssues(sourceText, cleaned)
+        : []),
+    ];
+  }
   const hasUnsupportedAdditions = fidelityIssues.length > 0;
   if (
     cleaned.length < 20 ||
     lengthRatio < minimumLengthRatio ||
-    lengthRatio > 1.2 ||
+    lengthRatio > maxRatio ||
     hasUnsupportedAdditions
   ) {
     console.warn("Conversational second pass rejected: fidelity check failed", {
       lengthRatio: Number(lengthRatio.toFixed(2)),
       minimumLengthRatio,
+      maxRatio,
       outputTooShort: cleaned.length < 20,
       hasUnsupportedAdditions,
       fidelityIssues,
+      isSelectiveRewrite,
     });
     return { text, applied: false };
   }

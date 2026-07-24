@@ -57,6 +57,25 @@ export type HumanizerPromptConfig = {
 // 1. PROMPTS
 // ============================================================
 
+export const SELECTIVE_REWRITE_PROMPT = `
+You are a human writer re‑writing a comprehensive explanation. The original text covers many aspects in a balanced way. Your job is to **selectively** rewrite it from a personal perspective, **discarding some parts** and **focusing deeply on one or two key points**.
+
+**Instructions:**
+- DO NOT try to cover every aspect of the original.
+- Choose a specific angle or opinion that you find most interesting or important.
+- Write as if you are explaining it to a friend, using "I", "we", or "you" naturally.
+- Use a concrete, specific example or analogy and develop it with a little detail.
+- Feel free to be slightly opinionated.
+- Do not use formal transitions like "Furthermore", "Moreover", "In addition".
+- End with a personal thought, not a summary.
+
+**Fidelity:**
+- Keep the facts you do include accurate.
+- Do not invent new facts, statistics, or names.
+
+Return only the rewritten text.
+`;
+
 const CASUAL_NATURAL_PROMPT = `
 You are a knowledgeable, slightly informal person explaining something you genuinely understand.
 You are not an AI, not a textbook, not a journalist. You are a real person talking to another person.
@@ -1405,12 +1424,12 @@ function boostVocabularyEntropy(text: string): string {
   
   let result = text;
   let changes = 0;
-  const maxChanges = 3;
+  const maxChanges = 5;  // Dinaikkan dari 3 ke 5 untuk meningkatkan entropy
   
   for (const [word, alternatives] of Object.entries(lowFrequencyMap)) {
     if (changes >= maxChanges) break;
     const regex = new RegExp(`\\b${word}\\b`, 'gi');
-    if (regex.test(result) && Math.random() < 0.4) {
+    if (regex.test(result) && Math.random() < 0.6) {  // Dinaikkan dari 0.4 ke 0.6
       const replacement = alternatives[Math.floor(Math.random() * alternatives.length)];
       result = result.replace(regex, replacement);
       changes++;
@@ -1465,7 +1484,7 @@ function injectTokenSurprise(text: string): string {
 
   let result = text;
   let changes = 0;
-  const maxChanges = Math.floor(text.length / 150);
+  const maxChanges = Math.max(5, Math.floor(text.length / 120));  // Dinaikkan: lebih banyak perubahan untuk meningkatkan surprise
   const shuffled = [...surpriseMap].sort(() => Math.random() - 0.5);
 
   for (const [pattern, replacements] of shuffled) {
@@ -3105,19 +3124,16 @@ export function isShortGenericExplanation(text: string): boolean {
  * These texts need transformation into personal opinion pieces to avoid AI detection.
  */
 export function isComprehensiveNeutralExplanation(text: string): boolean {
-  const sentences = splitSentences(text);
-  let listSentenceCount = 0;
-  for (const s of sentences) {
-    // Sentence contains a long list of 4+ items (commas + "and")
-    const items = s.split(/,| and /).filter(w => w.trim().length > 2);
-    if (items.length >= 4) listSentenceCount++;
-  }
-  // Has a summary conclusion like "it's not X, it's the combination of Y"
-  const hasSummary = /\bnot just .+ it's the combination of\b/i.test(text) ||
-                     /\bthe combination of\b/i.test(text);
-  // No personal voice
-  const hasFirstPerson = /\b(I|me|my|mine|we|us|our)\b/i.test(text);
-  return listSentenceCount >= 2 && hasSummary && !hasFirstPerson;
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return false;
+  const hasFirstPerson = /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(text);
+  if (hasFirstPerson) return false;
+  // Penanda daftar atau cakupan luas
+  const hasListMarkers = /\b(?:one (?:reason|factor|aspect)|another (?:reason|factor|aspect)|finally|in addition|furthermore)\b/i.test(text);
+  const hasComprehensiveCoverage = /\b(?:various|several|many|all|comprehensive|overview|overall)\b/i.test(text);
+  // Ada kesimpulan
+  const hasSummary = /\b(?:in conclusion|to sum up|ultimately|in summary|overall,|in the end)\b/i.test(text);
+  return (hasListMarkers || hasComprehensiveCoverage) && hasSummary;
 }
 
 /**
