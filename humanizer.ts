@@ -2954,17 +2954,19 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
     // 1. Pastikan teks terpecah menjadi minimal 4 paragraf
     result = forceParagraphSplit(result, 4);
-    // 2. Acak alur argumen (pindahkan kesimpulan, acak urutan)
+    // 2. Acak alur argumen (pindahkan kesimpulan ke tengah, acak urutan)
     result = reorderArgumentFlow(result);
-    // 3. Ubah framing (pertanyakan pertanyaan)
+    // 3. Restrukturisasi diskursus: pilih subset subtopik, acak urutan, sisipkan keraguan
+    result = restructureDiscourse(result);
+    // 4. Ubah framing (pertanyakan pertanyaan)
     result = reframeQuestion(result);
-    // 4. Tambahkan ketidakpastian dan counter-argument
+    // 5. Tambahkan ketidakpastian dan counter-argument
     result = injectCognitiveUncertainty2(result);
-    // 5. Tambahkan personal arc (emosi, detail pribadi)
+    // 6. Tambahkan personal arc (emosi, detail pribadi)
     result = injectPersonalArc(result);
-    // 6. Hapus connective words yang berlebihan
+    // 7. Hapus connective words yang berlebihan
     result = stripConnectiveWords(result);
-    // 7. Terakhir, disrupt idea graph (tambahkan interupsi, doubt paragraphs)
+    // 8. Terakhir, disrupt idea graph (tambahkan interupsi, doubt paragraphs)
     result = disruptIdeaGraph(result);
   }
   
@@ -3863,6 +3865,70 @@ export function reorderArgumentFlow(text: string): string {
   paragraphs.splice(insertIdx, 0, doubtSentences[Math.floor(Math.random() * doubtSentences.length)]);
 
   return paragraphs.join('\n\n');
+}
+
+/**
+ * Restrukturisasi diskursus: mengubah urutan subtopik dan memilih subset secara acak
+ * untuk menghancurkan pola ekspositori AI yang komprehensif.
+ */
+export function restructureDiscourse(text: string): string {
+  // Pecah menjadi paragraf
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) {
+    // Jika tidak ada paragraf, coba split berdasarkan kalimat
+    const sentences = splitSentences(text);
+    if (sentences.length < 5) return text;
+    // Gabungkan kalimat menjadi paragraf buatan (3-4 kalimat per paragraf)
+    const chunkSize = Math.max(3, Math.ceil(sentences.length / 3));
+    const newParagraphs: string[] = [];
+    for (let i = 0; i < sentences.length; i += chunkSize) {
+      newParagraphs.push(sentences.slice(i, i + chunkSize).join(' '));
+    }
+    paragraphs = newParagraphs;
+  }
+  if (paragraphs.length < 3) return text;
+
+  // Ambil subtopik (paragraf tengah), kecuali pembuka dan penutup
+  const middleStart = 1;
+  const middleEnd = paragraphs.length - 1;
+  if (middleEnd - middleStart < 2) return text;
+
+  const available = paragraphs.slice(middleStart, middleEnd);
+  // Pilih 60-80% subtopik secara acak (seperti human yang tidak cover semua)
+  const subsetSize = Math.max(2, Math.floor(available.length * (0.6 + Math.random() * 0.3)));
+  const shuffled = available.sort(() => Math.random() - 0.5);
+  const selected = shuffled.slice(0, subsetSize);
+
+  // Sisipkan paragraf "keraguan" di tengah
+  const doubtParagraphs = [
+    "Actually, I'm not entirely convinced that's the main reason.",
+    "But wait, there might be another angle to consider.",
+    "Then again, maybe it's simpler than all that.",
+    "I've always found this topic a bit confusing, to be honest.",
+  ];
+  const insertIdx = Math.floor(selected.length / 2);
+  selected.splice(insertIdx, 0, doubtParagraphs[Math.floor(Math.random() * doubtParagraphs.length)]);
+
+  // Gabungkan: pembuka + selected + penutup (kesimpulan)
+  let result = [paragraphs[0], ...selected, paragraphs[paragraphs.length - 1]].join('\n\n');
+
+  // Tambahkan analogi/random example jika belum ada
+  if (!result.includes('like') && !result.includes('as if')) {
+    const analogies = [
+      "It's a bit like trying to fix a leaky pipe without turning off the water.",
+      "Think of it as a car that keeps running even when the engine light is on.",
+      "Sort of like a garden that needs constant weeding.",
+      "It reminds me of learning to ride a bike—wobbly at first, but eventually you find your balance.",
+    ];
+    const sentencesResult = splitSentences(result);
+    if (sentencesResult.length > 3) {
+      const insertIdx2 = Math.floor(sentencesResult.length * 0.5);
+      sentencesResult.splice(insertIdx2, 0, analogies[Math.floor(Math.random() * analogies.length)]);
+      result = sentencesResult.join(' ');
+    }
+  }
+
+  return result;
 }
 
 // ============================================================
