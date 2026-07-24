@@ -2195,11 +2195,11 @@ export async function POST(req: Request) {
         console.warn("Second pass rejected; applying mandatory structural disruption");
 
         // --- Step 1: Detect single-paragraph text and force split ---
-        const paragraphs = currentText.split(/\n\s*\n/).filter((p: string) => p.trim());
+        const paragraphs = currentText.split(/\n\s*\n/).filter(Boolean);
         if (paragraphs.length < 3) {
           console.warn("[DEBUG] Single paragraph detected! Forcing split...");
           currentText = forceParagraphSplit(currentText);
-          console.log(`[DEBUG] Paragraphs after force split: ${currentText.split(/\n\s*\n/).filter((p: string) => p.trim()).length}`);
+          console.log(`[DEBUG] Paragraphs after force split: ${currentText.split(/\n\s*\n/).filter(Boolean).length}`);
         }
 
         // --- Step 2: Apply structural disruption ---
