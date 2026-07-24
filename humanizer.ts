@@ -1135,6 +1135,34 @@ function ensureMultiParagraph(text: string): string {
   return text;
 }
 
+/**
+ * Memaksa teks 1 paragraf menjadi 3 paragraf berdasarkan jumlah kalimat
+ * atau topic shift detection
+ */
+export function forceParagraphSplit(text: string): string {
+  // Jika sudah punya minimal 3 paragraf, return asli
+  const existingParagraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (existingParagraphs.length >= 3) return text;
+  
+  const sentences = splitSentences(text);
+  if (sentences.length < 6) {
+    // Kalau terlalu pendek, buat 2 paragraf saja
+    const mid = Math.floor(sentences.length / 2);
+    return sentences.slice(0, mid).join(' ') + '\n\n' + sentences.slice(mid).join(' ');
+  }
+  
+  // Target: 3 paragraf dengan distribusi 30%, 40%, 30%
+  const total = sentences.length;
+  const p1End = Math.floor(total * 0.3);
+  const p2End = Math.floor(total * 0.7);
+  
+  const p1 = sentences.slice(0, p1End).join(' ');
+  const p2 = sentences.slice(p1End, p2End).join(' ');
+  const p3 = sentences.slice(p2End).join(' ');
+  
+  return p1 + '\n\n' + p2 + '\n\n' + p3;
+}
+
 export function destroyThreeParagraphStructure(text: string): string {
   let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
   if (paragraphs.length < 3) return text;
@@ -1826,16 +1854,33 @@ function reorderClauses(text: string): string {
 
 function humanizeReferences(text: string): string {
   let result = text;
-  const expansions: Array<[RegExp, string]> = [
-    [/\bthis (can|may|might|will|does|leads?|creates?|causes?)\b/gi, 'this kind of thing '],
-    [/\bit (can|may|might|will)\b/gi, 'this stuff '],
-    [/\bthis leads to\b/gi, 'this is what leads to'],
-    [/\bthis means\b/gi, 'what this means is'],
-    [/\bthey (can|may|might|will|often|usually)\b/gi, 'these people '],
+  
+  // Fix: Replace with position-aware replacement that preserves modal verbs
+  const patterns: Array<[RegExp, (match: string, pronoun: string, modal: string) => string]> = [
+    [
+      /\b(They|they) (can|may|might|will|often|usually)\b/gi,
+      (match, pronoun, modal) => {
+        // Jika di awal kalimat atau setelah period, kapitalisasi
+        const prefix = text.substring(0, text.indexOf(match));
+        const isStartOfSentence = /[.!?]\s*$/.test(prefix) || prefix === '';
+        
+        // Pertahankan modal verb! Jangan dihapus
+        const replacements = [
+          `${isStartOfSentence ? 'These' : 'these'} people ${modal}`,
+          `${isStartOfSentence ? 'Some' : 'some'} of them ${modal}`,
+          `${isStartOfSentence ? 'Those' : 'those'} involved ${modal}`,
+        ];
+        return replacements[Math.floor(Math.random() * replacements.length)];
+      }
+    ],
   ];
-  for (const [pattern, replacement] of expansions) {
-    if (Math.random() < 0.3) result = result.replace(pattern, replacement);
+  
+  for (const [pattern, replacer] of patterns) {
+    if (Math.random() < 0.3) {
+      result = result.replace(pattern, replacer as any);
+    }
   }
+  
   return result;
 }
 
@@ -2176,6 +2221,36 @@ function injectSpecificAnchors(text: string): string {
   return result;
 }
 
+/**
+ * Break long item lists (daftar istilah berjejer) to avoid AI pattern
+ * Detects patterns like "X, Y, Z" with 3+ items and breaks them into narrative form
+ */
+function breakItemLists(text: string): string {
+  // Deteksi pola: "X, Y, or Z" dengan 3+ item
+  const listPattern = /\b([a-z]+(?:\s+[a-z]+)?)(?:,\s+([a-z]+(?:\s+[a-z]+)?)){2,}(?:,\s+or\s+([a-z]+(?:\s+[a-z]+)?))?\b/gi;
+  
+  let result = text;
+  const matches = [...text.matchAll(listPattern)];
+  
+  for (const match of matches) {
+    if (match[0].split(',').length >= 3) {
+      // Ubah daftar jadi kalimat terpisah atau deskripsi naratif
+      const items = match[0].split(/\s*,\s*|\s+or\s+/).filter(Boolean);
+      if (items.length >= 3) {
+        const randomIdx = Math.floor(Math.random() * items.length);
+        const selected = items[randomIdx];
+        const rest = items.filter((_, i) => i !== randomIdx);
+        
+        // Ubah: "X, Y, and Z" → "X — or even Y. Z is also common."
+        const replacement = `${selected} — or even ${rest.slice(0, 2).join(', ')}. ${rest.slice(2).length > 0 ? rest.slice(2).join(', ') + ' is also common.' : ''}`.trim();
+        result = result.replace(match[0], replacement);
+      }
+    }
+  }
+  
+  return result;
+}
+
 function injectColloquialismByProfile(text: string, profile: string): string {
   if (profile !== 'english-general' && profile !== 'casual') return text;
   let result = text;
@@ -2316,6 +2391,9 @@ function applyAntiDetectionPass(text: string, sourceText: string, tone: string):
   result = injectGrammaticalAsymmetry(result);
   result = varyClosurePattern(result);
   result = normalizeEmDashUsage(result);
+
+  // STAGE 6: Break item lists (daftar istilah berjejer)
+  result = breakItemLists(result);
 
   return result;
 }
@@ -3012,6 +3090,37 @@ function splitSentences(text: string) {
     .split(/(?<=[.!?])\s+/)
     .map((sentence) => sentence.trim())
     .filter(Boolean);
+}
+
+/**
+ * Detects if sentence order between source and candidate is too similar
+ * Returns a similarity score from 0 to 1 (higher = more similar)
+ */
+function sentenceOrderSimilarity(source: string, candidate: string): number {
+  const srcSentences = splitSentences(source);
+  const candSentences = splitSentences(candidate);
+  
+  if (srcSentences.length < 3 || candSentences.length < 3) return 0.5;
+  
+  // Ambil kata kunci pertama dari setiap kalimat (topik utama)
+  const srcTopics = srcSentences.map(s => {
+    const words = s.split(/\s+/);
+    return words.slice(0, Math.min(3, words.length)).join(' ').toLowerCase();
+  });
+  
+  const candTopics = candSentences.map(s => {
+    const words = s.split(/\s+/);
+    return words.slice(0, Math.min(3, words.length)).join(' ').toLowerCase();
+  });
+  
+  // Hitung berapa banyak topik yang muncul di posisi yang sama
+  let matches = 0;
+  const minLen = Math.min(srcTopics.length, candTopics.length);
+  for (let i = 0; i < minLen; i++) {
+    if (srcTopics[i] === candTopics[i]) matches++;
+  }
+  
+  return matches / minLen;
 }
 
 /**
