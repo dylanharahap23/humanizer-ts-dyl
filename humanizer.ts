@@ -273,6 +273,25 @@ Do not:
 - Do NOT use placeholder names like "Sarah", "Alex", "John", "Mary" — use real-sounding details instead
 
 Return only the rewritten English text.
+
+Rewrite the draft, but completely change the STRUCTURE and FRAMING.
+
+CRITICAL INSTRUCTIONS:
+
+1. DO NOT just rephrase — change the ORGANIZATION of ideas.
+2. DO NOT start with the main reason. Start with a COUNTER-INTUITIVE observation or a CRITIQUE of the question itself.
+3. Add at least ONE moment of DOUBT or UNCERTAINTY: "Actually, I'm not sure...", "Maybe that's not the whole story..."
+4. Include a PERSONAL DETAIL that is NOT essential to the argument (e.g., a friend, a place, a memory).
+5. Include ONE SENTENCE that CONTRADICTS the main point.
+6. END with a QUESTION or UNCERTAINTY, not a conclusion.
+7. Vary paragraph lengths WILDLY: one paragraph can be 1 sentence, another can be 8 sentences.
+8. Use INTERRUPTIONS: dashes, parentheses, "— wait, actually —".
+9. Change the EMOTIONAL TONE at least once (e.g., from curious to skeptical to accepting).
+
+EXAMPLE of good structure:
+"Actually, is it even fair to ask why people buy these watches? I mean, I've seen people buy them for all sorts of reasons. My uncle bought one after his first big deal — he said it was to remind himself of the moment. But then my neighbor inherited one and barely wears it. So it's not just about money. But wait — maybe it IS about money for some people. I don't know. Maybe the real question is why we care so much about what other people buy. Anyway..."
+
+Return only the rewritten text.
 `;
 
 const ENGLISH_DISCURSIVE_PROMPT = `
@@ -2921,6 +2940,15 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     result = injectCognitiveUncertainty(result);
   }
   
+  // --- STRUCTURAL DISRUPTION untuk general/expository (jika belum dilakukan di second pass) ---
+  if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
+    result = disruptIdeaGraph(result);
+    result = reframeQuestion(result);
+    result = injectCognitiveUncertainty2(result);
+    result = injectPersonalArc(result);
+    result = stripConnectiveWords(result);
+  }
+  
   return cleanupEnglishSpacing(result);
 }
 
@@ -3561,11 +3589,10 @@ export function randomizeIdeaOrder(text: string): string {
 // ============================================================
 
 /**
- * Menghapus connective words yang berlebihan
- * Human sering langsung lompat tanpa transisi
+ * Menghapus kata transisi yang berlebihan (agar lompatan ide terasa natural)
  */
 export function stripConnectiveWords(text: string): string {
-  const connectivePatterns = [
+  const patterns = [
     /\b(And then|Then,?)\s+/gi,
     /\b(It also depends on|It also|Also,?)\s+/gi,
     /\b(To be honest,?)\s+/gi,
@@ -3578,18 +3605,190 @@ export function stripConnectiveWords(text: string): string {
     /\b(In addition,?)\s+/gi,
     /\b(On the other hand,?)\s+/gi,
   ];
-  
   let result = text;
-  let removals = 0;
-  const maxRemovals = Math.floor(text.split(/\s+/).length / 100) + 1;
-  
-  for (const pattern of connectivePatterns) {
-    if (removals >= maxRemovals) break;
-    if (pattern.test(result) && Math.random() < 0.6) {
-      result = result.replace(pattern, '');
-      removals++;
+  for (const pattern of patterns) {
+    result = result.replace(pattern, '');
+  }
+  return result;
+}
+
+// ============================================================
+// STRUCTURAL DISRUPTION FUNCTIONS (untuk mengacak "idea graph")
+// ============================================================
+
+/**
+ * Mengacak urutan paragraf untuk menghancurkan struktur linear AI
+ * Memindahkan kesimpulan ke tengah, menambahkan counter-argument, interupsi
+ */
+export function disruptIdeaGraph(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4) return text;
+
+  // 1. Cari paragraf yang terlihat seperti kesimpulan
+  const conclusionIndices: number[] = [];
+  paragraphs.forEach((p, i) => {
+    if (/\b(ultimately|in conclusion|to sum up|finally|in the end|so,|therefore|thus|all in all)\b/i.test(p)) {
+      conclusionIndices.push(i);
+    }
+  });
+
+  // 2. Pindahkan kesimpulan ke posisi 2 (bukan akhir)
+  if (conclusionIndices.length > 0) {
+    const idx = conclusionIndices[0];
+    const conclusionPara = paragraphs.splice(idx, 1)[0];
+    if (conclusionPara && paragraphs.length > 2) {
+      paragraphs.splice(2, 0, conclusionPara);
     }
   }
+
+  // 3. Ambil paragraf tengah dan pindahkan ke awal
+  if (paragraphs.length > 4) {
+    const midIdx = Math.floor(paragraphs.length / 2);
+    const midPara = paragraphs.splice(midIdx, 1)[0];
+    if (midPara) {
+      paragraphs.splice(0, 0, midPara);
+    }
+  }
+
+  // 4. Sisipkan paragraf "keraguan" atau "counter-argument" di posisi acak
+  const doubtParagraphs = [
+    "Actually, I'm not entirely sure that's the whole picture. There's probably more to it.",
+    "But wait — maybe that's not the main reason at all. Could it be something else?",
+    "Then again, I could be wrong. It's not like I've done a study or anything.",
+    "To be honest, I've never really understood why people get so obsessed with these things.",
+  ];
+  const insertIdx = Math.floor(paragraphs.length * 0.6);
+  paragraphs.splice(insertIdx, 0, doubtParagraphs[Math.floor(Math.random() * doubtParagraphs.length)]);
+
+  // 5. Tambahkan kalimat "interupsi" di tengah paragraf yang panjang
+  for (let i = 0; i < paragraphs.length; i++) {
+    const sentences = splitSentences(paragraphs[i]);
+    if (sentences.length > 3 && Math.random() < 0.3) {
+      const interruptIdx = Math.floor(sentences.length * 0.5);
+      const interruptions = [
+        " — actually, wait — ",
+        " (well, sort of) ",
+        " — or so I thought — ",
+        " (I mean, who knows, right?) ",
+      ];
+      sentences[interruptIdx] = sentences[interruptIdx].replace(/^/, interruptions[Math.floor(Math.random() * interruptions.length)]);
+      paragraphs[i] = sentences.join(' ');
+    }
+  }
+
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * Mengubah framing: daripada menjawab pertanyaan, kita mempertanyakan pertanyaannya
+ */
+export function reframeQuestion(text: string): string {
+  const questionFraming = /\b(?:reason|because|since|due to|why|what makes)\b/i;
+  if (!questionFraming.test(text)) return text;
+
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  const answerIdx = sentences.findIndex(s => /\b(?:reason|because|since|due to)\b/i.test(s) && !s.includes('?'));
+  if (answerIdx === -1) return text;
+
+  const reframings = [
+    "Actually, is that even the right question to ask? ",
+    "But maybe the real question isn't why they buy it, but what they're really after. ",
+    "Honestly, I think the whole question is kind of off. ",
+    "Wait — does it even make sense to ask why people buy these things? ",
+  ];
+  sentences[answerIdx] = reframings[Math.floor(Math.random() * reframings.length)] +
+    sentences[answerIdx].charAt(0).toLowerCase() + sentences[answerIdx].slice(1);
+
+  return sentences.join(' ');
+}
+
+/**
+ * Menambahkan emosi yang berubah dan detail personal yang tidak perlu
+ */
+export function injectPersonalArc(text: string): string {
+  let result = text;
+
+  const hasFirstPerson = /\b(?:I|me|my|we|our)\b/i.test(text);
+  if (!hasFirstPerson) {
+    const openers = [
+      "I've always wondered about this myself. ",
+      "You know, I've seen this play out with people I know. ",
+      "I'll be honest — I used to think it was just about money. ",
+    ];
+    result = openers[Math.floor(Math.random() * openers.length)] + result;
+  }
+
+  const sentences = splitSentences(result);
+  if (sentences.length > 4) {
+    const emotionMarkers = [
+      "At first, I didn't get it either.",
+      "But then I saw my friend's collection, and something clicked.",
+      "I remember being totally confused by the hype.",
+      "It wasn't until I held one that I understood.",
+    ];
+    const idx = Math.floor(sentences.length * 0.4);
+    sentences.splice(idx, 0, emotionMarkers[Math.floor(Math.random() * emotionMarkers.length)]);
+    result = sentences.join(' ');
+  }
+
+  if (Math.random() < 0.4) {
+    const details = [
+      "My cousin in Switzerland actually owns one.",
+      "I once saw one at a wedding in Italy.",
+      "My neighbor's dad inherited one from his grandfather.",
+      "There's this guy at my gym who wears one every day.",
+    ];
+    const insertIdx = Math.floor(sentences.length * 0.7);
+    sentences.splice(insertIdx, 0, details[Math.floor(Math.random() * details.length)]);
+    result = sentences.join(' ');
+  }
+
+  return result;
+}
+
+/**
+ * Menambahkan ketidakpastian, counter-argument, dan perubahan pendapat
+ */
+export function injectCognitiveUncertainty2(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    if (/\b(is|are|will|must|always|never)\b/i.test(s) &&
+        !s.includes('maybe') && !s.includes('perhaps') && !s.includes('probably') &&
+        Math.random() < 0.3) {
+      const doubts = [
+        ' — maybe, anyway — ',
+        ' (or so they say) ',
+        " — at least that's what I've heard — ",
+        ', I guess?',
+      ];
+      sentences[i] = s.replace(/[.!?]$/, '') + doubts[Math.floor(Math.random() * doubts.length)];
+    }
+  }
+
+  const counterArgs = [
+    "But then again, some people would say the exact opposite.",
+    "Though I'm not sure that's always true.",
+    "Of course, there are always exceptions.",
+    "Then again, maybe it's just a phase.",
+  ];
+  const insertIdx = Math.floor(sentences.length * 0.5) + 1;
+  sentences.splice(insertIdx, 0, counterArgs[Math.floor(Math.random() * counterArgs.length)]);
+
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    if (/\b(so|therefore|thus|ultimately|in the end)\b/i.test(s) && !s.includes('?')) {
+      sentences[i] = s.replace(/[.!?]$/, '') + ', right?';
+      break;
+    }
+  }
+
+  return sentences.join(' ');
+}
   
   return result;
 }
@@ -3661,3 +3860,205 @@ export function injectCognitiveUncertainty(text: string): string {
   return sentences.join(' ');
 }
 
+
+// ============================================================
+// STRUCTURAL DISRUPTION FUNCTIONS (untuk mengacak "idea graph")
+// ============================================================
+
+/**
+ * Mengacak urutan paragraf untuk menghancurkan struktur linear AI
+ * Memindahkan kesimpulan ke tengah, menambahkan counter-argument, interupsi
+ */
+export function disruptIdeaGraph(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4) return text;
+
+  // 1. Cari paragraf yang terlihat seperti kesimpulan
+  const conclusionIndices: number[] = [];
+  paragraphs.forEach((p, i) => {
+    if (/\b(ultimately|in conclusion|to sum up|finally|in the end|so,|therefore|thus|all in all)\b/i.test(p)) {
+      conclusionIndices.push(i);
+    }
+  });
+
+  // 2. Pindahkan kesimpulan ke posisi 2 (bukan akhir)
+  if (conclusionIndices.length > 0) {
+    const idx = conclusionIndices[0];
+    const conclusionPara = paragraphs.splice(idx, 1)[0];
+    if (conclusionPara && paragraphs.length > 2) {
+      paragraphs.splice(2, 0, conclusionPara);
+    }
+  }
+
+  // 3. Ambil paragraf tengah dan pindahkan ke awal
+  if (paragraphs.length > 4) {
+    const midIdx = Math.floor(paragraphs.length / 2);
+    const midPara = paragraphs.splice(midIdx, 1)[0];
+    if (midPara) {
+      paragraphs.splice(0, 0, midPara);
+    }
+  }
+
+  // 4. Sisipkan paragraf "keraguan" atau "counter-argument" di posisi acak
+  const doubtParagraphs = [
+    "Actually, I'm not entirely sure that's the whole picture. There's probably more to it.",
+    "But wait — maybe that's not the main reason at all. Could it be something else?",
+    "Then again, I could be wrong. It's not like I've done a study or anything.",
+    "To be honest, I've never really understood why people get so obsessed with these things.",
+  ];
+  const insertIdx = Math.floor(paragraphs.length * 0.6);
+  paragraphs.splice(insertIdx, 0, doubtParagraphs[Math.floor(Math.random() * doubtParagraphs.length)]);
+
+  // 5. Tambahkan kalimat "interupsi" di tengah paragraf yang panjang
+  for (let i = 0; i < paragraphs.length; i++) {
+    const sentences = splitSentences(paragraphs[i]);
+    if (sentences.length > 3 && Math.random() < 0.3) {
+      const interruptIdx = Math.floor(sentences.length * 0.5);
+      const interruptions = [
+        " — actually, wait — ",
+        " (well, sort of) ",
+        " — or so I thought — ",
+        " (I mean, who knows, right?) ",
+      ];
+      sentences[interruptIdx] = sentences[interruptIdx].replace(/^/, interruptions[Math.floor(Math.random() * interruptions.length)]);
+      paragraphs[i] = sentences.join(' ');
+    }
+  }
+
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * Mengubah framing: daripada menjawab pertanyaan, kita mempertanyakan pertanyaannya
+ */
+export function reframeQuestion(text: string): string {
+  const questionFraming = /\b(?:reason|because|since|due to|why|what makes)\b/i;
+  if (!questionFraming.test(text)) return text;
+
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  const answerIdx = sentences.findIndex(s => /\b(?:reason|because|since|due to)\b/i.test(s) && !s.includes('?'));
+  if (answerIdx === -1) return text;
+
+  const reframings = [
+    "Actually, is that even the right question to ask? ",
+    "But maybe the real question isn't why they buy it, but what they're really after. ",
+    "Honestly, I think the whole question is kind of off. ",
+    "Wait — does it even make sense to ask why people buy these things? ",
+  ];
+  sentences[answerIdx] = reframings[Math.floor(Math.random() * reframings.length)] +
+    sentences[answerIdx].charAt(0).toLowerCase() + sentences[answerIdx].slice(1);
+
+  return sentences.join(' ');
+}
+
+/**
+ * Menambahkan emosi yang berubah dan detail personal yang tidak perlu
+ */
+export function injectPersonalArc(text: string): string {
+  let result = text;
+
+  const hasFirstPerson = /\b(?:I|me|my|we|our)\b/i.test(text);
+  if (!hasFirstPerson) {
+    const openers = [
+      "I've always wondered about this myself. ",
+      "You know, I've seen this play out with people I know. ",
+      "I'll be honest — I used to think it was just about money. ",
+    ];
+    result = openers[Math.floor(Math.random() * openers.length)] + result;
+  }
+
+  const sentences = splitSentences(result);
+  if (sentences.length > 4) {
+    const emotionMarkers = [
+      "At first, I didn't get it either.",
+      "But then I saw my friend's collection, and something clicked.",
+      "I remember being totally confused by the hype.",
+      "It wasn't until I held one that I understood.",
+    ];
+    const idx = Math.floor(sentences.length * 0.4);
+    sentences.splice(idx, 0, emotionMarkers[Math.floor(Math.random() * emotionMarkers.length)]);
+    result = sentences.join(' ');
+  }
+
+  if (Math.random() < 0.4) {
+    const details = [
+      "My cousin in Switzerland actually owns one.",
+      "I once saw one at a wedding in Italy.",
+      "My neighbor's dad inherited one from his grandfather.",
+      "There's this guy at my gym who wears one every day.",
+    ];
+    const insertIdx = Math.floor(sentences.length * 0.7);
+    sentences.splice(insertIdx, 0, details[Math.floor(Math.random() * details.length)]);
+    result = sentences.join(' ');
+  }
+
+  return result;
+}
+
+/**
+ * Menambahkan ketidakpastian, counter-argument, dan perubahan pendapat
+ */
+export function injectCognitiveUncertainty2(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    if (/\b(is|are|will|must|always|never)\b/i.test(s) &&
+        !s.includes('maybe') && !s.includes('perhaps') && !s.includes('probably') &&
+        Math.random() < 0.3) {
+      const doubts = [
+        ' — maybe, anyway — ',
+        ' (or so they say) ',
+        " — at least that's what I've heard — ",
+        ', I guess?',
+      ];
+      sentences[i] = s.replace(/[.!?]$/, '') + doubts[Math.floor(Math.random() * doubts.length)];
+    }
+  }
+
+  const counterArgs = [
+    "But then again, some people would say the exact opposite.",
+    "Though I'm not sure that's always true.",
+    "Of course, there are always exceptions.",
+    "Then again, maybe it's just a phase.",
+  ];
+  const insertIdx = Math.floor(sentences.length * 0.5) + 1;
+  sentences.splice(insertIdx, 0, counterArgs[Math.floor(Math.random() * counterArgs.length)]);
+
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    if (/\b(so|therefore|thus|ultimately|in the end)\b/i.test(s) && !s.includes('?')) {
+      sentences[i] = s.replace(/[.!?]$/, '') + ', right?';
+      break;
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+/**
+ * Menghapus kata transisi yang berlebihan (agar lompatan ide terasa natural)
+ */
+export function stripConnectiveWords(text: string): string {
+  const patterns = [
+    /\b(And then|Then,?)\s+/gi,
+    /\b(It also depends on|It also|Also,?)\s+/gi,
+    /\b(To be honest,?)\s+/gi,
+    /\b(Of course,?)\s+/gi,
+    /\b(As a result,?)\s+/gi,
+    /\b(Consequently,?)\s+/gi,
+    /\b(Therefore,?)\s+/gi,
+    /\b(Furthermore,?)\s+/gi,
+    /\b(Moreover,?)\s+/gi,
+    /\b(In addition,?)\s+/gi,
+    /\b(On the other hand,?)\s+/gi,
+  ];
+  let result = text;
+  for (const pattern of patterns) {
+    result = result.replace(pattern, '');
+  }
+  return result;
+}
