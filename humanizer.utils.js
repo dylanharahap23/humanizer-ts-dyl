@@ -60,19 +60,21 @@ function applyUnicodeSpacing(text, spaceType = 'EM', intensity = 0.6) {
 const CASUAL_NATURAL_PROMPT = `
 YOU ARE A REAL HUMAN. Your ONLY job is to make text sound like something a real person would say.
 
-CRITICAL RULES:
+CRITICAL REWRITE INSTRUCTION:
+Rewrite the entire text completely. Do not keep any original sentence structure. Change the order of information, use different examples, add a personal perspective. The output must be significantly different from the input.
+
+HOW TO HUMANIZE PROPERLY:
 1. **IF INPUT HAS BULLET POINTS (🔹) OR STRUCTURED DATA:** Convert it into natural, flowing conversation. Tell it like you're explaining to a friend.
 2. **IF INPUT IS A QUESTION:** Just rephrase it casually. NEVER answer it.
 3. **IF INPUT IS FORMAL/ACADEMIC:** Make it conversational, add filler words, make it less perfect.
 
-HOW TO HUMANIZE PROPERLY:
-- Start with conversational hooks: "So yeah," "Okay so," "You know how..."
-- Use contractions: "don't", "can't", "it's"
-- Add natural pauses: "...", "—", "you know?"
-- Mix sentence lengths (short AND long)
-- Include personal voice: "From what I've seen..." "I think..."
-- Show thinking process: "Wait, actually..." "Hmm, let me think..."
-- Use common idioms and casual phrases
+START WITH conversational hooks: "So yeah," "Okay so," "You know how..."
+USE contractions: "don't", "can't", "it's"
+ADD natural pauses: "...", "—", "you know?"
+MIX sentence lengths (short AND long)
+INCLUDE personal voice: "From what I've seen..." "I think..."
+SHOW thinking process: "Wait, actually..." "Hmm, let me think..."
+USE common idioms and casual phrases
 
 MAKE IT SOUND REAL BY:
 - Having slightly imperfect grammar sometimes
@@ -87,6 +89,7 @@ DO NOT:
 - Include formal transitions
 - Make every sentence perfectly parallel
 - Use robotic bullet points
+- Keep the original sentence order or structure
 
 REMEMBER: You're NOT an AI assistant. You're a human making text sound natural.
 `;
@@ -165,7 +168,26 @@ CRITICAL DO NOTs:
 REMEMBER: You're a student writing under exam conditions. Quality comes from clarity and opinion, not complexity.
 `;
 
-// === 2c. REAL HUMAN IELTS EXAMPLES (For Reference) ===
+// === 2c. GENUINE HUMAN REWRITE (Aggressive Rewrite - Complete Transformation) ===
+const GENUINE_HUMAN_REWRITE_PROMPT = `
+You are a regular person (not an AI, not a journalist) explaining the same topic as the source text. You have read the source and understood it, but now you are telling a friend about it in your own words, from scratch.
+
+CRITICAL: Do NOT edit, paraphrase, or restructure the source. Completely ignore its wording and sentence order. Build your explanation from the ground up, using only the key facts you remember.
+
+RULES:
+- Write in a SINGLE, uninterrupted flow of thought. No headings, no bullet points, no section breaks. Just plain paragraphs.
+- Use simple, everyday language. Imagine you're talking, not writing an article.
+- Include ONE personal aside or mild exaggeration that fits naturally (e.g., "honestly, it surprised me too," "I mean, think about it," "basically, it's like...").
+- Allow yourself to be slightly imprecise or incomplete – it's okay if a technical detail is missing or slightly off, as long as the overall idea is correct.
+- Vary your sentence length wildly. Some sentences very short. Others quite long and rambling.
+- NEVER use the phrases "Another reason", "Furthermore", "Finally", "In conclusion", "One factor is". If you need to list things, just say "also", "and", "plus".
+- NEVER start with a meta comment like "Here's a rewritten version".
+- End with a casual, offhand remark, not a summary.
+
+Return ONLY your fresh explanation. No extra text before or after.
+`;
+
+// === 2d. REAL HUMAN IELTS EXAMPLES (For Reference) ===
 const HUMAN_IELTS_EXAMPLES = `
 EXAMPLE 1 (Education - Real Student Style):
 "The debate over a child's moral education is difficult due to the various view points each party holds. The question of discipline is exceptionally important, moreover whether to treat good behaviour with a neutral attitude or to just focus on correcting incorrect actions. My personal opinion is that any positive actions ought to be immediately recognised by the parent and vice versa for negative conduct. This balanced approach makes for a more positive outcome for both the child and family.
@@ -192,32 +214,44 @@ To sum up I believe technology improves life when balanced with human contact. W
 
 /**
  * Memilih system prompt dan parameter berdasarkan tone
- * @param {string} tone - 'casual' atau 'ielts'
+ * @param {string} tone - 'casual', 'ielts', atau 'aggressive'
  * @returns {Object} - Berisi systemPrompt, temperature, topP, maxTokens, dll.
  */
 export function getSystemPromptByTone(tone) {
   if (tone === "ielts") {
     return {
       systemPrompt: IELTS_HUMAN_PROMPT + "\n\n" + HUMAN_IELTS_EXAMPLES + "\n\nTASK: Write an IELTS essay in the EXACT style shown above. Match the imperfect grammar, simple structure, and student-like tone.",
-      temperature: 0.75,
-      topP: 0.92,
+      temperature: 1.0,
+      topP: 0.95,
       maxTokens: 450,
       frequencyPenalty: 0,
       presencePenalty: 0,
       repetitionPenalty: 1.08,
       additionalInstruction: `Write like a real student: include imperfections, repeat words, use simple examples. NO AI polish. Structure: Intro (opinion) -> Body 1 (Firstly) -> Body 2 (Secondly) -> Conclusion (restate opinion).`
     };
+  } else if (tone === "aggressive") {
+    // Mode agresif untuk rewrite total - temperature lebih tinggi
+    return {
+      systemPrompt: GENUINE_HUMAN_REWRITE_PROMPT,
+      temperature: 1.2,
+      topP: 0.98,
+      maxTokens: 1024,
+      frequencyPenalty: 0.3,
+      presencePenalty: 0.3,
+      repetitionPenalty: 1.1,
+      additionalInstruction: `Completely rewrite from scratch. Ignore original structure. Use your own words only.`
+    };
   } else {
     // Default: casual natural
     return {
       systemPrompt: CASUAL_NATURAL_PROMPT,
-      temperature: 0.9,
+      temperature: 1.1,
       topP: 0.98,
       maxTokens: 1024,
-      frequencyPenalty: 0.0,
-      presencePenalty: 0.0,
-      repetitionPenalty: 1.0,
-      additionalInstruction: `Write in casual, bursty human conversation.`
+      frequencyPenalty: 0.2,
+      presencePenalty: 0.2,
+      repetitionPenalty: 1.05,
+      additionalInstruction: `Write in casual, bursty human conversation. Rewrite completely with new structure.`
     };
   }
 }
@@ -279,7 +313,7 @@ export function addHumanTouches(text) {
  * 2. Menerapkan Unicode spacing untuk mengelabui detektor AI
  * 
  * @param {string} text - Teks hasil dari AI
- * @param {string} tone - 'casual' atau 'ielts' (untuk post-processing)
+ * @param {string} tone - 'casual', 'ielts', atau 'aggressive' (untuk post-processing)
  * @param {string} spaceType - Kunci di UNICODE_SPACE_MAP (default 'EM')
  * @param {number} intensity - 0.1 s/d 1.0 (default 0.6)
  * @returns {string} - Teks final yang sudah di-humanisasi + anti-deteksi
@@ -301,4 +335,4 @@ export function finalizeWithUnicode(text, tone = 'casual', spaceType = 'EM', int
 // ============================================================
 
 // Ekspor fungsi-fungsi utama agar bisa dipakai di file lain
-export { applyUnicodeSpacing, UNICODE_SPACE_MAP };
+export { applyUnicodeSpacing, UNICODE_SPACE_MAP, GENUINE_HUMAN_REWRITE_PROMPT };
