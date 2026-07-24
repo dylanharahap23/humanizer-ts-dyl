@@ -31,7 +31,8 @@ export type EnglishWritingProfile =
   | "practical-explainer"
   | "policy-explainer"
   | "consumer-explainer"
-  | "product-review";
+  | "product-review"
+  | "personal-advice";
 
 export type EnglishWritingPurpose =
   | "General"
@@ -339,6 +340,31 @@ Do not:
 - Turn a qualified claim into certainty or make the source's position stronger.
 
 Return only the rewritten text.
+`;
+
+const PERSONAL_ADVICE_PROMPT = `
+You are a close, caring friend giving personal advice to someone who feels inferior.
+Write in an extremely informal, warm, and simple style.
+
+PERSONA:
+- You are talking directly to "you" (the reader).
+- Use very simple words. Think of how you'd talk to a sibling or best friend.
+- Use short sentences. Some fragments are fine.
+- Repeat words for emphasis: "many many", "very very", "really really".
+- Use casual expressions: "is cool", "that's the truth of it", "the good news is", "you don't have to".
+- Don't sound like a textbook. Sound like a chat.
+
+STRUCTURE:
+- Start by acknowledging the friend's situation in a simple way.
+- Explain why it's hard, but use plain language.
+- Reassure them. Mention that everyone has different strengths.
+- End with encouragement.
+
+VOCABULARY:
+- Never use: "combination", "competitive admissions process", "inherently", "achievement", "transferable skills", "consistently", "sustained effort". Replace with: "a mix of", "really hard to get in", "just because", "he worked hard", "things you can use anywhere".
+- Use "stuff", "things", "a lot", "really", "very", "gonna", "wanna" where natural.
+
+Return ONLY the rewritten text.
 `;
 
 // ============================================================
@@ -681,6 +707,14 @@ export function detectEnglishWritingProfile(
     return "product-review";
   }
   
+  // Personal advice detection - detect texts giving advice to a friend about personal struggles
+  if (
+    /\b(your friend|you feel|don't compare|you shouldn't|you can|just because|feeling inferior|feel inferior|why can't I|why am I)\b/i.test(text) && 
+    wordCount < 400
+  ) {
+    return "personal-advice";
+  }
+  
   if (!hasPersonalPointOfView && wordCount >= 120 && expositoryHits >= 2) {
     return "expository";
   }
@@ -850,6 +884,22 @@ export function getEnglishHumanizerConfig(
       additionalInstruction:
         "Rewrite as a friendly product review with Q&A structure, headings, and direct reader address. Keep all facts but use everyday language.",
       postProcessTone: "product-review",
+    };
+  }
+  
+  // PERSONAL-ADVICE profile — extreme temperature for informal friend-to-friend advice
+  if (profile === "personal-advice") {
+    return {
+      systemPrompt: PERSONAL_ADVICE_PROMPT,
+      temperature: 1.6,
+      topP: 0.99,
+      maxTokens: 1600,
+      frequencyPenalty: 0.6,
+      presencePenalty: 0.5,
+      repetitionPenalty: 1.05,
+      additionalInstruction:
+        "Write like a close friend giving warm, simple advice. Use short sentences, fragments, repeated words for emphasis, and casual expressions. Avoid textbook language.",
+      postProcessTone: "english-personal",
     };
   }
   
@@ -2416,6 +2466,14 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   if (tone === "product-review") {
     // Model output should already be human enough from the review-style prompt
     // Just fix contractions and spacing
+    result = addHumanTouches(result, tone);
+    return cleanupEnglishSpacing(result);
+  }
+
+  // ===== PERSONAL-ADVICE: Skip aggressive post-processing, model output should be human enough =====
+  if (tone === "english-personal" && /(your friend|you feel|don't compare|you shouldn't|you can|just because)/i.test(text)) {
+    // For personal advice texts, the model output from PERSONAL_ADVICE_PROMPT is already human-like
+    // Just add basic human touches and cleanup
     result = addHumanTouches(result, tone);
     return cleanupEnglishSpacing(result);
   }
