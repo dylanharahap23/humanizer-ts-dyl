@@ -26,6 +26,7 @@ import {
   PERSONAL_OBSERVATION_PROMPT,
   destroyThreeParagraphStructure,
   humanizeStructureEnglish,
+  injectRealisticHumanFlaws,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -2118,6 +2119,12 @@ export async function POST(req: Request) {
         if (systemPrompt === PERSONAL_OBSERVATION_PROMPT) {
           personalRewriteApplied = true;
         }
+        // CRITICAL: Inject realistic human flaws after forced personal rewrite
+        // This adds mild grammatical errors, repeated phrases, and uneven rhythm
+        // that mimics real human messiness - essential for bypassing PTZero
+        currentText = injectRealisticHumanFlaws(currentText);
+        // Then light cleanup only – no heavy regex chains
+        currentText = addHumanTouches(currentText, config.postProcessTone);
       } else {
         // PERBAIKAN: Second pass rejected - force structural disruption before regex patching
         console.warn("Second pass rejected; applying mandatory structural disruption");
@@ -2136,6 +2143,7 @@ export async function POST(req: Request) {
       config.postProcessTone === "english-academic";
     
     // If personal rewrite was applied, skip heavy post-processing
+    // The text already has human flaws injected, so just do light cleanup
     if (personalRewriteApplied) {
       currentText = addHumanTouches(currentText, config.postProcessTone);
     } else if (needsFidelityCheck) {
@@ -2154,7 +2162,14 @@ export async function POST(req: Request) {
       }
     } else {
       // PERBAIKAN: Untuk profile lain, langsung apply finalHumanize tanpa fidelity check
-      currentText = finalHumanize(currentText, config.postProcessTone);
+      // Check if text already has human markers - if so, skip aggressive patches
+      if (config.postProcessTone.startsWith("english-") && 
+          /\b(I|me|my|we|us|honestly|look,|the thing is)\b/i.test(currentText)) {
+        // Already in a personal, human style – don't overwrite with aggressive patches
+        currentText = addHumanTouches(currentText, config.postProcessTone);
+      } else {
+        currentText = finalHumanize(currentText, config.postProcessTone);
+      }
     }
 
     // --- DeepLX ---

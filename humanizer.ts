@@ -2914,3 +2914,70 @@ function splitSentences(text: string) {
     .map((sentence) => sentence.trim())
     .filter(Boolean);
 }
+
+/**
+ * Inject realistic human flaws - mild grammatical errors, repeated phrases,
+ * slightly off logic, personal quirks, and uneven sentence rhythm.
+ * This is CRITICAL for bypassing AI detectors like PTZero.
+ */
+export function injectRealisticHumanFlaws(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  // Pool of small, natural mistakes – mix them so no single type dominates.
+  for (let i = 0; i < sentences.length; i++) {
+    let s = sentences[i];
+    const words = s.split(/\s+/);
+    if (words.length < 5) continue;   // skip very short ones
+
+    // ---- 8% chance: slightly wrong preposition ----
+    if (Math.random() < 0.08) {
+      s = s.replace(/\bbased on\b/i, 'based from');
+      s = s.replace(/\bdifferent from\b/i, 'different to');
+      s = s.replace(/\bin spite of\b/i, 'despite of');
+      s = s.replace(/\bon the one hand\b/i, 'on one side');
+    }
+
+    // ---- 6% chance: remove a random definite article ----
+    if (Math.random() < 0.06 && words.length > 6) {
+      const articleIdx = words.findIndex(w => /^(the|a|an)$/i.test(w));
+      if (articleIdx > 0) {
+        words.splice(articleIdx, 1);
+        s = words.join(' ');
+      }
+    }
+
+    // ---- 5% chance: repeat a short phrase (like "very, very") ----
+    if (Math.random() < 0.05 && words.length > 7) {
+      const mid = Math.floor(words.length / 2);
+      words.splice(mid, 0, words[mid]);
+      s = words.join(' ');
+    }
+
+    // ---- 4% chance: slightly off logic / non-sequitur fragment ----
+    if (Math.random() < 0.04 && sentences.length > 3 && i < sentences.length - 2) {
+      const fragments = [
+        "Which, honestly, is kind of bullshit.",
+        "I mean, think about it.",
+        "No way around that one.",
+        "That's the thing, really.",
+        "Makes you wonder.",
+        "Go figure.",
+      ];
+      sentences.splice(i + 1, 0, fragments[Math.floor(Math.random() * fragments.length)]);
+    }
+
+    sentences[i] = s;
+  }
+
+  // ---- Randomly join two short sentences with a comma (comma splice) ----
+  for (let i = 0; i < sentences.length - 1; i++) {
+    if (Math.random() < 0.05 && sentences[i].split(/\s+/).length < 8 && sentences[i+1].split(/\s+/).length < 8) {
+      sentences[i] = sentences[i].replace(/[.!?]$/, ', ') + sentences[i+1].toLowerCase();
+      sentences.splice(i+1, 1);
+      break;
+    }
+  }
+
+  return sentences.join(' ');
+}
