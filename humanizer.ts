@@ -2999,8 +2999,8 @@ export function injectHumanSpecifics(text: string, sourceText: string): string {
     text = text + ' ' + questions[Math.floor(Math.random() * questions.length)];
   }
   // Tambahkan satu nama/peneliti jika ada di source
-  const names = sourceText.match(/\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/g) || [];
-  if (names.length > 0 && !text.includes(names[0])) {
+  const names = sourceText.match(/\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/g);
+  if (names && names.length > 0 && !text.includes(names[0])) {
     const idx = Math.floor(text.length * 0.5);
     text = text.slice(0, idx) + ` (as noted by ${names[0]}) ` + text.slice(idx);
   }
