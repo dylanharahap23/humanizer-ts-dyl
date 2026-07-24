@@ -100,10 +100,23 @@ CONTENT:
 - If the original text is an explanation, rephrase it from your personal perspective.
 - If it's advice, speak directly to the reader using "you".
 
+CRITICAL HUMAN IMPERFECTIONS (REQUIRED):
+- Include at least ONE grammatical error (wrong tense, missing word, incorrect preposition)
+- Include at least ONE spelling mistake (not too obvious, e.g., "definately", "seperate")
+- Include at least ONE run-on sentence (25+ words connected with "and", "but", "so")
+- Include at least ONE sentence fragment that's incomplete
+- Use random capitalization occasionally (capitalize mid-sentence words randomly)
+- Start some sentences with "But", "And", "So", "Or", "Because"
+- Use filler words naturally: "okay", "basically", "actually", "you know", "I mean"
+- Repeat words for emphasis: "very very", "really really"
+- Use casual contractions: "gotta", "wanna", "kinda", "sorta"
+
 EXAMPLES OF THE STYLE YOU SHOULD MIMIC (but don't copy):
 "Piano is much easier than violin to learn, because you basically can't play a bad-sounding note."
 "Anybody can learn any piece. It's just experience that changes the outcome of how it sounds."
 "For instance, it takes time to become the best in a sport. Same applies here."
+"if your job consists of redundant repetitive."
+"Things like type little stacking, a moving grouping of processing, anything of that nature"
 
 Return ONLY the rewritten text. No explanations before or after.
 
@@ -1027,7 +1040,7 @@ export function getEnglishHumanizerConfig(
   if (profile === "expository") {
     return {
       systemPrompt: ENGLISH_EXPOSITORY_PROMPT,
-      temperature: 1.1,
+      temperature: 1.2,
       topP: 0.94,
       maxTokens: 1600,
       frequencyPenalty: 0,
@@ -1103,14 +1116,14 @@ export function getEnglishHumanizerConfig(
   // GENERAL profile — simplified, higher temperature for human-like output
   return {
     systemPrompt: `${CASUAL_NATURAL_PROMPT}`,
-    temperature: 1.3,
+    temperature: 1.4,
     topP: 0.98,
     maxTokens: 1600,
     frequencyPenalty: 0.3,
     presencePenalty: 0.2,
     repetitionPenalty: 1.03,
     additionalInstruction:
-      "Write like a real person, not an AI. Use 'I' or 'you' where natural. Vary sentence length. Sound knowledgeable but relaxed.",
+      "Write like a real person, not an AI. Use 'I' or 'you' where natural. Vary sentence length WILDLY (2-40 words). Include at least one grammatical error, one spelling mistake, and one run-on sentence. Sound knowledgeable but relaxed.",
     postProcessTone: "english-general",
   };
 }
@@ -2602,6 +2615,13 @@ export function addHumanTouches(
   if (usesPlainEnglish) {
     result = simplifyInflatedEnglish(result);
   }
+  
+  // For general/expository/casual tones, skip aggressive grammar fixes to preserve natural chaos
+  if (tone === "english-general" || tone === "english-expository" || tone === "casual") {
+    // Just minimal cleanup, don't over-fix grammar
+    return cleanupEnglishSpacing(result);
+  }
+  
   if (tone === "ielts") {
     result = applyContractions(result);
     result = reduceRoboticHedging(result);
@@ -2846,6 +2866,12 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   }
 
   result = addHumanTouches(result, tone);
+  
+  // Apply human chaos injection for general/expository tones to add natural imperfections
+  if (tone === "english-general" || tone === "english-expository" || tone === "casual") {
+    result = injectHumanChaos(result);
+  }
+  
   return cleanupEnglishSpacing(result);
 }
 
@@ -3051,6 +3077,83 @@ function cleanupEnglishSpacing(text: string) {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+// ============================================================
+// NEW: HUMAN CHAOS INJECTOR - Adds deliberate imperfections
+// ============================================================
+
+function injectHumanChaos(text: string): string {
+  let result = text;
+  
+  // Helper to split sentences
+  const sentences = result
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  
+  // 1. Create run-on sentence (gabungkan 2 kalimat dengan koma)
+  if (sentences.length > 4 && Math.random() < 0.4) {
+    const idx = Math.floor(Math.random() * (sentences.length - 2)) + 1;
+    const s1 = sentences[idx].replace(/[.!?]$/, '');
+    const s2 = sentences[idx + 1].toLowerCase();
+    sentences[idx] = s1 + ', and ' + s2;
+    sentences.splice(idx + 1, 1);
+    result = sentences.join(' ');
+  }
+  
+  // 2. Add random capitalization error
+  const words = result.split(' ');
+  if (words.length > 20 && Math.random() < 0.2) {
+    const idx = Math.floor(Math.random() * (words.length - 5)) + 3;
+    if (words[idx].length > 3 && words[idx].match(/^[a-z]/)) {
+      words[idx] = words[idx].charAt(0).toUpperCase() + words[idx].slice(1);
+      result = words.join(' ');
+    }
+  }
+  
+  // 3. Add one spelling mistake (common typos)
+  const typos: Array<[RegExp, string]> = [
+    [/\bdefinitely\b/gi, 'definately'],
+    [/\bseparate\b/gi, 'seperate'],
+    [/\btheir\b/gi, 'thier'],
+    [/\breceive\b/gi, 'recieve'],
+    [/\baccommodate\b/gi, 'accomodate'],
+    [/\boccurred\b/gi, 'occured'],
+    [/\bbeginning\b/gi, 'begining'],
+  ];
+  for (const [pattern, replacement] of typos) {
+    if (pattern.test(result) && Math.random() < 0.3) {
+      result = result.replace(pattern, replacement);
+      break;
+    }
+  }
+  
+  // 4. Add one filler word
+  const fillers = ['okay', 'basically', 'actually', 'you know', 'I mean'];
+  if (Math.random() < 0.3) {
+    const filler = fillers[Math.floor(Math.random() * fillers.length)];
+    const sentences2 = result
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (sentences2.length > 2) {
+      const idx = Math.floor(Math.random() * (sentences2.length - 1)) + 1;
+      const firstChar = sentences2[idx].charAt(0);
+      const lowerFirst = firstChar.toLowerCase() + sentences2[idx].slice(1);
+      sentences2[idx] = filler + ', ' + lowerFirst;
+      result = sentences2.join(' ');
+    }
+  }
+  
+  // 5. Add comma splice or missing comma occasionally
+  if (Math.random() < 0.15) {
+    result = result.replace(/\b(but|and|so|or)\s+/gi, (match) => {
+      return Math.random() < 0.5 ? ', ' + match.trim() + ' ' : match;
+    });
+  }
+  
+  return result;
 }
 
 /**
