@@ -21,9 +21,11 @@ import {
   normalizeHumanizerTone,
   isFormalEssay,
   isGenericExplanation,
+  isFormalReligiousEssay,
   BLOG_STYLE_SECOND_PASS_PROMPT,
   GENUINE_HUMAN_REWRITE_PROMPT,
   PERSONAL_OBSERVATION_PROMPT,
+  PARATACTIC_RAW_DRAFT_PROMPT,
   destroyThreeParagraphStructure,
   humanizeStructureEnglish,
   injectRealisticHumanFlaws,
@@ -1031,6 +1033,11 @@ function buildConversationalSecondPassPrompt(
   tone: HumanizerPromptConfig["postProcessTone"],
   sourceText?: string
 ): string {
+  // NEW: paratactic raw draft for formal religious essays
+  if (sourceText && isFormalReligiousEssay(sourceText)) {
+    return PARATACTIC_RAW_DRAFT_PROMPT;
+  }
+
   // NEW: personal observation pass for generic explanations
   if (sourceText && isGenericExplanation(sourceText)) {
     return PERSONAL_OBSERVATION_PROMPT;
@@ -1621,6 +1628,7 @@ async function applyConversationalSecondPass({
   const isBlogPass = systemPrompt === BLOG_STYLE_SECOND_PASS_PROMPT;
   const isGenuineHumanRewrite = systemPrompt === GENUINE_HUMAN_REWRITE_PROMPT;
   const isPersonalPass = systemPrompt === PERSONAL_OBSERVATION_PROMPT;
+  const isParatacticPass = systemPrompt === PARATACTIC_RAW_DRAFT_PROMPT;
   const sourceWordCountForPrompt = sourceText.split(/\s+/).filter(Boolean).length;
   const profileLengthDirective =
     tone === "english-policy"
@@ -1648,7 +1656,7 @@ async function applyConversationalSecondPass({
     signal,
     body: JSON.stringify({
       model: SECOND_PASS_MODEL,
-      temperature: isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
+      temperature: isParatacticPass ? 1.2 : (isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
         tone === "english-argument"
           ? 0.2
           : tone === "english-policy"
@@ -1658,8 +1666,8 @@ async function applyConversationalSecondPass({
               : tone === "english-practical"
                 ? 0.3
                 : 0.7
-      )),
-      top_p: isBlogPass ? 0.95 : (
+      ))),
+      top_p: isParatacticPass ? 0.98 : (isBlogPass ? 0.95 : (
         tone === "english-argument"
           ? 0.85
           : tone === "english-policy"
@@ -1669,7 +1677,7 @@ async function applyConversationalSecondPass({
             : tone === "english-practical"
               ? 0.88
               : 0.9
-      ),
+      )),
       max_tokens: 1400,
       frequency_penalty: 0,
       presence_penalty: 0,
@@ -1700,6 +1708,13 @@ ${text}${profileLengthDirective}`,
   const rewritten = data?.choices?.[0]?.message?.content;
   if (typeof rewritten !== "string" || !rewritten.trim()) {
     return { text, applied: false };
+  }
+
+  // For paratactic pass, skip heavy fidelity checks – allow raw, messy output
+  if (isParatacticPass) {
+    // Only light cleanup: fix contractions and spacing, preserve the messiness
+    let lightlyCleaned = addHumanTouches(rewritten.trim(), tone);
+    return { text: lightlyCleaned, applied: true };
   }
 
   const specificitySafe = removeUnsupportedMeasuredClaims(
@@ -2083,6 +2098,7 @@ export async function POST(req: Request) {
     let secondPassApplied = false;
     let secondPassModel: string | null = null;
     let personalRewriteApplied = false;
+    let paratacticApplied = false;
 
     if (useTwoPass) {
       const firstPassHasUnsupportedAdditions =
@@ -2119,12 +2135,20 @@ export async function POST(req: Request) {
         if (systemPrompt === PERSONAL_OBSERVATION_PROMPT) {
           personalRewriteApplied = true;
         }
-        // CRITICAL: Inject realistic human flaws after forced personal rewrite
-        // This adds mild grammatical errors, repeated phrases, and uneven rhythm
-        // that mimics real human messiness - essential for bypassing PTZero
-        currentText = injectRealisticHumanFlaws(currentText);
-        // Then light cleanup only – no heavy regex chains
-        currentText = addHumanTouches(currentText, config.postProcessTone);
+        // Check if paratactic raw draft prompt was used
+        const isParatacticPass = systemPrompt === PARATACTIC_RAW_DRAFT_PROMPT;
+        if (isParatacticPass) {
+          // Paratactic pass already did light cleanup in applyConversationalSecondPass
+          // Just mark it so we skip finalHumanize later
+          paratacticApplied = true;
+        } else {
+          // CRITICAL: Inject realistic human flaws after forced personal rewrite
+          // This adds mild grammatical errors, repeated phrases, and uneven rhythm
+          // that mimics real human messiness - essential for bypassing PTZero
+          currentText = injectRealisticHumanFlaws(currentText);
+          // Then light cleanup only – no heavy regex chains
+          currentText = addHumanTouches(currentText, config.postProcessTone);
+        }
       } else {
         // PERBAIKAN: Second pass rejected - force structural disruption before regex patching
         console.warn("Second pass rejected; applying mandatory structural disruption");
@@ -2142,9 +2166,14 @@ export async function POST(req: Request) {
       config.postProcessTone === "english-sensitive" ||
       config.postProcessTone === "english-academic";
     
-    // If personal rewrite was applied, skip heavy post-processing
-    // The text already has human flaws injected, so just do light cleanup
-    if (personalRewriteApplied) {
+    // If paratactic raw draft was applied, skip finalHumanize completely
+    // The text is already raw and messy as intended
+    if (paratacticApplied) {
+      // currentText is already final from applyConversationalSecondPass
+      // No further processing needed - preserve the raw, unpolished style
+    } else if (personalRewriteApplied) {
+      // If personal rewrite was applied, skip heavy post-processing
+      // The text already has human flaws injected, so just do light cleanup
       currentText = addHumanTouches(currentText, config.postProcessTone);
     } else if (needsFidelityCheck) {
       const postProcessedCandidate = finalHumanize(currentText, config.postProcessTone);
