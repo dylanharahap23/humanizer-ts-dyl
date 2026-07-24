@@ -2935,15 +2935,24 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   result = addHumanTouches(result, tone);
   
   // ============================================================
-  // FINAL LAYER: Human Reconstruction (meniru lupa, acak, obsesif)
+  // FINAL LAYER: Human Author, Bukan AI Editor
   // ============================================================
   if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
-    result = humanReconstructionPass(result);
-    // Hapus semua sisa "or even" / "is also common" yang tersisa dari fungsi lama
+    // 1. Loss: hapus 15-35% informasi (lupa)
+    result = forceInformationLoss(result);
+    
+    // 2. Obsesi: pilih 1-2 ide dan kembangkan berlebihan
+    result = createObsessionLoop(result);
+    
+    // 3. Hancurkan suara editor: tambahkan interjeksi, emosi, lupa
+    result = destroyEditorialVoice(result);
+    
+    // 4. Bersihkan sisa "or even" / "is also common" dari fungsi lama
     result = result.replace(/ — or even /g, ' ');
     result = result.replace(/ is also common\./g, '. ');
     result = result.replace(/ or even /g, ' ');
-    // Bersihkan spacing
+    
+    // 5. Bersihkan spacing
     result = cleanupEnglishSpacing(result);
   }
   
@@ -2953,6 +2962,120 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
 // ============================================================
 // 11. HELPER FUNCTIONS
 // ============================================================
+
+/**
+ * Menghapus 15-35% klaim secara acak – meniru manusia yang lupa
+ */
+export function forceInformationLoss(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 6) return text;
+
+  // Hapus 15-35% kalimat secara acak
+  const lossRatio = 0.15 + Math.random() * 0.2;
+  const removeCount = Math.floor(sentences.length * lossRatio);
+  const indicesToRemove = new Set<number>();
+  while (indicesToRemove.size < removeCount) {
+    // Jangan hapus kalimat pertama (pembuka) dan terakhir (penutup)
+    const idx = Math.floor(Math.random() * (sentences.length - 2)) + 1;
+    if (!indicesToRemove.has(idx)) indicesToRemove.add(idx);
+  }
+  const remaining = sentences.filter((_, i) => !indicesToRemove.has(i));
+
+  // Gabungkan sisa kalimat
+  return remaining.join(' ');
+}
+
+/**
+ * Pilih 1-2 ide/klaim, lalu kembangkan secara obsesif (2-3 variasi pengulangan)
+ * Meniru manusia yang fokus berlebihan pada satu hal
+ */
+export function createObsessionLoop(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  // Pilih 1-2 kalimat sebagai "obsession"
+  const obsessionCount = Math.min(2, Math.floor(sentences.length * 0.2) + 1);
+  const obsessionIndices: number[] = [];
+  while (obsessionIndices.length < obsessionCount) {
+    const idx = Math.floor(Math.random() * sentences.length);
+    if (!obsessionIndices.includes(idx)) obsessionIndices.push(idx);
+  }
+
+  // Untuk setiap obsession, tambahkan 2-3 variasi di sekitarnya
+  for (const idx of obsessionIndices) {
+    const base = sentences[idx];
+    const variations = [
+      base.replace(/\b(is|are|was|were)\b/i, (m) => ['is', 'are', 'was', 'were'][Math.floor(Math.random() * 4)]),
+      base.replace(/\b(very|really|quite)\b/gi, (m) => ['extremely', 'incredibly', 'pretty', 'rather'][Math.floor(Math.random() * 4)] || m),
+      base.replace(/\b(can|could|may|might)\b/i, (m) => ['can', 'could', 'may', 'might'][Math.floor(Math.random() * 4)]),
+    ];
+    // Sisipkan variasi di sekitar kalimat asli
+    const insertPos = Math.min(idx + 1, sentences.length);
+    sentences.splice(insertPos, 0, variations[0]);
+    if (Math.random() < 0.5) {
+      sentences.splice(insertPos + 1, 0, variations[1]);
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+/**
+ * Hancurkan suara editor: tambahkan kalimat tidak informatif,
+ * reaksi emosional, pengakuan lupa, dan opini tidak berdasar.
+ */
+export function destroyEditorialVoice(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  const humanInterjections = [
+    "I'm not sure why I'm even writing this.",
+    "Actually, I just remembered something else.",
+    "Honestly, this part always confuses me.",
+    "I mean, who really cares about the details?",
+    "Anyway, that's not even the point.",
+    "It's just one of those things, I guess.",
+    "I could be wrong about this, though.",
+    "But hey, what do I know?",
+    "This reminds me of a completely unrelated story.",
+    "I should probably look this up later.",
+  ];
+
+  // Sisipkan 1-2 interjeksi acak
+  const insertCount = 1 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < insertCount; i++) {
+    const pos = Math.floor(Math.random() * sentences.length);
+    const interjection = humanInterjections[Math.floor(Math.random() * humanInterjections.length)];
+    sentences.splice(pos, 0, interjection);
+  }
+
+  // Ubah 1-2 kalimat menjadi lebih subjektif/emosional
+  const emotionalShift = [
+    "I honestly can't believe this.",
+    "It's actually pretty frustrating.",
+    "That really surprised me.",
+    "I've always found this topic interesting.",
+    "It makes you think, doesn't it?",
+  ];
+  for (let i = 0; i < sentences.length && i < 3; i++) {
+    if (Math.random() < 0.3) {
+      const shift = emotionalShift[Math.floor(Math.random() * emotionalShift.length)];
+      sentences[i] = shift + ' ' + sentences[i].charAt(0).toLowerCase() + sentences[i].slice(1);
+    }
+  }
+
+  // Tambahkan pengakuan "lupa" di akhir
+  const forgetfulEndings = [
+    "I forgot what else I was going to say.",
+    "Anyway, that's all I remember.",
+    "I'll stop here before I confuse myself.",
+    "Not sure if that was helpful.",
+    "I guess that's it.",
+  ];
+  sentences.push(forgetfulEndings[Math.floor(Math.random() * forgetfulEndings.length)]);
+
+  return sentences.join(' ');
+}
 
 function applyContractions(text: string): string {
   let result = text;
