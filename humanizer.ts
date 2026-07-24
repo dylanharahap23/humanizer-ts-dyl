@@ -14,6 +14,7 @@ export type HumanizerPostProcessTone =
   | "english-practical"
   | "english-policy"
   | "english-consumer"
+  | "product-review"
   | "indonesian-general"
   | "indonesian-academic"
   | "indonesian-professional";
@@ -29,7 +30,8 @@ export type EnglishWritingProfile =
   | "argument-voice"
   | "practical-explainer"
   | "policy-explainer"
-  | "consumer-explainer";
+  | "consumer-explainer"
+  | "product-review";
 
 export type EnglishWritingPurpose =
   | "General"
@@ -83,6 +85,23 @@ EXAMPLES OF THE STYLE YOU SHOULD MIMIC (but don't copy):
 
 Return ONLY the rewritten text. No explanations before or after.
 
+`;
+
+const PRODUCT_REVIEW_REFORMAT_PROMPT = `
+Rewrite the following explanation as a friendly, informal product review or comparison guide.
+Use a Q&A style or section headings to break up the information.
+
+Rules:
+- Start with a question as a heading, e.g., "What makes X more comfortable than Y?"
+- Use short, punchy sentences. Mix very short fragments with longer explanations.
+- Address the reader directly as "you". Use "your", "you'll", "you're".
+- Include at least one heading like "Comfort and cushioning", "Stability and fit", or similar.
+- Add a "Verdict" or "Who is it for?" section at the end.
+- Sound like a knowledgeable runner talking to a friend, not a reviewer for a magazine.
+- Keep all the original facts, but feel free to drop jargon and replace with everyday words.
+- Do NOT write a continuous prose article. Use line breaks between sections.
+
+Return ONLY the rewritten text.
 `;
 const ENGLISH_ACADEMIC_PROMPT = `
 You are a careful English academic editor. Rewrite the text so it reads like credible human academic writing while preserving the author's claims, terminology, level of certainty, and structure.
@@ -644,6 +663,24 @@ export function detectEnglishWritingProfile(
   ) {
     return "argument-voice";
   }
+  
+  // Product comparison detection for product-review profile
+  const productComparisonHits = countPatternHits(text, [
+    /\b(?:ASICS|Nike|Adidas|Hoka|Brooks|Saucony|New Balance|Mizuno|On Running|Salomon)\b/i,
+    /\bvs\.?\b/i,
+    /\bmore comfortable than\b/i,
+    /\bbetter than\b/i,
+    /\bcompared to\b/i,
+    /\bversus\b/i,
+  ]);
+  
+  if (
+    writingPurpose === "General" &&
+    productComparisonHits >= 2
+  ) {
+    return "product-review";
+  }
+  
   if (!hasPersonalPointOfView && wordCount >= 120 && expositoryHits >= 2) {
     return "expository";
   }
@@ -731,8 +768,8 @@ export function getEnglishHumanizerConfig(
   if (profile === "practical-explainer") {
     return {
       systemPrompt: ENGLISH_PRACTICAL_EXPLAINER_PROMPT,
-      temperature: 0.92,
-      topP: 0.88,
+      temperature: 1.1,
+      topP: 0.92,
       maxTokens: 1600,
       frequencyPenalty: 0,
       presencePenalty: 0,
@@ -745,8 +782,8 @@ export function getEnglishHumanizerConfig(
   if (profile === "discursive") {
     return {
       systemPrompt: ENGLISH_DISCURSIVE_PROMPT,
-      temperature: 0.95,
-      topP: 0.9,
+      temperature: 1.15,
+      topP: 0.94,
       maxTokens: 1600,
       frequencyPenalty: 0,
       presencePenalty: 0,
@@ -759,8 +796,8 @@ export function getEnglishHumanizerConfig(
   if (profile === "expository") {
     return {
       systemPrompt: ENGLISH_EXPOSITORY_PROMPT,
-      temperature: 0.93,
-      topP: 0.92,
+      temperature: 1.1,
+      topP: 0.94,
       maxTokens: 1600,
       frequencyPenalty: 0,
       presencePenalty: 0,
@@ -797,6 +834,22 @@ export function getEnglishHumanizerConfig(
       additionalInstruction: 
         "Keep the stated position clear and source-faithful. Vary emphasis through the reasoning itself; do not invent a narrator, anecdote, question, typo, or dramatic aside.",
       postProcessTone: "english-argument",
+    };
+  }
+  
+  // PRODUCT-REVIEW profile — high temperature for informal review style
+  if (profile === "product-review") {
+    return {
+      systemPrompt: PRODUCT_REVIEW_REFORMAT_PROMPT,
+      temperature: 1.5,
+      topP: 0.99,
+      maxTokens: 1800,
+      frequencyPenalty: 0.3,
+      presencePenalty: 0.2,
+      repetitionPenalty: 1.03,
+      additionalInstruction:
+        "Rewrite as a friendly product review with Q&A structure, headings, and direct reader address. Keep all facts but use everyday language.",
+      postProcessTone: "product-review",
     };
   }
   
@@ -2358,6 +2411,14 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   if (!text || text.length < 40) return text.trim();
 
   let result = text.trim();
+
+  // ===== PRODUCT-REVIEW: Skip heavy post-processing, just add human touches =====
+  if (tone === "product-review") {
+    // Model output should already be human enough from the review-style prompt
+    // Just fix contractions and spacing
+    result = addHumanTouches(result, tone);
+    return cleanupEnglishSpacing(result);
+  }
 
   // ===== ANTI-DETECTION PASS untuk semua profil English =====
   if (tone.startsWith("english-") || tone === "casual") {
