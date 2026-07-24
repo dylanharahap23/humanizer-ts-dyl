@@ -22,6 +22,8 @@ import {
   isFormalEssay,
   isGenericExplanation,
   isFormalReligiousEssay,
+  isShortGenericExplanation,
+  injectSafeSpecificsAndOrganicChaos,
   BLOG_STYLE_SECOND_PASS_PROMPT,
   GENUINE_HUMAN_REWRITE_PROMPT,
   PERSONAL_OBSERVATION_PROMPT,
@@ -2198,6 +2200,12 @@ export async function POST(req: Request) {
         currentText = addHumanTouches(currentText, config.postProcessTone);
       } else {
         currentText = finalHumanize(currentText, config.postProcessTone);
+      }
+      
+      // NEW: Inject safe specifics and organic chaos for short, generic explanations
+      // This transforms AI-like dense output into something closer to human FAQ style
+      if (config.postProcessTone.startsWith("english-") && isShortGenericExplanation(currentText)) {
+        currentText = injectSafeSpecificsAndOrganicChaos(currentText);
       }
     }
 
