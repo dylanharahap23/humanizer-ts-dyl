@@ -2994,6 +2994,30 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     
     // 7. Buat teks kurang informatif (pengulangan, filler)
     result = introduceInefficiency(result);
+    
+    // ============================================================
+    // FINAL ASSAULT: Destroy AI Thinking Patterns (Professor's analysis)
+    // ============================================================
+    // 8. Restrukturisasi diskursus (acak urutan, kurangi coverage, pindahkan kesimpulan)
+    result = restructureDiscourse(result);
+    
+    // 9. Tambahkan emotional escalation
+    result = injectEmotionalEscalation(result);
+    
+    // 10. Tambahkan "wasted sentences" (kalimat sia-sia)
+    result = addWastedSentences(result);
+    
+    // 11. Perkenalkan attention drift (cerita samping)
+    result = introduceAttentionDrift(result);
+    
+    // 12. Break teacher mode (ubah menjadi pertanyaan/ajakan)
+    result = breakTeacherMode(result);
+    
+    // 13. Tambahkan ambiguity (lemahkan kepastian)
+    result = addAmbiguity(result);
+    
+    // 14. Personalize voice (tambahkan ciri khas penulis)
+    result = personalizeVoice(result);
   }
   
   return cleanupEnglishSpacing(result);
@@ -4280,6 +4304,168 @@ export function introduceInefficiency(text: string): string {
 }
 
 // ============================================================
+// NEW FUNCTIONS: Destroy AI Thinking Patterns (Professor's analysis)
+// ============================================================
+
+/**
+ * 1. Acak "macro discourse graph" secara radikal
+ * - Pilih hanya 60-70% subtopik (kurangi coverage)
+ * - Acak urutan subtopik
+ * - Tambahkan paragraf keraguan di tengah
+ * - Pindahkan kesimpulan ke posisi acak
+ */
+
+// ============================================================
 // Helper: Human Chaos (typo, run-on, etc.)
 // ============================================================
 
+
+/**
+ * 1. Acak "macro discourse graph" secara radikal - NEW VERSION for Professor's analysis
+ */
+export function injectEmotionalEscalation(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  const emotionalMoments = [
+    "And honestly, that realization hit me hard.",
+    "It's almost unbearable sometimes.",
+    "You can't help but feel a deep sense of loss.",
+    "I've been there, and it's not easy.",
+    "It makes you question everything.",
+    "The weight of it all is just... overwhelming.",
+  ];
+
+  const positions = [
+    Math.floor(sentences.length * 0.3),
+    Math.floor(sentences.length * 0.6),
+    Math.floor(sentences.length * 0.8),
+  ];
+  for (const pos of positions) {
+    if (pos < sentences.length && Math.random() < 0.4) {
+      sentences.splice(pos, 0, emotionalMoments[Math.floor(Math.random() * emotionalMoments.length)]);
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+export function addWastedSentences(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  const wasted = [
+    "I don't know why I'm even thinking about this.",
+    "It's funny how life works sometimes.",
+    "You know what I mean?",
+    "It just is what it is.",
+    "I guess that's all there is to it.",
+    "Anyway, moving on...",
+    "Not that it really matters.",
+    "But hey, that's just my two cents.",
+  ];
+
+  const count = Math.min(3, Math.floor(sentences.length / 4) + 1);
+  for (let i = 0; i < count; i++) {
+    const pos = Math.floor(Math.random() * sentences.length);
+    sentences.splice(pos, 0, wasted[Math.floor(Math.random() * wasted.length)]);
+  }
+
+  return sentences.join(' ');
+}
+
+export function introduceAttentionDrift(text: string): string {
+  const tangents = [
+    "It reminds me of a time when I tried to learn the guitar—I practiced for months but never got past the basics. It's the same kind of frustration.",
+    "I once knew a guy who spent years chasing a dream and ended up in a completely different place. Life is strange like that.",
+    "It's a bit like that old saying: 'You can lead a horse to water, but you can't make it drink.'",
+    "My grandmother used to say that the heart wants what it wants. She was a wise woman.",
+  ];
+
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  const pos = Math.floor(sentences.length * 0.5);
+  const tangent = tangents[Math.floor(Math.random() * tangents.length)];
+  sentences.splice(pos, 0, tangent);
+
+  return sentences.join(' ');
+}
+
+export function breakTeacherMode(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  const explainPatterns = /\b(because|since|due to|which means|as a result|therefore)\b/i;
+  for (let i = 0; i < sentences.length; i++) {
+    if (explainPatterns.test(sentences[i]) && Math.random() < 0.3) {
+      const qs = [
+        "Isn't that something?",
+        "Does that make sense to you?",
+        "You see what I mean?",
+        "Think about it for a second.",
+        "Can you imagine?",
+      ];
+      sentences[i] = sentences[i].replace(/[.!?]$/, '') + ' ' + qs[Math.floor(Math.random() * qs.length)];
+    }
+  }
+
+  const commands = [
+    "Imagine this: ",
+    "Consider this scenario: ",
+    "Stop and think for a moment: ",
+    "Let's be honest about this: ",
+  ];
+  sentences.splice(1, 0, commands[Math.floor(Math.random() * commands.length)]);
+
+  return sentences.join(' ');
+}
+
+export function addAmbiguity(text: string): string {
+  const certaintyMarkers = /\b(will|must|always|never|clearly|definitely|absolutely|certainly|without doubt)\b/gi;
+  let result = text.replace(certaintyMarkers, (match) => {
+    const replacements = [
+      'might', 'could', 'perhaps', 'maybe', 'probably',
+      'I think', 'it seems', 'I suspect', 'in my view'
+    ];
+    return replacements[Math.floor(Math.random() * replacements.length)];
+  });
+
+  const sentences = splitSentences(result);
+  if (sentences.length > 4) {
+    const idx = Math.floor(sentences.length * 0.7);
+    sentences.splice(idx, 0, "I'm not entirely sure about that, though.");
+    result = sentences.join(' ');
+  }
+
+  return result;
+}
+
+export function personalizeVoice(text: string): string {
+  const idiolects = [
+    "Honestly, I've always thought that ",
+    "You know what really gets me? ",
+    "The thing is, ",
+    "What I find fascinating is ",
+    "I'll be straight with you: ",
+    "Here's the deal: ",
+  ];
+
+  const sentences = splitSentences(text);
+  for (let i = 0; i < sentences.length && i < 3; i++) {
+    if (Math.random() < 0.3) {
+      const opener = idiolects[Math.floor(Math.random() * idiolects.length)];
+      sentences[i] = opener + sentences[i].charAt(0).toLowerCase() + sentences[i].slice(1);
+    }
+  }
+
+  const signaturePhrases = [
+    "Anyway, that's just how I see it.",
+    "At the end of the day, it's all about perspective.",
+    "But hey, what do I know?",
+    "Live and learn, I guess.",
+  ];
+  sentences.push(signaturePhrases[Math.floor(Math.random() * signaturePhrases.length)]);
+
+  return sentences.join(' ');
+}
