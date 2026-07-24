@@ -55,30 +55,33 @@ export type HumanizerPromptConfig = {
 // ============================================================
 
 const CASUAL_NATURAL_PROMPT = `
-You are a human writer — not an AI assistant. Your writing has small imperfections that real humans make.
+You are a knowledgeable, slightly informal person explaining something you genuinely understand.
+You are not an AI, not a textbook, not a journalist. You are a real person talking to another person.
 
-Mimic these traits:
-- You sometimes use "thing" or "stuff" instead of precise nouns.
-- You mix formal and casual in the same paragraph (e.g., "the policy" then "kinda works").
-- You occasionally drop articles ("huge part of", "other side of").
-- You don't always structure paragraphs neatly. Some are 1 sentence, some are 7.
-- You sometimes say "honestly", "look", "to be fair", "the thing is" — but only sometimes, not every paragraph.
-- You sometimes end sentences with fragments or trailing thoughts.
-- You rarely use 3-syllable words when 1-syllable word works.
-- You use contractions ALWAYS (don't, it's, you're).
-- You sometimes ramble — adding a clause that goes off-topic but human-sounding.
+VOICE:
+- Use "I", "you", "we" naturally where it fits.
+- Mix casual language with precise terminology — just like an expert speaking off the cuff.
+- Occasionally use phrases like "honestly", "the thing is", "to be fair", "look" — but not in every sentence.
+- Avoid formal transitions: no "Furthermore", "Moreover", "In addition", "Consequently".
+- Don't try to be balanced or objective. Have an opinion. State it clearly.
 
-When you rewrite:
-- Vary sentence length wildly. Combine 2 thoughts into one long sentence.
-- Mix register — academic phrase next to "guy" or "stuff".
-- Open sentences with BUT, AND, SO, LOOK at the start sometimes.
-- Don't use "Furthermore", "Moreover", "Additionally" — these scream AI.
-- Don't summarize at the end. End on a concrete detail or a thought.
-- Sound like you actually think about this, not like you're reporting facts.
+STRUCTURE:
+- Vary sentence length wildly. Some sentences very short (2–4 words). Some very long (30+ words).
+- Paragraphs should not be uniform. Some can be one sentence, some can be several.
+- Don't end with a summary. End with a concrete thought, a personal aside, or an example.
 
-Preserve all facts, claims, qualifications from the original.
-Do not add facts not in the original.
-Return only the rewritten text.
+CONTENT:
+- Preserve all the factual claims and key details from the original text.
+- Add NO new facts, statistics, names, or citations that aren't in the original.
+- If the original text is an explanation, rephrase it from your personal perspective.
+- If it's advice, speak directly to the reader using "you".
+
+EXAMPLES OF THE STYLE YOU SHOULD MIMIC (but don't copy):
+"Piano is much easier than violin to learn, because you basically can't play a bad-sounding note."
+"Anybody can learn any piece. It's just experience that changes the outcome of how it sounds."
+"For instance, it takes time to become the best in a sport. Same applies here."
+
+Return ONLY the rewritten text. No explanations before or after.
 `;
 
 const ENGLISH_GENERAL_ANTI_DETECTION_LAYER = `
@@ -828,18 +831,17 @@ export function getEnglishHumanizerConfig(
     };
   }
   
-  // GENERAL profile — simplified, lower temperature
-  // GENERAL profile — with anti-detection structural rules
+  // GENERAL profile — simplified, higher temperature for human-like output
   return {
-    systemPrompt: `${CASUAL_NATURAL_PROMPT}\n\n${ENGLISH_GENERAL_ANTI_DETECTION_LAYER}`,
-    temperature: 0.95,
+    systemPrompt: `${CASUAL_NATURAL_PROMPT}`,
+    temperature: 1.3,
     topP: 0.98,
     maxTokens: 1600,
-    frequencyPenalty: 0.15,
-    presencePenalty: 0.1,
-    repetitionPenalty: 1.02,
+    frequencyPenalty: 0.3,
+    presencePenalty: 0.2,
+    repetitionPenalty: 1.03,
     additionalInstruction:
-      "Write direct, natural English. Start with the subject. Vary paragraph length aggressively. Use at least two short sentences under 12 words. Break up lists. Open paragraphs with concrete details, not abstract nouns.",
+      "Write like a real person, not an AI. Use 'I' or 'you' where natural. Vary sentence length. Sound knowledgeable but relaxed.",
     postProcessTone: "english-general",
   };
 }
@@ -1720,7 +1722,46 @@ function varyClosurePattern(text: string): string {
 // NEW FUNCTIONS FROM PROFESSOR'S ANALYSIS
 // ============================================================
 
-function enforceExtremeBurstinessPerSentence(text: string): string {
+// REPLACED: enforceExtremeBurstinessPerSentence and aggressiveOpenerDiversification removed
+// New gentle burstiness function that merges/splits at natural boundaries only
+
+function gentleBurstiness(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+  
+  // Merge two short adjacent sentences at a logical conjunction
+  for (let i = 0; i < sentences.length - 1; i++) {
+    const w1 = sentences[i].split(/\s+/).length;
+    const w2 = sentences[i + 1].split(/\s+/).length;
+    if (w1 + w2 < 30 && /\b(and|but|so|because|which)\b/i.test(sentences[i + 1])) {
+      sentences[i] = sentences[i].replace(/[.!?]$/, ', ') + sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
+      sentences.splice(i + 1, 1);
+      break; // Only one merge per call
+    }
+  }
+  
+  // Split a very long sentence at a semicolon or natural break
+  for (let i = 0; i < sentences.length; i++) {
+    if (sentences[i].split(/\s+/).length > 35) {
+      const breakPoints = [';', ' — ', ', and ', ', but ', ', so '];
+      for (const bp of breakPoints) {
+        const idx = sentences[i].indexOf(bp);
+        if (idx > 15 && idx < sentences[i].length - 15) {
+          const first = sentences[i].substring(0, idx + (bp.endsWith(' ') ? 0 : 1)).trim();
+          const second = sentences[i].substring(idx + bp.length).trim();
+          sentences[i] = first + '.';
+          sentences.splice(i + 1, 0, second.charAt(0).toUpperCase() + second.slice(1));
+          break;
+        }
+      }
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+// DEPRECATED: Kept for reference but not used in applyAntiDetectionPass
+/* function enforceExtremeBurstinessPerSentence(text: string): string {
   const sentences = splitSentences(text);
   if (sentences.length < 5) return text;
 
@@ -1770,9 +1811,11 @@ function enforceExtremeBurstinessPerSentence(text: string): string {
   }
 
   return sentences.join(' ');
-}
+} */
 
-function aggressiveOpenerDiversification(text: string): string {
+
+// DEPRECATED: Kept for reference but not used in applyAntiDetectionPass
+/* function aggressiveOpenerDiversification(text: string): string {
   const sentences = splitSentences(text);
   if (sentences.length < 4) return text;
 
@@ -1806,7 +1849,7 @@ function aggressiveOpenerDiversification(text: string): string {
   }
 
   return sentences.join(' ');
-}
+} */
 
 function injectSpecificAnchors(text: string): string {
   let result = text;
@@ -1947,10 +1990,8 @@ function applyAntiDetectionPass(text: string, sourceText: string, tone: string):
   result = injectTokenSurprise(result);   // updated map
   result = injectSpecificAnchors(result);
 
-  // STAGE 3: Sentence-level restructuring
-  result = enforceExtremeBurstinessPerSentence(result);
-  result = aggressiveOpenerDiversification(result);
-  result = injectOneLongSentence(result);
+  // STAGE 3: Sentence-level restructuring (using gentle burstiness instead of aggressive)
+  result = gentleBurstiness(result);       // NEW safe burstiness
   result = reorderClauses(result);
   result = humanizeSentenceSubjects(result);
   result = humanizeReferences(result);
