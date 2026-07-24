@@ -1913,8 +1913,8 @@ function aiFriendlyWordReplacement(text: string): string {
     [/\bIn essence,?\s*/gi, ['', 'Basically, ', 'I mean, ']],
     [/\bIn summary,?\s*/gi, ['', 'So basically, ', 'Short version: ']],
     [/\bTo summarize,?\s*/gi, ['', 'Bottom line: ', 'Quick take: ']],
-    [/\bIt is (?:important|crucial|essential|vital|clear|evident|obvious|notable|worth noting|interesting) (?:to|that)\b/gi, () => ''],
-    [/\bIt is (?:a fact|the case|widely known)\s+that\b/gi, () => ''],
+    [/\bIt is (?:important|crucial|essential|vital|clear|evident|obvious|notable|worth noting|interesting) (?:to|that)\b/gi, ['']],
+    [/\bIt is (?:a fact|the case|widely known)\s+that\b/gi, ['']],
   ];
   let result = text;
   let count = 0;
