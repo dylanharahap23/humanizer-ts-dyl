@@ -2970,6 +2970,32 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     result = disruptIdeaGraph(result);
   }
   
+  // ============================================================
+  // NEW: DESTROY AI DISCOURSE PATTERNS (Professor's analysis)
+  // ============================================================
+  if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
+    // 1. Kurangi coverage (hanya 60-70% subtopik)
+    result = reduceCoverage(result);
+    
+    // 2. Hancurkan siklus closed-loop
+    result = breakClosedLoop(result);
+    
+    // 3. Hancurkan taxonomi/list
+    result = destroyTaxonomy(result);
+    
+    // 4. Hapus transisi eksplisit
+    result = deTransition(result);
+    
+    // 5. Tambahkan opini/subjektivitas kuat
+    result = injectBiasedEgo(result);
+    
+    // 6. Ciptakan attention tunnel (obsesi pada 1 detail)
+    result = injectAttentionTunnel(result);
+    
+    // 7. Buat teks kurang informatif (pengulangan, filler)
+    result = introduceInefficiency(result);
+  }
+  
   return cleanupEnglishSpacing(result);
 }
 
@@ -3995,6 +4021,261 @@ export function injectCognitiveUncertainty(text: string): string {
     }
   }
   
+  return sentences.join(' ');
+}
+
+// ============================================================
+// NEW: PROFESSOR'S STRATEGY - DESTROY AI DISCOURSE PATTERNS
+// ============================================================
+
+/**
+ * Kurangi coverage: pilih hanya 60-70% subtopik secara acak
+ * Buang sisanya agar teks tidak komprehensif seperti AI
+ */
+export function reduceCoverage(text: string): string {
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4) return text;
+
+  // Ambil paragraf tengah (bukan pembuka & penutup)
+  const middle = paragraphs.slice(1, -1);
+  if (middle.length < 3) return text;
+
+  // Pilih 60-70% secara acak
+  const keepRatio = 0.6 + Math.random() * 0.15;
+  const keepCount = Math.max(2, Math.floor(middle.length * keepRatio));
+  
+  // Acak lalu ambil subset
+  const shuffled = middle.sort(() => Math.random() - 0.5);
+  const selected = shuffled.slice(0, keepCount);
+
+  // Gabung kembali: pembuka + selected + penutup
+  return [paragraphs[0], ...selected, paragraphs[paragraphs.length - 1]].join('\n\n');
+}
+
+/**
+ * Hancurkan closed-loop: pindahkan kesimpulan ke tengah, 
+ * atau ubah kalimat penutup menjadi pertanyaan/tidak selesai
+ */
+export function breakClosedLoop(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+
+  // Cari paragraf terakhir (biasanya kesimpulan)
+  const last = paragraphs.pop();
+  if (!last) return text;
+
+  // Ubah kalimat penutup menjadi sesuatu yang "menggantung"
+  const sentences = splitSentences(last);
+  if (sentences.length > 0) {
+    const lastSentence = sentences[sentences.length - 1];
+    // Ubah jadi pertanyaan, atau potong di tengah
+    if (!lastSentence.includes('?') && !lastSentence.includes('...')) {
+      const endings = [
+        '... or at least that\'s what I think.',
+        ', I guess?',
+        '... but who really knows.',
+        '— or maybe not.',
+        'Anyway, I could be wrong.',
+      ];
+      sentences[sentences.length - 1] = lastSentence.replace(/[.!?]$/, '') + 
+        endings[Math.floor(Math.random() * endings.length)];
+    }
+    // Gabungkan kembali 1-2 kalimat pertama saja (buang sisanya)
+    const truncated = sentences.slice(0, Math.max(1, Math.floor(sentences.length * 0.6))).join(' ');
+    paragraphs.push(truncated);
+  }
+
+  // Sisipkan "kesimpulan" yang sudah dipotong ke posisi acak (bukan akhir)
+  const conclusion = paragraphs.pop();
+  if (conclusion) {
+    const insertIdx = Math.floor(paragraphs.length * 0.5) + 1;
+    paragraphs.splice(insertIdx, 0, conclusion);
+  }
+
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * Hancurkan pola taxonomi: ubah daftar menjadi narasi yang tidak rapi
+ */
+export function destroyTaxonomy(text: string): string {
+  // Deteksi pola "One factor... Another factor... Finally..."
+  const taxonomyPatterns = [
+    /\b(?:one|another|a further)\s+(?:reason|factor|cause|contributor)\b/gi,
+    /\b(?:first|second|third|fourth|finally)\b/gi,
+    /\b(?:several|various|multiple)\s+(?:factors|reasons|causes)\b/gi,
+    /\d+\.\s+/g, // "1. ... 2. ..."
+  ];
+
+  let result = text;
+  for (const pattern of taxonomyPatterns) {
+    result = result.replace(pattern, (match) => {
+      // Ganti dengan kata sambung informal atau hilangkan
+      const replacements = ['', 'Also, ', 'Plus, ', 'And ', 'Then ', '— ', '... '];
+      return Math.random() < 0.7 ? replacements[Math.floor(Math.random() * replacements.length)] : match;
+    });
+  }
+
+  // Jika masih ada daftar panjang (3+ item dengan koma), hancurkan
+  const listPattern = /\b([a-z]+(?:\s+[a-z]+)?)(?:,\s+([a-z]+(?:\s+[a-z]+)?)){2,}(?:,\s+and\s+([a-z]+(?:\s+[a-z]+)?))?\b/gi;
+  result = result.replace(listPattern, (match) => {
+    const items = match.split(/,\s*|\s+and\s+/).filter(Boolean);
+    if (items.length >= 3) {
+      // Ambil 1-2 item saja, buang sisanya
+      const kept = items.slice(0, Math.max(1, Math.floor(items.length * 0.5)));
+      return kept.join(', ') + (items.length > kept.length ? ' ... and some other stuff' : '');
+    }
+    return match;
+  });
+
+  return result;
+}
+
+/**
+ * Hapus kata transisi eksplisit agar flow terasa melompat
+ */
+export function deTransition(text: string): string {
+  const transitions = [
+    /\b(Furthermore|Moreover|In addition|Additionally)\s*,?\s*/gi,
+    /\b(As a result|Consequently|Therefore|Thus)\s*,?\s*/gi,
+    /\b(However|Nevertheless|Nonetheless|On the other hand)\s*,?\s*/gi,
+    /\b(Another (?:reason|factor|cause|challenge) is)\s*,?\s*/gi,
+    /\b(Let's not forget|It's also worth noting|It is important to note)\s*,?\s*/gi,
+    /\b(First(?:ly)?|Second(?:ly)?|Third(?:ly)?|Finally)\s*,?\s*/gi,
+    /\b(For example|For instance|Take)\s*,?\s*/gi,
+    /\b(And then|Then,?)\s*/gi,
+    /\b(Also,?|Plus,?)\s*/gi,
+    /\b(But,?|So,?)\s*/gi,
+  ];
+
+  let result = text;
+  for (const pattern of transitions) {
+    // 80% chance to delete transition entirely, 20% keep but lowercase/alter
+    if (Math.random() < 0.8) {
+      result = result.replace(pattern, '');
+    } else {
+      result = result.replace(pattern, (match) => {
+        const keepers = ['', '... ', '— ', 'Actually, ', 'I mean, '];
+        return keepers[Math.floor(Math.random() * keepers.length)];
+      });
+    }
+  }
+
+  // Bersihkan spasi ganda
+  result = result.replace(/\s{2,}/g, ' ');
+  return result;
+}
+
+/**
+ * Sisipkan opini subjektif yang kuat untuk menghancurkan "netralitas AI"
+ */
+export function injectBiasedEgo(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  const egoStatements = [
+    "Honestly, I think that's complete nonsense.",
+    "I've always found this topic way overblown.",
+    "Personally, I couldn't care less about the technical details.",
+    "In my opinion, the whole discussion is just a distraction.",
+    "I'm actually pretty skeptical about this whole thing.",
+    "To be brutally honest, I think people worry too much.",
+    "If you ask me, the real issue is completely different.",
+    "I've seen this play out before, and it's never that simple.",
+  ];
+
+  // Sisipkan di 30-60% posisi teks
+  const idx = Math.floor(sentences.length * (0.3 + Math.random() * 0.4));
+  const statement = egoStatements[Math.floor(Math.random() * egoStatements.length)];
+  sentences.splice(idx, 0, statement);
+
+  // Ubah 1-2 kalimat menjadi lebih absolut/ekstrem
+  for (let i = 0; i < sentences.length && i < 2; i++) {
+    const s = sentences[i];
+    if (/\b(may|might|could|perhaps|somewhat)\b/i.test(s) && Math.random() < 0.4) {
+      sentences[i] = s.replace(/\b(may|might|could|perhaps|somewhat)\b/gi, 
+        (match) => ['', 'definitely', 'absolutely', 'totally', 'clearly'][Math.floor(Math.random() * 4)] || '');
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+/**
+ * Ciptakan "attention tunnel": pilih satu subtopik dan ulangi/ekspansi secara berlebihan
+ */
+export function injectAttentionTunnel(text: string): string {
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+
+  // Pilih 1 paragraf di tengah sebagai target "obsesi"
+  const targetIdx = Math.floor(paragraphs.length / 2);
+  const targetPara = paragraphs[targetIdx];
+  if (!targetPara) return text;
+
+  const sentences = splitSentences(targetPara);
+  if (sentences.length < 2) return text;
+
+  // Ambil satu kata kunci dari paragraf target (kata benda)
+  const words = targetPara.split(/\s+/);
+  const nouns = words.filter(w => /[A-Z]/.test(w[0]) || w.length > 5); // proper noun atau panjang
+  if (nouns.length === 0) return text;
+
+  const focusWord = nouns[Math.floor(Math.random() * nouns.length)];
+
+  // Tambahkan 1-2 kalimat tambahan di paragraf berikutnya yang mengulang fokus
+  const insertIdx = Math.min(targetIdx + 1, paragraphs.length - 1);
+  const extraSentences = [
+    `I keep coming back to this idea of ${focusWord.toLowerCase()}.`,
+    `Honestly, ${focusWord.toLowerCase()} is what really matters here.`,
+    `You can talk about everything else, but it all comes down to ${focusWord.toLowerCase()}.`,
+  ];
+  const extra = extraSentences[Math.floor(Math.random() * extraSentences.length)];
+  paragraphs[insertIdx] = extra + ' ' + paragraphs[insertIdx];
+
+  // Tambahkan pengulangan di paragraf target
+  sentences.splice(Math.floor(sentences.length / 2), 0, 
+    `It's always about ${focusWord.toLowerCase()}, isn't it?`);
+  paragraphs[targetIdx] = sentences.join(' ');
+
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * Tambahkan inefisiensi informasi: pengulangan, kalimat kosong, divagasi
+ */
+export function introduceInefficiency(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  // 1. Ulangi 1 kalimat secara persis di posisi berbeda
+  const repeatIdx = Math.floor(Math.random() * (sentences.length - 3)) + 1;
+  const repeated = sentences[repeatIdx];
+  if (repeated.length > 10) {
+    sentences.splice(repeatIdx + 2, 0, repeated);
+  }
+
+  // 2. Sisipkan kalimat yang tidak menambah informasi
+  const fillers = [
+    "I mean, you know what I mean?",
+    "It is what it is, I guess.",
+    "But anyway, that's just how I see it.",
+    "Not that it really matters, though.",
+    "Honestly, I've been thinking about this too much.",
+  ];
+  const fillerIdx = Math.floor(sentences.length * 0.7);
+  sentences.splice(fillerIdx, 0, fillers[Math.floor(Math.random() * fillers.length)]);
+
+  // 3. Buat satu kalimat jadi lebih panjang dengan pengulangan
+  for (let i = 0; i < sentences.length && i < 2; i++) {
+    const s = sentences[i];
+    if (s.length > 20 && !s.includes('really really') && Math.random() < 0.3) {
+      sentences[i] = s.replace(/\b(very|really|quite)\b/i, (match) => {
+        return Math.random() < 0.5 ? match + ' ' + match.toLowerCase() : match;
+      });
+    }
+  }
+
   return sentences.join(' ');
 }
 
