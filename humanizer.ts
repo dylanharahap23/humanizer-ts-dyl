@@ -2934,104 +2934,17 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
 
   result = addHumanTouches(result, tone);
   
-  // Apply human chaos injection for general/expository tones to add natural imperfections
-  if (tone === "english-general" || tone === "english-expository" || tone === "casual") {
-    result = injectHumanChaos(result);
-    // FIX 4: Force Structural Randomization untuk general/expository
-    result = randomizeIdeaOrder(result);
-    // FIX 3: Remove excessive connective words
-    result = stripConnectiveWords(result);
-    // Hapus placeholder names (Sarah, Alex) jika ada — ganti dengan yang lebih natural
-    result = result.replace(/\b(?:Sarah|Alex|John|Mary|Jane|Bob)\b/gi, (match) => {
-      const replacements = ['a friend', 'someone I know', 'a colleague', 'a relative', 'one person I met'];
-      return replacements[Math.floor(Math.random() * replacements.length)];
-    });
-    // FIX 5: Inject cognitive uncertainty (bukan fake typos!)
-    result = injectCognitiveUncertainty(result);
-  }
-  
-  // --- STRUCTURAL DISRUPTION untuk general/expository (di akhir proses) ---
-  if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
-    // 1. Pastikan teks terpecah menjadi minimal 4 paragraf
-    result = forceParagraphSplit(result, 4);
-    // 2. Acak alur argumen (pindahkan kesimpulan ke tengah, acak urutan)
-    result = reorderArgumentFlow(result);
-    // 3. Restrukturisasi diskursus: pilih subset subtopik, acak urutan, sisipkan keraguan
-    result = restructureDiscourse(result);
-    // 4. Ubah framing (pertanyakan pertanyaan)
-    result = reframeQuestion(result);
-    // 5. Tambahkan ketidakpastian dan counter-argument
-    result = injectCognitiveUncertainty2(result);
-    // 6. Tambahkan personal arc (emosi, detail pribadi)
-    result = injectPersonalArc(result);
-    // 7. Hapus connective words yang berlebihan
-    result = stripConnectiveWords(result);
-    // 8. Terakhir, disrupt idea graph (tambahkan interupsi, doubt paragraphs)
-    result = disruptIdeaGraph(result);
-  }
-  
   // ============================================================
-  // NEW: DESTROY AI DISCOURSE PATTERNS (Professor's analysis)
+  // FINAL LAYER: Human Reconstruction (meniru lupa, acak, obsesif)
   // ============================================================
   if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
-    // 1. Kurangi coverage (hanya 60-70% subtopik)
-    result = reduceCoverage(result);
-    
-    // 2. Hancurkan siklus closed-loop
-    result = breakClosedLoop(result);
-    
-    // 3. Hancurkan taxonomi/list
-    result = destroyTaxonomy(result);
-    
-    // 4. Hapus transisi eksplisit
-    result = deTransition(result);
-    
-    // 5. Tambahkan opini/subjektivitas kuat
-    result = injectBiasedEgo(result);
-    
-    // 6. Ciptakan attention tunnel (obsesi pada 1 detail)
-    result = injectAttentionTunnel(result);
-    
-    // 7. Buat teks kurang informatif (pengulangan, filler)
-    result = introduceInefficiency(result);
-    
-    // ============================================================
-    // HUMAN RECONSTRUCTION: meniru cara manusia menulis ulang dari ingatan
-    // ============================================================
-    // 8. Hancurkan pemetaan 1:1 kalimat
-    result = destroySentenceMapping(result);
-    // 9. Acak alur reasoning
-    result = reorderReasoningFlow(result);
-    // 10. Drop sebagian coverage (hilangkan 1-2 subtopik)
-    result = dropSomeCoverage(result);
-    // 11. Kompres informasi (gabungkan poin, hilangkan detail)
-    result = introduceCompression(result);
-    // 12. Simulasi attention drift
-    result = simulateAttentionDrift(result);
-    
-    // ============================================================
-    // FINAL ASSAULT: Destroy AI Thinking Patterns (Professor's analysis)
-    // ============================================================
-    // 13. Restrukturisasi diskursus (acak urutan, kurangi coverage, pindahkan kesimpulan)
-    result = restructureDiscourse(result);
-    
-    // 14. Tambahkan emotional escalation
-    result = injectEmotionalEscalation(result);
-    
-    // 15. Tambahkan "wasted sentences" (kalimat sia-sia)
-    result = addWastedSentences(result);
-    
-    // 16. Perkenalkan attention drift (cerita samping)
-    result = introduceAttentionDrift(result);
-    
-    // 17. Break teacher mode (ubah menjadi pertanyaan/ajakan)
-    result = breakTeacherMode(result);
-    
-    // 18. Tambahkan ambiguity (lemahkan kepastian)
-    result = addAmbiguity(result);
-    
-    // 19. Personalize voice (tambahkan ciri khas penulis)
-    result = personalizeVoice(result);
+    result = humanReconstructionPass(result);
+    // Hapus semua sisa "or even" / "is also common" yang tersisa dari fungsi lama
+    result = result.replace(/ — or even /g, ' ');
+    result = result.replace(/ is also common\./g, '. ');
+    result = result.replace(/ or even /g, ' ');
+    // Bersihkan spacing
+    result = cleanupEnglishSpacing(result);
   }
   
   return cleanupEnglishSpacing(result);
@@ -4678,4 +4591,132 @@ export function simulateAttentionDrift(text: string): string {
   sentences.push(forgetfulEndings[Math.floor(Math.random() * forgetfulEndings.length)]);
 
   return sentences.join(' ');
+}
+
+// ============================================================
+// HUMAN RECONSTRUCTION PASS (Final Layer)
+// Meniru cara manusia menulis ulang dari ingatan: 
+// lupa, acak, obsesif, mengulang, menyimpang, dan berhenti.
+// ============================================================
+
+export function humanReconstructionPass(text: string): string {
+  // 1. Pecah menjadi kalimat/klaim
+  const sentences = splitSentences(text);
+  if (sentences.length < 6) return text;
+
+  // 2. Pilih subset klaim secara acak (60-80%) – meniru lupa
+  const keepRatio = 0.6 + Math.random() * 0.2;
+  const keepCount = Math.max(4, Math.floor(sentences.length * keepRatio));
+  const shuffled = sentences.sort(() => Math.random() - 0.5);
+  let selected = shuffled.slice(0, keepCount);
+
+  // 3. Acak urutan klaim secara radikal
+  for (let i = selected.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [selected[i], selected[j]] = [selected[j], selected[i]];
+  }
+
+  // 4. Pilih 1-2 klaim untuk dikembangkan secara obsesif (tambahkan pengulangan)
+  const obsessionCount = Math.min(2, Math.floor(selected.length / 3) + 1);
+  const obsessionIndices: number[] = [];
+  while (obsessionIndices.length < obsessionCount) {
+    const idx = Math.floor(Math.random() * selected.length);
+    if (!obsessionIndices.includes(idx)) obsessionIndices.push(idx);
+  }
+  for (const idx of obsessionIndices) {
+    const s = selected[idx];
+    // Ulangi kalimat tersebut 2-3 kali dengan variasi kecil
+    const repeats = 1 + Math.floor(Math.random() * 2);
+    for (let r = 0; r < repeats; r++) {
+      const variant = s.replace(/\b(very|really|quite)\b/gi, (m) => 
+        ['extremely', 'incredibly', 'pretty', 'rather'][Math.floor(Math.random() * 4)] || m
+      );
+      selected.splice(idx + r + 1, 0, variant);
+    }
+  }
+
+  // 5. Sisipkan "wasted sentences" (kalimat tidak informatif)
+  const wastedPool = [
+    "I don't know why I'm even thinking about this.",
+    "It's just one of those things, I guess.",
+    "Anyway, that's not even the point.",
+    "Honestly, this whole topic is confusing.",
+    "I mean, who really cares about the details?",
+    "It is what it is.",
+    "But hey, that's life.",
+    "I'm probably overcomplicating this.",
+  ];
+  for (let i = 0; i < Math.min(3, selected.length / 3); i++) {
+    const pos = Math.floor(Math.random() * selected.length);
+    selected.splice(pos, 0, wastedPool[Math.floor(Math.random() * wastedPool.length)]);
+  }
+
+  // 6. Sisipkan "attention drift" (cerita samping / komentar tidak relevan)
+  const driftPool = [
+    "This reminds me of a story my grandfather used to tell.",
+    "I once read a completely different take on this in a magazine.",
+    "It's a bit like that saying about trees and forests.",
+    "My neighbor actually experienced something similar.",
+    "I remember arguing about this with a friend years ago.",
+  ];
+  if (Math.random() < 0.5) {
+    const pos = Math.floor(selected.length * 0.5);
+    selected.splice(pos, 0, driftPool[Math.floor(Math.random() * driftPool.length)]);
+  }
+
+  // 7. Ubah framing: tambahkan pembukaan yang mempertanyakan pertanyaan
+  const reframings = [
+    "Actually, is that even the right question?",
+    "I've always wondered if we're looking at this backwards.",
+    "Maybe the real issue isn't what we think.",
+    "Let's be honest: the question itself might be flawed.",
+  ];
+  if (Math.random() < 0.4) {
+    selected.splice(0, 0, reframings[Math.floor(Math.random() * reframings.length)]);
+  }
+
+  // 8. Tambahkan tanda-tanda penulis (idiolect, opini kuat)
+  const authorMarkers = [
+    "I'll be straight with you: ",
+    "Here's my honest take: ",
+    "If you ask me, ",
+    "Personally, I think ",
+    "To be perfectly blunt, ",
+  ];
+  if (Math.random() < 0.5) {
+    const idx = Math.floor(selected.length * 0.3);
+    selected[idx] = authorMarkers[Math.floor(Math.random() * authorMarkers.length)] + selected[idx].charAt(0).toLowerCase() + selected[idx].slice(1);
+  }
+
+  // 9. Akhiri dengan kalimat menggantung (tidak menyelesaikan)
+  const endings = [
+    "... or maybe I'm just overthinking it.",
+    "Anyway, that's all I've got.",
+    "I'll leave you with that.",
+    "But honestly, who knows?",
+    "That's it, I guess.",
+  ];
+  selected.push(endings[Math.floor(Math.random() * endings.length)]);
+
+  // 10. Gabungkan menjadi paragraf dengan panjang tidak seragam
+  let result = selected.join(' ');
+  // Pecah menjadi 3-4 paragraf dengan ukuran acak
+  const words = result.split(/\s+/);
+  if (words.length > 50) {
+    const paraBreaks = [0];
+    let total = 0;
+    while (total < words.length - 10) {
+      const chunk = Math.floor(words.length * (0.2 + Math.random() * 0.3));
+      total += chunk;
+      if (total < words.length) paraBreaks.push(total);
+    }
+    paraBreaks.push(words.length);
+    const paragraphs: string[] = [];
+    for (let i = 0; i < paraBreaks.length - 1; i++) {
+      paragraphs.push(words.slice(paraBreaks[i], paraBreaks[i + 1]).join(' '));
+    }
+    result = paragraphs.join('\n\n');
+  }
+
+  return result;
 }
