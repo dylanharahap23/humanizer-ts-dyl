@@ -589,6 +589,31 @@ Return ONLY your raw draft. No extra text.
 `;
 
 // ============================================================
+// DRUNK FRIEND PROMPT - The "Chaotic Human" Approach
+// Based on professor's feedback: LLMs have an inherent "natural voice" fingerprint
+// This prompt forces the LLM to break its natural coherent patterns
+// ============================================================
+
+export const DRUNK_FRIEND_PROMPT = `
+You are a real person explaining something you just learned. You are NOT trying to write well.
+
+RULES:
+- Start in the middle of a thought, not at the beginning.
+- Jump to a completely different topic, then come back.
+- Use the wrong word sometimes and correct yourself.
+- Say "I don't know" when you're not sure.
+- End before you've finished explaining everything.
+- Do NOT use transition words like "however", "therefore", "moreover".
+- Do NOT summarize at the end.
+- Use casual language but NOT forced.
+
+EXAMPLE of the style:
+"Yeah, so the thing about aging is like... well actually I read somewhere it's about telomeres. Wait, no. That's one part. But also there's like all this damage that builds up over time. I don't know, it's complicated. Anyway."
+
+Return only the rewritten text.
+`;
+
+// ============================================================
 // SEMANTIC REGENERATION PROMPT (BUKAN REWRITE)
 // ============================================================
 

@@ -29,6 +29,7 @@ import {
   PERSONAL_OBSERVATION_PROMPT,
   PARATACTIC_RAW_DRAFT_PROMPT,
   SELECTIVE_REWRITE_PROMPT,
+  DRUNK_FRIEND_PROMPT,
   buildSemanticRegenerationPrompt,
   destroyThreeParagraphStructure,
   humanizeStructureEnglish,
@@ -1047,6 +1048,14 @@ function buildConversationalSecondPassPrompt(
   tone: HumanizerPromptConfig["postProcessTone"],
   sourceText?: string
 ): string {
+  // ============================================================
+  // DRUNK FRIEND PROMPT - For english-general/expository
+  // Based on professor's feedback: break the LLM's natural coherent patterns
+  // ============================================================
+  if (sourceText && (tone === "english-general" || tone === "english-expository")) {
+    return DRUNK_FRIEND_PROMPT;
+  }
+
   // CEK: apakah ini teks netral komprehensif?
   if (sourceText && isComprehensiveNeutralExplanation(sourceText) && 
       (tone === "english-general" || tone === "english-expository" || tone === "english-discursive")) {
@@ -1655,12 +1664,16 @@ async function applyConversationalSecondPass({
   }
 
   // ============================================================
-  // PERUBAHAN: Gunakan semantic regeneration untuk general/expository
+  // DRUNK FRIEND PROMPT - For english-general/expository
+  // Based on professor's feedback: break the LLM's natural coherent patterns
   // ============================================================
   let systemPrompt: string;
-  const isSemanticRegeneration = (tone === "english-general" || tone === "english-expository") && sourceText;
+  const isDrunkFriendPass = (tone === "english-general" || tone === "english-expository") && sourceText;
+  const isSemanticRegeneration = !isDrunkFriendPass && (tone === "english-general" || tone === "english-expository") && sourceText;
   
-  if (isSemanticRegeneration) {
+  if (isDrunkFriendPass) {
+    systemPrompt = DRUNK_FRIEND_PROMPT;
+  } else if (isSemanticRegeneration) {
     systemPrompt = buildSemanticRegenerationPrompt(sourceText, tone);
   } else {
     systemPrompt = buildConversationalSecondPassPrompt(tone, sourceText);
@@ -1671,6 +1684,7 @@ async function applyConversationalSecondPass({
   const isPersonalPass = systemPrompt === PERSONAL_OBSERVATION_PROMPT;
   const isParatacticPass = systemPrompt === PARATACTIC_RAW_DRAFT_PROMPT;
   const isSelectiveRewrite = systemPrompt === SELECTIVE_REWRITE_PROMPT;
+  const isDrunkFriend = systemPrompt === DRUNK_FRIEND_PROMPT;
   const sourceWordCountForPrompt = sourceText.split(/\s+/).filter(Boolean).length;
   const profileLengthDirective =
     tone === "english-policy"
@@ -1698,10 +1712,10 @@ async function applyConversationalSecondPass({
     signal,
     body: JSON.stringify({
       // ============================================================
-      // PERUBAHAN: Gunakan SECOND_PASS_MODEL (Claude/Gemini)
+      // DRUNK FRIEND PROMPT - Use high temperature for chaotic output
       // ============================================================
       model: SECOND_PASS_MODEL, // "anthropic/claude-3.5-sonnet" atau "google/gemini-2.0-flash-exp"
-      temperature: isSemanticRegeneration ? 1.2 : (isParatacticPass ? 1.2 : (isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
+      temperature: isDrunkFriend ? 1.3 : (isSemanticRegeneration ? 1.2 : (isParatacticPass ? 1.2 : (isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
         tone === "english-argument"
           ? 0.2
           : tone === "english-policy"
@@ -1711,8 +1725,8 @@ async function applyConversationalSecondPass({
               : tone === "english-practical"
                 ? 0.3
                 : 0.7
-      )))),
-      top_p: isSemanticRegeneration ? 0.95 : (isParatacticPass ? 0.98 : (isBlogPass ? 0.95 : (
+      ))))),
+      top_p: isDrunkFriend ? 0.98 : (isSemanticRegeneration ? 0.95 : (isParatacticPass ? 0.98 : (isBlogPass ? 0.95 : (
         tone === "english-argument"
           ? 0.85
           : tone === "english-policy"
@@ -1722,11 +1736,11 @@ async function applyConversationalSecondPass({
             : tone === "english-practical"
               ? 0.88
               : 0.9
-      ))),
+      )))),
       max_tokens: 1600,
-      frequency_penalty: isSemanticRegeneration ? 0.1 : 0,
-      presence_penalty: isSemanticRegeneration ? 0.1 : 0,
-      repetition_penalty: isSemanticRegeneration ? 1.05 : 1.02,
+      frequency_penalty: isDrunkFriend ? 0.3 : (isSemanticRegeneration ? 0.1 : 0),
+      presence_penalty: isDrunkFriend ? 0.3 : (isSemanticRegeneration ? 0.1 : 0),
+      repetition_penalty: isDrunkFriend ? 1.1 : (isSemanticRegeneration ? 1.05 : 1.02),
       messages: [
         {
           role: "system",
@@ -1734,9 +1748,9 @@ async function applyConversationalSecondPass({
         },
         {
           role: "user",
-          // Untuk semantic regeneration, kita hanya perlu sourceText.
+          // Untuk drunk friend dan semantic regeneration, kita hanya perlu sourceText.
           // Jangan berikan Pass 1 draft agar model tidak terpengaruh.
-          content: isSemanticRegeneration
+          content: isDrunkFriend || isSemanticRegeneration
             ? `SOURCE TEXT (use only for facts, ignore its wording and order):\n${sourceText}`
             : `SOURCE TEXT (authoritative for facts, scope, and point of view):\n${sourceText}\n\nPASS 1 DRAFT (simplify it; do not copy its inflated wording):\n${text}${profileLengthDirective}`,
         },
@@ -2203,9 +2217,13 @@ export async function POST(req: Request) {
         currentText = convPass.text;
         secondPassApplied = true;
         secondPassModel = SECOND_PASS_MODEL;
-        // Check if personal observation prompt was used
+        // Check if drunk friend prompt was used
         systemPrompt = buildConversationalSecondPassPrompt(config.postProcessTone, text);
-        if (systemPrompt === PERSONAL_OBSERVATION_PROMPT) {
+        const isDrunkFriendPass = systemPrompt === DRUNK_FRIEND_PROMPT;
+        if (isDrunkFriendPass) {
+          // Drunk friend pass already produces chaotic output - minimal cleanup only
+          currentText = cleanupEnglishSpacing(currentText);
+        } else if (systemPrompt === PERSONAL_OBSERVATION_PROMPT) {
           personalRewriteApplied = true;
         }
         // Check if paratactic raw draft prompt was used
@@ -2214,7 +2232,7 @@ export async function POST(req: Request) {
           // Paratactic pass already did light cleanup in applyConversationalSecondPass
           // Just mark it so we skip finalHumanize later
           paratacticApplied = true;
-        } else {
+        } else if (!isDrunkFriendPass) {
           // CRITICAL: Inject realistic human flaws after forced personal rewrite
           // This adds mild grammatical errors, repeated phrases, and uneven rhythm
           // that mimics real human messiness - essential for bypassing PTZero
