@@ -3252,33 +3252,109 @@ function simulateAuthorVoice(nodes: IdeaNode[]): string {
 }
 
 /**
- * MASTER FUNCTION: Memory Simulation Pipeline
- * Ini adalah inti dari pendekatan profesor - simulasi proses memori manusia
- * bukan sekadar menambahkan fitur-fitur humanisasi
+ * MASTER FUNCTION: Memory Simulation Pipeline (Professor's Recommendation)
+ * This is the core of the professor's approach - simulating human memory processes
+ * rather than just adding humanization features.
+ * 
+ * THE TRUTH: Modern detectors like GPTZero 4.7 detect token distribution patterns
+ * and hidden representations from transformers. The only way forward is to simulate
+ * how humans actually write: imperfect memory, distractions, and non-linear thinking.
  */
 export function memorySimulationPass(text: string): string {
   if (!text || text.length < 100) return text;
   
-  // 1. Ekstrak ide nodes
+  // Step 1: Extract only key facts (remove 20-40% details)
   let nodes = extractIdeaNodes(text);
   if (nodes.length < 4) return text;
   
-  // 2. Simulate memory loss (forget, misremember, merge)
+  // Step 2: Simulate forgetting (remove 25-40% of facts, prioritizing less important ones)
   nodes = simulateMemoryLoss(nodes);
   
-  // 3. Create interest tunnel (obsession + ringkasan)
+  // Step 3: Create interest tunnel (obsession + summary) - simulates human selective attention
   nodes = createInterestTunnel(nodes);
   
-  // 4. Simulate author voice
+  // Step 4: Write from memory with author voice simulation
   let result = simulateAuthorVoice(nodes);
   
-  // 5. Bersihkan sisa "or even" / "is also common"
+  // Step 5: Apply Random Tangent Method (Professor's experimental suggestion)
+  result = applyRandomTangentMethod(result);
+  
+  // Step 6: Clean up residual artifacts
   result = result.replace(/ — or even /g, ' ');
   result = result.replace(/ is also common\./g, '. ');
   result = result.replace(/ or even /g, ' ');
   result = result.replace(/\s{2,}/g, ' ');
   
   return result;
+}
+
+/**
+ * RANDOM TANGENT METHOD (Professor's Experimental Suggestion)
+ * Simulates a distracted human writer who goes off on tangents.
+ * This breaks the linear, coherent structure that detectors look for.
+ */
+export function applyRandomTangentMethod(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+  
+  // Random tangent observations (completely unrelated to main topic)
+  const tangents = [
+    "I had a great sandwich today, actually.",
+    "Speaking of which, I need to call my mom later.",
+    "This reminds me of that time I got lost in Tokyo.",
+    "My neighbor's dog keeps barking at nothing.",
+    "I should really buy more coffee.",
+    "Weather's been weird lately, hasn't it?",
+    "Come to think of it, I forgot to pay that bill.",
+    "My friend Sarah says something similar, but I'm not sure she's right.",
+    "I was just thinking about what I had for breakfast.",
+    "Anyway, where was I?",
+    "This is making me hungry, honestly.",
+    "I remember arguing about this with someone once.",
+    "Not that it really matters, but...",
+    "I've always wondered about that.",
+    "It's funny how these things work out."
+  ];
+  
+  // Insert 2-4 random tangents at unpredictable positions
+  const tangentCount = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < tangentCount; i++) {
+    const pos = Math.floor(Math.random() * sentences.length);
+    const tangent = tangents[Math.floor(Math.random() * tangents.length)];
+    
+    // Sometimes add hesitation before tangent
+    const hesitations = ["Actually, ", "Oh, ", "Wait, ", "Hmm, ", ""];
+    const hesitation = hesitations[Math.floor(Math.random() * hesitations.length)];
+    
+    sentences.splice(pos, 0, hesitation + tangent);
+  }
+  
+  // Break some sentences mid-thought (simulate losing train of thought)
+  for (let i = 0; i < sentences.length; i++) {
+    if (sentences[i].length > 80 && Math.random() < 0.2) {
+      const words = sentences[i].split(' ');
+      const cutPoint = Math.floor(words.length * (0.4 + Math.random() * 0.3));
+      const endings = ["... actually, never mind.", "... or something like that.", "... I think.", "... wait, no."];
+      sentences[i] = words.slice(0, cutPoint).join(' ') + endings[Math.floor(Math.random() * endings.length)];
+    }
+  }
+  
+  // End without finishing the thought (simulate distraction)
+  if (Math.random() < 0.6) {
+    const unfinishedEndings = [
+      "Anyway, I should probably go.",
+      "I just remembered something else.",
+      "But yeah, that's the gist of it, I guess.",
+      "Or at least that's what I think now.",
+      "I could be wrong about all of this.",
+      "Whatever, you get the idea."
+    ];
+    // Remove last sentence and replace with unfinished thought
+    sentences.pop();
+    sentences.push(unfinishedEndings[Math.floor(Math.random() * unfinishedEndings.length)]);
+  }
+  
+  return sentences.join(' ');
 }
 
 // ============================================================
