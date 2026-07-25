@@ -29,6 +29,7 @@ import {
   PERSONAL_OBSERVATION_PROMPT,
   PARATACTIC_RAW_DRAFT_PROMPT,
   SELECTIVE_REWRITE_PROMPT,
+  buildSemanticRegenerationPrompt,
   destroyThreeParagraphStructure,
   humanizeStructureEnglish,
   injectRealisticHumanFlaws,
@@ -1122,29 +1123,11 @@ Return only the rewrite.`;
     return GENUINE_HUMAN_REWRITE_PROMPT;
   }
 
-  // NEW: Enhanced second pass prompt for english-general and english-expository
-  // This explicitly instructs the model to break AI macro structure patterns
+  // ============================================================
+  // PERUBAHAN: Gunakan semantic regeneration untuk general/expository
+  // ============================================================
   if (tone === "english-general" || tone === "english-expository") {
-    return `
-Rewrite the draft to completely change its structure, not just wording.
-
-CRITICAL: Do NOT keep the original flow. The source text has a predictable AI structure. You must break it.
-
-INSTRUCTIONS:
-1. Start with a personal anecdote, a question, or a counter-intuitive observation—NOT with the main definition.
-2. Do NOT cover all reasons/factors. Pick 2-3 and expand on them; ignore the rest.
-3. Change the order of ideas. Put the "conclusion" somewhere in the middle, not at the end.
-4. Add at least one paragraph of doubt: "Actually, I'm not sure if that's true...", "But wait, maybe it's more complicated."
-5. Include a tangent that is not directly relevant to the main argument (a random story, a memory, a joke).
-6. Use emotional language: "I was shocked", "It really hurts", "I still can't believe it."
-7. End with an open question or a shrug, not a summary.
-8. Write like you're thinking out loud—use "I mean", "you know", "honestly" naturally, but not as filler.
-
-EXAMPLE of good structure:
-"You know, I've always wondered if we're asking the wrong question. People say climate change is the problem, but maybe it's actually our inability to adapt. I remember when my hometown flooded in 2010—the water was everywhere, and nobody knew what to do. And then there's the government, which... well, never mind. Anyway, the point is, it's not just one thing. But honestly, what do I know?"
-
-Return only the rewritten text.
-`;
+    return buildSemanticRegenerationPrompt(sourceText || "", tone);
   }
 
   return `Rewrite the draft into a more natural, conversational explanation.
@@ -1671,7 +1654,18 @@ async function applyConversationalSecondPass({
     return { text, applied: false };
   }
 
-  const systemPrompt = buildConversationalSecondPassPrompt(tone, sourceText);
+  // ============================================================
+  // PERUBAHAN: Gunakan semantic regeneration untuk general/expository
+  // ============================================================
+  let systemPrompt: string;
+  const isSemanticRegeneration = (tone === "english-general" || tone === "english-expository") && sourceText;
+  
+  if (isSemanticRegeneration) {
+    systemPrompt = buildSemanticRegenerationPrompt(sourceText, tone);
+  } else {
+    systemPrompt = buildConversationalSecondPassPrompt(tone, sourceText);
+  }
+
   const isBlogPass = systemPrompt === BLOG_STYLE_SECOND_PASS_PROMPT;
   const isGenuineHumanRewrite = systemPrompt === GENUINE_HUMAN_REWRITE_PROMPT;
   const isPersonalPass = systemPrompt === PERSONAL_OBSERVATION_PROMPT;
@@ -1707,7 +1701,7 @@ async function applyConversationalSecondPass({
       // PERUBAHAN: Gunakan SECOND_PASS_MODEL (Claude/Gemini)
       // ============================================================
       model: SECOND_PASS_MODEL, // "anthropic/claude-3.5-sonnet" atau "google/gemini-2.0-flash-exp"
-      temperature: isParatacticPass ? 1.2 : (isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
+      temperature: isSemanticRegeneration ? 1.2 : (isParatacticPass ? 1.2 : (isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
         tone === "english-argument"
           ? 0.2
           : tone === "english-policy"
@@ -1717,8 +1711,8 @@ async function applyConversationalSecondPass({
               : tone === "english-practical"
                 ? 0.3
                 : 0.7
-      ))),
-      top_p: isParatacticPass ? 0.98 : (isBlogPass ? 0.95 : (
+      )))),
+      top_p: isSemanticRegeneration ? 0.95 : (isParatacticPass ? 0.98 : (isBlogPass ? 0.95 : (
         tone === "english-argument"
           ? 0.85
           : tone === "english-policy"
@@ -1728,11 +1722,11 @@ async function applyConversationalSecondPass({
             : tone === "english-practical"
               ? 0.88
               : 0.9
-      )),
-      max_tokens: 1400,
-      frequency_penalty: 0,
-      presence_penalty: 0,
-      repetition_penalty: 1.02,
+      ))),
+      max_tokens: 1600,
+      frequency_penalty: isSemanticRegeneration ? 0.1 : 0,
+      presence_penalty: isSemanticRegeneration ? 0.1 : 0,
+      repetition_penalty: isSemanticRegeneration ? 1.05 : 1.02,
       messages: [
         {
           role: "system",
@@ -1740,11 +1734,11 @@ async function applyConversationalSecondPass({
         },
         {
           role: "user",
-          content: `SOURCE TEXT (authoritative for facts, scope, and point of view):
-${sourceText}
-
-PASS 1 DRAFT (simplify it; do not copy its inflated wording):
-${text}${profileLengthDirective}`,
+          // Untuk semantic regeneration, kita hanya perlu sourceText.
+          // Jangan berikan Pass 1 draft agar model tidak terpengaruh.
+          content: isSemanticRegeneration
+            ? `SOURCE TEXT (use only for facts, ignore its wording and order):\n${sourceText}`
+            : `SOURCE TEXT (authoritative for facts, scope, and point of view):\n${sourceText}\n\nPASS 1 DRAFT (simplify it; do not copy its inflated wording):\n${text}${profileLengthDirective}`,
         },
       ],
     }),
