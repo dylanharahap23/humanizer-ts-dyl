@@ -2848,6 +2848,251 @@ function makeDiscursiveEnglishMoreDirect(text: string) {
 }
 
 // ============================================================
+// MEMORY SIMULATION PIPELINE (Professor's Recommendation)
+// Ganti semua fungsi "humanisasi" sebelumnya dengan simulasi memori manusia
+// ============================================================
+
+type IdeaNode = {
+  id: string;
+  content: string;
+  topic: string;
+  importance: number; // 0-1
+  specificity: number; // 0-1 (high = concrete detail)
+};
+
+/**
+ * Ekstrak "nodes of meaning" - bukan kalimat, tapi unit ide
+ * Ini memungkinkan loss dan reorder yang natural
+ */
+function extractIdeaNodes(text: string): IdeaNode[] {
+  const sentences = splitSentences(text);
+  const nodes: IdeaNode[] = [];
+  let currentTopic = '';
+  
+  for (const sentence of sentences) {
+    // Deteksi topic shift
+    const topicMatch = sentence.match(/\b(?:the|this|these|those)\s+(\w+)\b/i);
+    const topic = topicMatch ? topicMatch[1].toLowerCase() : 'general';
+    
+    // Abstraksi vs konkret
+    const hasConcrete = /\b(?:percent|dollar|year|study|research|doctor|hospital|school|company)\b/i.test(sentence);
+    const specificity = hasConcrete ? 0.8 : 0.3;
+    
+    // Importance: kalimat dengan kata kunci utama lebih penting
+    const importance = /\b(?:main|primary|key|essential|crucial|significant)\b/i.test(sentence) ? 0.9 : 0.5;
+    
+    nodes.push({
+      id: `N${nodes.length}`,
+      content: sentence,
+      topic: topic,
+      importance: importance,
+      specificity: specificity,
+    });
+  }
+  
+  return nodes;
+}
+
+/**
+ * Simulate human memory loss: forget, misremember, merge
+ * Manusia tidak mengingat semuanya secara sempurna
+ */
+function simulateMemoryLoss(nodes: IdeaNode[]): IdeaNode[] {
+  if (nodes.length < 5) return nodes;
+  
+  // 1. FORGET: hapus 25-40% (tapi jangan semua node penting)
+  const lossRate = 0.25 + Math.random() * 0.15;
+  const forgetCount = Math.floor(nodes.length * lossRate);
+  const indices = nodes.map((_, i) => i);
+  
+  // Prioritaskan hapus yang kurang penting dan abstrak
+  const sorted = indices.sort((a, b) => {
+    const scoreA = (nodes[a].importance * 0.6) + (nodes[a].specificity * 0.4);
+    const scoreB = (nodes[b].importance * 0.6) + (nodes[b].specificity * 0.4);
+    return scoreA - scoreB;
+  });
+  
+  const toRemove = sorted.slice(0, forgetCount);
+  const remaining = nodes.filter((_, i) => !toRemove.includes(i));
+  
+  // 2. MISREMEMBER: ubah 1-2 node secara subtil
+  const misrememberCount = Math.min(2, Math.floor(remaining.length * 0.1) + 1);
+  for (let i = 0; i < misrememberCount; i++) {
+    const idx = Math.floor(Math.random() * remaining.length);
+    const node = remaining[idx];
+    // Ubah sedikit konten (misremember detail)
+    node.content = node.content
+      .replace(/\b(\d+)\b/, (m) => {
+        const num = parseInt(m);
+        return String(num + (Math.random() > 0.5 ? 1 : -1) * Math.floor(Math.random() * 5));
+      })
+      .replace(/\b(important|significant|crucial)\b/i, (m) => {
+        const alternatives = ['key', 'big', 'major', 'real'];
+        return alternatives[Math.floor(Math.random() * alternatives.length)];
+      });
+  }
+  
+  // 3. MERGE: gabungkan 2 node terkait
+  for (let i = 0; i < remaining.length - 1; i++) {
+    if (remaining[i].topic === remaining[i + 1].topic && Math.random() < 0.3) {
+      const merged = remaining[i].content.replace(/[.!?]$/, '') + ', and ' + 
+                     remaining[i + 1].content.charAt(0).toLowerCase() + remaining[i + 1].content.slice(1);
+      remaining.splice(i, 2, {
+        id: `N${i}`,
+        content: merged,
+        topic: remaining[i].topic,
+        importance: Math.max(remaining[i].importance, remaining[i + 1].importance),
+        specificity: Math.max(remaining[i].specificity, remaining[i + 1].specificity),
+      });
+      break;
+    }
+  }
+  
+  return remaining;
+}
+
+/**
+ * Create interest tunnel: obsession dengan 1 ide, abaikan yang lain
+ * Manusia punya fokus yang tidak merata pada topik
+ */
+function createInterestTunnel(nodes: IdeaNode[]): IdeaNode[] {
+  if (nodes.length < 3) return nodes;
+  
+  // Pilih 1 node sebagai obsession (biasanya yang paling spesifik/concrete)
+  const obsessionIdx = nodes.reduce((maxIdx, node, i, arr) => {
+    return node.specificity > arr[maxIdx].specificity ? i : maxIdx;
+  }, 0);
+  
+  const obsessionNode = nodes[obsessionIdx];
+  
+  // Kembangkan obsession: tambahkan 2-3 variasi/elaborasi
+  const elaborations = [
+    `I keep coming back to this idea of ${obsessionNode.content.replace(/[.!?]$/, '').toLowerCase()}.`,
+    `Honestly, ${obsessionNode.content.replace(/[.!?]$/, '').toLowerCase()} is what really matters here.`,
+    `You can talk about everything else, but it all comes down to ${obsessionNode.content.replace(/[.!?]$/, '').toLowerCase()}.`,
+  ];
+  
+  const insertPos = Math.min(obsessionIdx + 1, nodes.length);
+  nodes.splice(insertPos, 0, ...elaborations.map(content => ({
+    id: `N${nodes.length}`,
+    content,
+    topic: obsessionNode.topic,
+    importance: obsessionNode.importance,
+    specificity: obsessionNode.specificity,
+  })));
+  
+  // Ringkasan 1 node yang paling abstrak
+  const abstractIdx = nodes.reduce((minIdx, node, i, arr) => {
+    return node.specificity < arr[minIdx].specificity ? i : minIdx;
+  }, 0);
+  
+  if (abstractIdx !== obsessionIdx) {
+    const abstractNode = nodes[abstractIdx];
+    // Ringkas menjadi 1 kalimat pendek
+    const words = abstractNode.content.split(' ');
+    if (words.length > 8) {
+      const short = words.slice(0, Math.min(6, Math.floor(words.length * 0.4))).join(' ') + '... (or something like that).';
+      nodes[abstractIdx] = {
+        ...abstractNode,
+        content: short,
+      };
+    }
+  }
+  
+  return nodes;
+}
+
+/**
+ * Simulate author voice: tambahkan fingerprint penulis manusia
+ * Termasuk idle sentences, external anchors, dan ending menggantung
+ */
+function simulateAuthorVoice(nodes: IdeaNode[]): string {
+  let result = nodes.map(n => n.content).join(' ');
+  
+  // 1. Tambahkan "idle" sentences (tidak informatif)
+  const idlePool = [
+    "Anyway.",
+    "I don't know why I'm even mentioning this.",
+    "Not that it really matters.",
+    "I could be wrong, though.",
+    "It's just a thought.",
+    "Hmm.",
+  ];
+  for (let i = 0; i < Math.min(2, Math.floor(nodes.length / 4)); i++) {
+    const pos = Math.floor(Math.random() * result.length);
+    const idle = idlePool[Math.floor(Math.random() * idlePool.length)];
+    result = result.slice(0, pos) + ' ' + idle + ' ' + result.slice(pos);
+  }
+  
+  // 2. Tambahkan "external anchor" (referensi dunia nyata)
+  const anchors = [
+    "I read somewhere that ",
+    "My doctor once told me ",
+    "A friend mentioned ",
+    "There was a study that found ",
+  ];
+  if (Math.random() < 0.5) {
+    const anchor = anchors[Math.floor(Math.random() * anchors.length)];
+    const pos = Math.floor(result.length * 0.3);
+    result = result.slice(0, pos) + ' ' + anchor + result.slice(pos).charAt(0).toLowerCase() + result.slice(pos + 1);
+  }
+  
+  // 3. Hancurkan template markers
+  const templateMarkers = [
+    /^I think /i,
+    /^But the truth is /i,
+    /^What really scares me /i,
+    /^It's like /i,
+    /^So why does this matter\??/i,
+    /^Here's the thing /i,
+  ];
+  for (const pattern of templateMarkers) {
+    result = result.replace(pattern, '');
+  }
+  
+  // 4. Tambahkan "gantung" di akhir
+  const endings = [
+    "I forgot what else I was going to say.",
+    "Anyway, that's all I remember.",
+    "I'll stop here.",
+    "Not sure if that answered the question.",
+  ];
+  result = result.replace(/[.!?]$/, '') + ' ' + endings[Math.floor(Math.random() * endings.length)];
+  
+  return result;
+}
+
+/**
+ * MASTER FUNCTION: Memory Simulation Pipeline
+ * Ini adalah inti dari pendekatan profesor - simulasi proses memori manusia
+ * bukan sekadar menambahkan fitur-fitur humanisasi
+ */
+export function memorySimulationPass(text: string): string {
+  if (!text || text.length < 100) return text;
+  
+  // 1. Ekstrak ide nodes
+  let nodes = extractIdeaNodes(text);
+  if (nodes.length < 4) return text;
+  
+  // 2. Simulate memory loss (forget, misremember, merge)
+  nodes = simulateMemoryLoss(nodes);
+  
+  // 3. Create interest tunnel (obsession + ringkasan)
+  nodes = createInterestTunnel(nodes);
+  
+  // 4. Simulate author voice
+  let result = simulateAuthorVoice(nodes);
+  
+  // 5. Bersihkan sisa "or even" / "is also common"
+  result = result.replace(/ — or even /g, ' ');
+  result = result.replace(/ is also common\./g, '. ');
+  result = result.replace(/ or even /g, ' ');
+  result = result.replace(/\s{2,}/g, ' ');
+  
+  return result;
+}
+
+// ============================================================
 // 10. finalHumanize
 // ============================================================
 
@@ -2935,10 +3180,11 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   result = addHumanTouches(result, tone);
   
   // ============================================================
-  // FINAL LAYER: Human Author Pass (melawan 9 layer GPTZero)
+  // FINAL: Memory Simulation Pipeline (BUKAN feature injection)
+  // Menggunakan pendekatan profesor: simulasi memori manusia
   // ============================================================
   if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
-    result = humanAuthorFinalPass(result);
+    result = memorySimulationPass(result);
     result = cleanupEnglishSpacing(result);
   }
   
