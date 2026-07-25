@@ -3502,6 +3502,18 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     result = ultimateHumanChaos(result);
   }
 
+  // ===== NEW: Anti-Essay Transformation (Professor's Latest Logic) =====
+  // This is the KEY transformation based on crying example analysis:
+  // - Detectors are NOT fooled by forced casual fillers (like, you know, I guess)
+  // - Detectors ARE fooled by text that doesn't look like an essay
+  // - Transform from "explainer" mode to "expresser/advisor" mode
+  // - Remove filler signatures, create fragments, use direct commands, rhetorical questions
+  // IMPORTANT: Only apply this when input looks like explanatory AI text, not when it's already human-like
+  const looksLikeHumanJournal = /\n\n/.test(result) || /^[\w\s,]{1,30}[.!?]$/m.test(result.split('\n')[0]);
+  if ((tone.startsWith("english-") || tone === "casual") && !looksLikeHumanJournal) {
+    result = antiEssayTransformation(result);
+  }
+
   return cleanupEnglishSpacing(result);
 }
 
@@ -6060,4 +6072,67 @@ export function ultimateHumanChaos(text: string): string {
   s = s.slice(0, pos) + ' ' + quotes[Math.floor(Math.random() * quotes.length)] + ' ' + s.slice(pos);
   
   return s;
+}
+
+// ============================================================
+// NEW: Anti-Essay Transformation (Based on Professor's Latest Feedback)
+// ============================================================
+// This function transforms explanatory essay-style text into reflective journal / advice column style.
+// Key insights from professor:
+// - Detectors are NOT fooled by forced casual style (fillers, meta-commentary)
+// - Detectors ARE fooled by text that doesn't look like an essay: short fragments, direct commands, 
+//   rhetorical questions, topic jumps, and absence of structured scientific explanations
+// - Humanizer must stop being an "explainer" and start being an "expresser / advisor"
+
+export function antiEssayTransformation(text: string): string {
+  // 1. Remove all filler words that have become humanizer signatures
+  let result = text
+    .replace(/\b(so,?\s*|like,?\s*|you know,?\s*|i guess,?\s*|anyway,?\s*|my friend,?)\s*/gi, '')
+    .replace(/\b(kind of|sort of|pretty much)\b/gi, '');
+  
+  // 2. Transform explanatory sentences into commands or fragments
+  const sentences = splitSentences(result);
+  const transformed: string[] = [];
+  
+  for (const s of sentences) {
+    let trimmed = s.trim();
+    
+    // If sentence explains with "because", "since", convert to direct statement without the explanation
+    if (/because|since|due to/i.test(trimmed) && trimmed.length > 30) {
+      // Cut the part before "because" and make it a fragment
+      const parts = trimmed.split(/\b(because|since|due to)\b/i);
+      if (parts.length > 1) {
+        trimmed = parts[0].trim().replace(/[.!?]$/, '') + '.';
+      }
+    }
+    
+    // Remove defensive meta-comments (skip these entirely - they are humanizer signatures)
+    if (/\b(which is kind of|that's different|i don't know|total myth)\b/i.test(trimmed)) {
+      continue;
+    }
+    
+    // Clean up stray punctuation and leftover question marks
+    trimmed = trimmed.replace(/^\s*[?!.]\s*$/, '').trim();
+    
+    if (trimmed.trim()) {
+      transformed.push(trimmed);
+    }
+  }
+  
+  // 3. Split into very short paragraphs (fragments)
+  let finalText = transformed.join(' ');
+  const finalSentences = splitSentences(finalText);
+  let output = '';
+  
+  for (const fs of finalSentences) {
+    const wordCount = fs.split(/\s+/).length;
+    // Short fragments (2-6 words) become their own paragraph
+    if (wordCount <= 6 && wordCount >= 2) {
+      output += fs + '\n\n';
+    } else {
+      output += fs + ' ';
+    }
+  }
+  
+  return output.trim();
 }
