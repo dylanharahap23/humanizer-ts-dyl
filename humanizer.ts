@@ -589,6 +589,42 @@ Return ONLY your raw draft. No extra text.
 `;
 
 // ============================================================
+// SEMANTIC REGENERATION PROMPT (BUKAN REWRITE)
+// ============================================================
+
+/**
+ * Membangun prompt yang memaksa model untuk "melupakan" teks sumber
+ * dan menulis ulang berdasarkan pemahaman, bukan parafrase.
+ */
+export function buildSemanticRegenerationPrompt(
+  sourceText: string,
+  tone: string
+): string {
+  return `
+You have read the following text. Now, **forget the exact wording, sentence order, and structure**.
+
+Your task is to explain the **same ideas** in your own words, as if you are telling a friend about something you just learned. 
+Do NOT try to paraphrase the original sentences. Do NOT follow the original order of ideas. 
+Use your own structure, your own examples, and your own voice.
+
+**Important:**
+- Start anywhere you want—not necessarily at the beginning of the source.
+- Only include the facts that you think are most important.
+- If you don't remember a detail exactly, it's okay to be approximate.
+- Do not use "first", "second", "finally" unless it feels natural.
+- Do not add rhetorical questions like "What if...?" or "Can you imagine...?" unless they come naturally.
+- Use a natural mix of long and short sentences.
+- Avoid forced emotional language like "I was shocked" or "honestly, it hurts".
+- Just explain it like a normal person would in a conversation.
+
+SOURCE TEXT (for reference only, DO NOT copy its structure or wording):
+${sourceText}
+
+Now, write your explanation from scratch. Only the explanation, no extra text.
+`;
+}
+
+// ============================================================
 // 3. IELTS PROMPT & EXAMPLE
 // ============================================================
 
