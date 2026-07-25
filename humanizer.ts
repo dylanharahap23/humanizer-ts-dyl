@@ -2536,6 +2536,12 @@ function applyAntiDetectionPass(text: string, sourceText: string, tone: string):
   // STAGE 6: Break item lists (daftar istilah berjejer)
   result = breakItemLists(result);
 
+  // STAGE 7: Professor's recommended chaos layers (NEW)
+  result = injectIdleSentences(result);
+  result = injectCognitiveUncertainty(result);
+  result = introduceInefficiency(result);
+  result = breakClosedLoop(result);
+
   return result;
 }
 function applyStructuralChaos(text: string): string {
@@ -2938,6 +2944,8 @@ INSTRUCTIONS:
 - Use a natural mix of long and short sentences.
 - Include a specific, concrete detail from your own life or knowledge.
 - End naturally—don't force a conclusion or question if it doesn't fit.
+- Be messy and unpredictable. Don't try to be too coherent.
+- Add some digressions, doubts, and personal asides.
 
 Now rewrite the following text in that style:
 
@@ -2947,14 +2955,17 @@ ${sourceText}
 Return only the rewritten text. No explanations.
 `;
 
+  // PROFESSOR'S RECOMMENDATION: Higher temperature and penalties for english-general profile
+  const isEnglishGeneral = tone === "english-general" || tone === "casual";
+  
   return {
     systemPrompt,
-    temperature: 1.2,
-    topP: 0.95,
+    temperature: isEnglishGeneral ? 1.7 : 1.2,
+    topP: isEnglishGeneral ? 0.99 : 0.95,
     maxTokens: 1600,
-    frequencyPenalty: 0.2,
-    presencePenalty: 0.2,
-    repetitionPenalty: 1.05,
+    frequencyPenalty: isEnglishGeneral ? 0.4 : 0.2,
+    presencePenalty: isEnglishGeneral ? 0.3 : 0.2,
+    repetitionPenalty: isEnglishGeneral ? 1.1 : 1.05,
     additionalInstruction: "",
     postProcessTone: tone,
   };
@@ -3459,6 +3470,22 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     result = cleanupEnglishSpacing(result);
   }
   
+  // ===== PROFESSOR'S RECOMMENDATION: Apply humanReconstructionPass as final layer =====
+  if (tone.startsWith("english-") || tone === "casual") {
+    result = humanReconstructionPass(result);
+  }
+
+  // ===== PROFESSOR'S RECOMMENDATION: Apply forceInformationLoss and createUnevenFocus =====
+  if (tone === "english-general" || tone === "casual") {
+    result = forceInformationLoss(result);
+    result = createUnevenFocus(result);
+  }
+
+  // ===== PROFESSOR'S RECOMMENDATION: Apply ultimateHumanChaos for maximum unpredictability =====
+  if (tone === "english-general" || tone === "casual") {
+    result = ultimateHumanChaos(result);
+  }
+
   return cleanupEnglishSpacing(result);
 }
 
@@ -5740,4 +5767,42 @@ export function humanAuthorFinalPass(text: string): string {
   result = result.replace(/\s{2,}/g, ' ');
 
   return result;
+}
+
+// ============================================================
+// PROFESSOR'S RECOMMENDATION: Ultimate Human Chaos Function
+// Final layer untuk english-general dan casual
+// ============================================================
+
+export function ultimateHumanChaos(text: string): string {
+  let s = text;
+  
+  // 1. Hapus 1–2 kalimat acak (lossy)
+  const sentences = splitSentences(s);
+  if (sentences.length > 6) {
+    const drop = Math.floor(Math.random() * 2) + 1;
+    for (let i = 0; i < drop; i++) {
+      const idx = Math.floor(Math.random() * (sentences.length - 4)) + 2;
+      sentences.splice(idx, 1);
+    }
+    s = sentences.join(' ');
+  }
+  
+  // 2. Tambahkan 3–5 kalimat idle/nganggur
+  s = injectIdleSentences(s);
+  
+  // 3. Acak urutan paragraf
+  s = randomizeIdeaOrder(s);
+  
+  // 4. Tambahkan setidaknya 1 kutipan langsung
+  const quotes = [
+    `"It's not that simple," a friend once said.`,
+    `"Honestly, I don't buy it," she replied.`,
+    `"You know what I think?" he asked.`,
+    `"That's the thing, isn't it?"`,
+  ];
+  const pos = Math.floor(s.length * 0.5);
+  s = s.slice(0, pos) + ' ' + quotes[Math.floor(Math.random() * quotes.length)] + ' ' + s.slice(pos);
+  
+  return s;
 }
