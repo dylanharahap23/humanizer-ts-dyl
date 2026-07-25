@@ -2935,30 +2935,10 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   result = addHumanTouches(result, tone);
   
   // ============================================================
-  // FINAL LAYER: Destroy GPTZero 16 Layers (Professor's analysis)
+  // FINAL LAYER: Human Author Pass (melawan 9 layer GPTZero)
   // ============================================================
   if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
-    // 1. Tambahkan kalimat idle (Layer 7, 13)
-    result = injectIdleSentences(result);
-    
-    // 2. Ciptakan fokus tidak merata (Layer 8, 15)
-    result = createUnevenFocus(result);
-    
-    // 3. Zoom in/out (Layer 12)
-    result = zoomInOut(result);
-    
-    // 4. Force information loss (Layer 16) - versi lebih agresif
-    result = forceInformationLoss(result);
-    
-    // 5. Tambahkan organic mistakes (Layer 10, 14)
-    result = organicMistakes(result);
-    
-    // 6. Hapus sisa "or even" / "is also common" dari fungsi lama
-    result = result.replace(/ — or even /g, ' ');
-    result = result.replace(/ is also common\./g, '. ');
-    result = result.replace(/ or even /g, ' ');
-    
-    // 7. Bersihkan spacing
+    result = humanAuthorFinalPass(result);
     result = cleanupEnglishSpacing(result);
   }
   
@@ -5039,6 +5019,214 @@ export function humanReconstructionPass(text: string): string {
     }
     result = paragraphs.join('\n\n');
   }
+
+  return result;
+}
+
+// ============================================================
+// FINAL PASS: Human Author (Bukan Humanizer Template)
+// Meniru proses berpikir manusia: lupa, melenceng, tidak sempurna,
+// referensi dunia nyata, voice switching, dead sentences, dll.
+// ============================================================
+
+export function humanAuthorFinalPass(text: string): string {
+  // 1. Pecah menjadi kalimat/klaim
+  let sentences = splitSentences(text);
+  if (sentences.length < 6) return text;
+
+  // ------------------------------------------------------------
+  // LAYER 21: Tambahkan "external anchors" (referensi dunia nyata)
+  // ------------------------------------------------------------
+  const anchors = [
+    "I read a study the other day that said ",
+    "My doctor once told me ",
+    "A friend of mine who's a researcher mentioned ",
+    "I saw a documentary about this and they found ",
+    "According to a 2023 report from the WHO, ",
+    "There was a paper in Nature last year that suggested ",
+    "I remember learning in school that ",
+    "My neighbor actually experienced this firsthand—",
+  ];
+  if (Math.random() < 0.5) {
+    const pos = Math.floor(Math.random() * sentences.length);
+    const anchor = anchors[Math.floor(Math.random() * anchors.length)];
+    sentences.splice(pos, 0, anchor + sentences[pos].charAt(0).toLowerCase() + sentences[pos].slice(1));
+  }
+
+  // ------------------------------------------------------------
+  // LAYER 17: Hancurkan template pembuka (jangan pakai "I think", "But the truth is")
+  // ------------------------------------------------------------
+  // Hapus marker template yang umum di awal
+  const templateMarkers = [
+    /^I think /i,
+    /^But the truth is /i,
+    /^What really scares me /i,
+    /^It's like /i,
+    /^So why does this matter\??/i,
+    /^Here's the thing /i,
+    /^I mean /i,
+  ];
+  for (const pattern of templateMarkers) {
+    if (pattern.test(sentences[0])) {
+      sentences[0] = sentences[0].replace(pattern, '');
+      // Kapitalisasi ulang
+      sentences[0] = sentences[0].charAt(0).toUpperCase() + sentences[0].slice(1);
+      break;
+    }
+  }
+  // Ganti pembuka dengan yang lebih natural/acak
+  const naturalOpeners = [
+    "You know what's interesting? ",
+    "It's funny how ",
+    "I was just thinking about this the other day—",
+    "Honestly, ",
+    "Wait, I just realized ",
+    "It's actually pretty wild that ",
+  ];
+  if (Math.random() < 0.4) {
+    sentences[0] = naturalOpeners[Math.floor(Math.random() * naturalOpeners.length)] + 
+                   sentences[0].charAt(0).toLowerCase() + sentences[0].slice(1);
+  }
+
+  // ------------------------------------------------------------
+  // LAYER 20: Sisipkan "dead sentences" (tidak informatif)
+  // ------------------------------------------------------------
+  const deadPool = [
+    "Anyway.",
+    "I don't know why I'm even mentioning this.",
+    "That's probably not important.",
+    "It's just a thought.",
+    "I could be wrong about that part.",
+    "Not that it really matters.",
+    "Hmm.",
+    "Yeah, I'm not sure.",
+    "But whatever.",
+    "I guess that's just how it is.",
+    "Weird, right?",
+    "I've always wondered about that.",
+    "It's hard to explain.",
+  ];
+  // Sisipkan 2-4 dead sentences
+  const deadCount = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < deadCount; i++) {
+    const pos = Math.floor(Math.random() * sentences.length);
+    const dead = deadPool[Math.floor(Math.random() * deadPool.length)];
+    sentences.splice(pos, 0, dead);
+  }
+
+  // ------------------------------------------------------------
+  // LAYER 23 & 24: Biarkan ide menggantung + attention drift
+  // ------------------------------------------------------------
+  // Pilih 1-2 kalimat yang terlihat seperti "penjelasan" dan potong
+  for (let i = 0; i < sentences.length && i < 2; i++) {
+    const s = sentences[i];
+    if (s.length > 60 && /\b(because|since|due to|which means)\b/i.test(s) && Math.random() < 0.3) {
+      // Potong di tengah kalimat, biarkan menggantung
+      const words = s.split(' ');
+      const cut = Math.floor(words.length * (0.3 + Math.random() * 0.3));
+      sentences[i] = words.slice(0, cut).join(' ') + '...';
+    }
+  }
+
+  // Sisipkan attention drift (topik samping tidak relevan)
+  const drifts = [
+    "I actually had a completely different thought just now—about my neighbor's cat—but I'll try to stay on track.",
+    "This reminds me of a trip I took to Japan years ago, but that's another story.",
+    "I remember arguing about this with a friend once, and we never really settled it.",
+    "Come to think of it, my grandma used to say something similar.",
+    "I should probably look this up later, I'm not 100% sure.",
+  ];
+  if (Math.random() < 0.5) {
+    const drift = drifts[Math.floor(Math.random() * drifts.length)];
+    const pos = Math.floor(sentences.length * 0.5);
+    sentences.splice(pos, 0, drift);
+  }
+
+  // ------------------------------------------------------------
+  // LAYER 18: Rusak analogi (buat kurang sempurna / tidak efisien)
+  // ------------------------------------------------------------
+  // Cari kalimat yang mengandung "like", "as if", "reminds me of"
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    if (/\b(like|as if|reminds me of|similar to)\b/i.test(s) && Math.random() < 0.3) {
+      // Tambahkan ketidaktepatan
+      const broken = s.replace(/\b(like|as if)\b/i, (match) => {
+        const badOnes = ['sorta like', 'kinda like', 'similar to, but not exactly', 'comparable to, I guess'];
+        return badOnes[Math.floor(Math.random() * badOnes.length)];
+      });
+      sentences[i] = broken;
+      // Tambahkan disclaimer setelahnya
+      const disclaimer = [
+        " Not a perfect analogy, I know.",
+        " That's not quite right, but you get the idea.",
+        " I'm not sure that comparison really works.",
+      ];
+      sentences.splice(i + 1, 0, disclaimer[Math.floor(Math.random() * disclaimer.length)]);
+      break;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // LAYER 19: Acak emotional cue (muncul di tempat tidak terduga)
+  // ------------------------------------------------------------
+  const emotions = [
+    "I'm honestly kind of shocked by this.",
+    "It's actually pretty frustrating.",
+    "I find this really interesting.",
+    "That's terrifying, honestly.",
+    "It's sad to think about.",
+    "I'm not gonna lie, I find this comforting.",
+    "It's almost funny how it works.",
+  ];
+  if (Math.random() < 0.6) {
+    const pos = Math.floor(Math.random() * sentences.length);
+    const emotion = emotions[Math.floor(Math.random() * emotions.length)];
+    sentences.splice(pos, 0, emotion);
+  }
+
+  // ------------------------------------------------------------
+  // LAYER 22: Voice switching (sisipkan kutipan, opini, fakta)
+  // ------------------------------------------------------------
+  const fakeQuote = [
+    `"It's not just about the facts," a researcher once told me, "it's about how you interpret them."`,
+    `One expert put it this way: "The data doesn't tell the whole story."`,
+    `"You'd be surprised how often this happens," my professor said.`,
+  ];
+  if (Math.random() < 0.4) {
+    const pos = Math.floor(sentences.length * 0.6);
+    sentences.splice(pos, 0, fakeQuote[Math.floor(Math.random() * fakeQuote.length)]);
+  }
+
+  // ------------------------------------------------------------
+  // LAYER 25: Jangan perbaiki grammar setelah "kesalahan"
+  // ------------------------------------------------------------
+  // Biarkan kalimat yang sudah dipotong/tidak selesai tetap seperti itu
+  // Hanya bersihkan spacing berlebih
+
+  // ------------------------------------------------------------
+  // LAYER 20 & 24: Tambahkan kalimat penutup yang menggantung / tidak menyelesaikan
+  // ------------------------------------------------------------
+  const nonConclusion = [
+    "I guess that's all I have to say about that.",
+    "Anyway, I'm not sure where I was going with this.",
+    "I'll stop here before I confuse myself.",
+    "Not sure if that was helpful, but there you go.",
+    "I should probably read more about this.",
+  ];
+  sentences.push(nonConclusion[Math.floor(Math.random() * nonConclusion.length)]);
+
+  // Gabungkan kembali
+  let result = sentences.join(' ');
+
+  // ------------------------------------------------------------
+  // Bersihkan sisa "or even" / "is also common" dari fungsi lama
+  // ------------------------------------------------------------
+  result = result.replace(/ — or even /g, ' ');
+  result = result.replace(/ is also common\./g, '. ');
+  result = result.replace(/ or even /g, ' ');
+
+  // Perbaiki spacing berlebihan
+  result = result.replace(/\s{2,}/g, ' ');
 
   return result;
 }
