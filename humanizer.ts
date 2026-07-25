@@ -3481,6 +3481,14 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
     result = createUnevenFocus(result);
   }
 
+  // ===== PROFESSOR'S RECOMMENDATION: Apply semanticDestruction for english-general and casual =====
+  // This is the KEY addition based on professor's analysis:
+  // Detectors learn from deep information organization patterns, not surface features.
+  // semanticDestruction radically changes: coverage, focus, noise, and resolution.
+  if (tone === "english-general" || tone === "casual") {
+    result = semanticDestruction(result, text);
+  }
+
   // ===== PROFESSOR'S RECOMMENDATION: Apply ultimateHumanChaos for maximum unpredictability =====
   if (tone === "english-general" || tone === "casual") {
     result = ultimateHumanChaos(result);
@@ -5073,6 +5081,120 @@ export function introduceInefficiency(text: string): string {
 // ============================================================
 // NEW FUNCTIONS: Destroy AI Thinking Patterns (Professor's analysis)
 // ============================================================
+
+/**
+ * SEMANTIC DESTRUCTION - Professor's Recommendation
+ * 
+ * This function radically changes the information organization pattern to evade GPTZero.
+ * Based on the analysis that detectors learn from deep information organization patterns,
+ * not surface-level features.
+ * 
+ * Key strategies:
+ * 1. Reduce coverage - drop some points entirely
+ * 2. Change focus from "explaining" to "storytelling"
+ * 3. Insert truly irrelevant information (true noise)
+ * 4. End without resolving/summarizing
+ * 5. Don't preserve all facts accurately
+ */
+export function semanticDestruction(text: string, sourceText: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 6) return text;
+
+  // 1. Extract key points (sentences containing explanatory markers)
+  const keyPoints = sentences.filter(s => 
+    /\b(because|since|due to|reason|factor|advantage|benefit|cost|price|expensive|cheap)\b/i.test(s)
+  );
+  
+  // 2. Select only 2-3 points randomly (REDUCE COVERAGE)
+  const numToKeep = 2 + Math.floor(Math.random() * 2); // 2 or 3
+  const shuffled = keyPoints.sort(() => Math.random() - 0.5);
+  const selected = shuffled.slice(0, Math.min(numToKeep, shuffled.length));
+  
+  // If we couldn't find enough key points, use random sentences
+  const workingSet = selected.length >= 2 ? selected : sentences.slice(0, 3);
+
+  // 3. Personal openings (change from explaining to storytelling)
+  const personalOpenings = [
+    "I remember when I first heard about this...",
+    "My uncle used to deal with this a lot, and he always said...",
+    "I've never experienced it myself, but I've always wondered...",
+    "There's this thing I've been thinking about lately...",
+    "Funny story – my friend was telling me about this the other day...",
+    "You know what's weird about this? ",
+  ];
+  const opening = personalOpenings[Math.floor(Math.random() * personalOpenings.length)];
+
+  // 4. Elaborate selected points with personal commentary
+  const personalComments = [
+    " To be honest, I think that's the main reason.",
+    " I mean, it makes sense when you think about it.",
+    " But then again, who am I to judge?",
+    " That's just my take on it, anyway.",
+    " Or at least that's how I understand it.",
+    " Could be totally wrong, but that's what I gathered.",
+  ];
+  
+  const elaborated = workingSet.map(s => {
+    const comment = personalComments[Math.floor(Math.random() * personalComments.length)];
+    // Add uncertainty or imprecision
+    const uncertainVersions = [
+      s.replace(/\b(\d+)\b/, (m) => `${m} or maybe ${parseInt(m) + Math.floor(Math.random() * 3)}`),
+      s.replace(/\b(always|never|all|none)\b/gi, (m) => ['usually', 'often', 'mostly', 'sometimes'][Math.floor(Math.random() * 4)] || m),
+      s + " I think?",
+      "I guess " + s.toLowerCase(),
+    ];
+    const modified = Math.random() < 0.5 ? uncertainVersions[Math.floor(Math.random() * uncertainVersions.length)] : s;
+    return modified + comment;
+  });
+
+  // 5. Add TRUE NOISE - completely irrelevant tangents
+  const noisePool = [
+    "I was just reading about something completely different this morning – airlines are struggling to fill seats these days. Crazy times.",
+    "Speaking of which, my sister is going to Japan next month. I'm kinda jealous, honestly.",
+    "This reminds me – I need to book a hotel for my trip. Prices are insane right now.",
+    "Random thought: why do we even care about this stuff sometimes?",
+    "Anyway, before I forget – did I tell you about that thing that happened last week? Never mind, not important.",
+    "I should probably stop overthinking this. My brain hurts.",
+  ];
+  const noiseCount = 1 + Math.floor(Math.random() * 2); // 1 or 2 noise sentences
+  const noise = [];
+  for (let i = 0; i < noiseCount; i++) {
+    noise.push(noisePool[Math.floor(Math.random() * noisePool.length)]);
+  }
+
+  // 6. Add doubtful/questioning statements
+  const doubts = [
+    "Actually, I'm not sure if that's the whole story...",
+    "Wait, maybe I'm remembering this wrong?",
+    "Then again, could be completely different now.",
+    "Honestly, this whole topic is kind of confusing.",
+  ];
+
+  // 7. Unsolved endings (NO CONCLUSION)
+  const unresolvedEndings = [
+    "... or maybe I'm just overthinking it.",
+    "Anyway, that's all I've got.",
+    "I'll leave you with that.",
+    "But honestly, who knows?",
+    "That's it, I guess.",
+    "Make of that what you will.",
+    "Your mileage may vary, as they say.",
+  ];
+
+  // 8. Assemble parts in NON-LINEAR order
+  const parts = [opening, ...elaborated, doubts[Math.floor(Math.random() * doubts.length)], ...noise, unresolvedEndings[Math.floor(Math.random() * unresolvedEndings.length)]];
+  
+  // Shuffle the middle parts (keep opening at start, ending at end)
+  const middleParts = parts.slice(1, -1);
+  for (let i = middleParts.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [middleParts[i], middleParts[j]] = [middleParts[j], middleParts[i]];
+  }
+  
+  const finalParts = [parts[0], ...middleParts, parts[parts.length - 1]];
+  
+  return finalParts.join(' ');
+}
 
 /**
  * 1. Acak "macro discourse graph" secara radikal
