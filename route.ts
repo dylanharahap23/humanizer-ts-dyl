@@ -47,7 +47,7 @@ const MAIN_MODEL = "x-ai/grok-4.5";
 // Model untuk Pass 2 (jika diperlukan) - gunakan Claude atau Gemini
 const SECOND_PASS_MODEL =
   process.env.OPENROUTER_SECOND_PASS_MODEL?.trim() ||
-  "anthropic/claude-3.5-sonnet"; // atau "google/gemini-2.0-flash-exp"
+  "google/gemini-2.5-flash"; // atau "google/gemini-2.0-flash-exp"
 
 const HUMANIZE_TIMEOUT_MS = Math.max(
   45_000,
