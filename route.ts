@@ -40,10 +40,15 @@ import {
 } from "@/lib/humanizer";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "qwen/qwen3-30b-a3b-instruct-2507";
+
+// Model untuk Pass 1 (utama) - gunakan Grok 4.5
+const MAIN_MODEL = "x-ai/grok-4.5";
+
+// Model untuk Pass 2 (jika diperlukan) - gunakan Claude atau Gemini
 const SECOND_PASS_MODEL =
   process.env.OPENROUTER_SECOND_PASS_MODEL?.trim() ||
-  "meta-llama/llama-3.1-70b-instruct";
+  "anthropic/claude-3.5-sonnet"; // atau "google/gemini-2.0-flash-exp"
+
 const HUMANIZE_TIMEOUT_MS = Math.max(
   45_000,
   Number.parseInt(process.env.HUMANIZE_TIMEOUT_MS ?? "90000", 10) || 90_000
@@ -1695,7 +1700,10 @@ async function applyConversationalSecondPass({
     },
     signal,
     body: JSON.stringify({
-      model: SECOND_PASS_MODEL,
+      // ============================================================
+      // PERUBAHAN: Gunakan SECOND_PASS_MODEL (Claude/Gemini)
+      // ============================================================
+      model: SECOND_PASS_MODEL, // "anthropic/claude-3.5-sonnet" atau "google/gemini-2.0-flash-exp"
       temperature: isParatacticPass ? 1.2 : (isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
         tone === "english-argument"
           ? 0.2
