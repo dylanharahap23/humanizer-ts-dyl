@@ -2848,6 +2848,129 @@ function makeDiscursiveEnglishMoreDirect(text: string) {
 }
 
 // ============================================================
+// FEW-SHOT PROMPT BUILDER (BUKAN INSTRUKSI ABSTRAK)
+// ============================================================
+
+/**
+ * Build prompt dengan contoh teks human asli sebagai referensi gaya
+ * Ini jauh lebih efektif daripada instruksi "sisipkan keraguan"
+ */
+export function buildFewShotPrompt(
+  sourceText: string,
+  tone: string
+): { systemPrompt: string; temperature: number; topP: number; maxTokens: number; frequencyPenalty: number; presencePenalty: number; repetitionPenalty: number; additionalInstruction: string; postProcessTone: string } {
+  // Pilih contoh berdasarkan tone/topik
+  const examples = getHumanExamples(tone, sourceText);
+  
+  const systemPrompt = `
+You are a real person writing about the topic below. Below are examples of real human writing on similar topics—not to copy content, but to learn the style, rhythm, and flow.
+
+EXAMPLES OF REAL HUMAN WRITING:
+
+${examples}
+
+INSTRUCTIONS:
+- Write like a real person, not an AI assistant.
+- Do NOT start with "I think", "But the truth is", or "Let's be real".
+- Do NOT use "I don't think so" more than once.
+- If you ask a question, answer it with an elaboration, not a short repeated phrase.
+- Use a natural mix of long and short sentences.
+- Include a specific, concrete detail from your own life or knowledge.
+- End naturally—don't force a conclusion or question if it doesn't fit.
+
+Now rewrite the following text in that style:
+
+SOURCE TEXT:
+${sourceText}
+
+Return only the rewritten text. No explanations.
+`;
+
+  return {
+    systemPrompt,
+    temperature: 1.2,
+    topP: 0.95,
+    maxTokens: 1600,
+    frequencyPenalty: 0.2,
+    presencePenalty: 0.2,
+    repetitionPenalty: 1.05,
+    additionalInstruction: "",
+    postProcessTone: tone,
+  };
+}
+
+/**
+ * Pilih contoh human berdasarkan tone dan topic
+ * (Gunakan contoh-contoh yang sudah Anda kumpulkan dari GPTZero)
+ */
+function getHumanExamples(tone: string, sourceText: string): string {
+  // Base examples dari percakapan Anda
+  const marriageExample = `
+"24/25 is still very young imo. But different things work for different people. To sum it up, get to know yourself, travel for a bit, see different things in life."
+`;
+  
+  const exerciseExample = `
+"What exercises are best for heart health? The best exercise program will incorporate both aerobic and strength training, since that's the best way to strengthen your entire body."
+`;
+  
+  const islamicExample = `
+"Mawaddah is a kind of love which is very apparent. It is caring about spouse, being friend with spouse. Mawaddah is about keeping the honeymoon period alive and functional at all times."
+`;
+
+  // Pilih contoh yang paling sesuai dengan topik
+  const topic = sourceText.toLowerCase();
+  if (topic.includes('marriage') || topic.includes('wedding') || topic.includes('spouse')) {
+    return marriageExample;
+  }
+  if (topic.includes('exercise') || topic.includes('health') || topic.includes('workout')) {
+    return exerciseExample;
+  }
+  // Default: gabungan semua
+  return [marriageExample, exerciseExample, islamicExample].join('\n\n');
+}
+
+// ============================================================
+// REMOVE REPEATED PHRASES (Hapus Template Runtuh)
+// ============================================================
+
+/**
+ * Hapus frasa yang berulang literal untuk mencegah template collapse
+ * Contoh: "I don't think so" muncul 2x → hapus salah satu
+ */
+export function removeRepeatedPhrases(text: string): string {
+  const sentences = splitSentences(text);
+  const phraseCounts = new Map<string, number>();
+  
+  for (const s of sentences) {
+    const trimmed = s.trim();
+    // Hanya periksa frasa pendek (3-8 kata)
+    const words = trimmed.split(/\s+/);
+    if (words.length >= 3 && words.length <= 8) {
+      const key = words.join(' ').toLowerCase();
+      phraseCounts.set(key, (phraseCounts.get(key) || 0) + 1);
+    }
+  }
+  
+  // Hapus duplikat frasa (sisakan 1)
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const s of sentences) {
+    const trimmed = s.trim();
+    const words = trimmed.split(/\s+/);
+    if (words.length >= 3 && words.length <= 8) {
+      const key = words.join(' ').toLowerCase();
+      if (seen.has(key)) {
+        continue; // Skip duplikat
+      }
+      seen.add(key);
+    }
+    result.push(s);
+  }
+  
+  return result.join(' ');
+}
+
+// ============================================================
 // MEMORY SIMULATION PIPELINE (Professor's Recommendation)
 // Ganti semua fungsi "humanisasi" sebelumnya dengan simulasi memori manusia
 // ============================================================
@@ -3007,9 +3130,23 @@ function createInterestTunnel(nodes: IdeaNode[]): IdeaNode[] {
  * Termasuk idle sentences, external anchors, dan ending menggantung
  */
 function simulateAuthorVoice(nodes: IdeaNode[]): string {
-  let result = nodes.map(n => n.content).join(' ');
+  // Convert nodes ke array kalimat untuk manipulasi lebih mudah
+  const sentences = nodes.map(n => n.content);
   
-  // 1. Tambahkan "idle" sentences (tidak informatif)
+  // 1. Tambahkan "external anchor" (referensi dunia nyata) - SISIPKAN DI AWAL kalimat utuh
+  const anchors = [
+    "I read somewhere that ",
+    "My doctor once told me ",
+    "A friend mentioned ",
+    "There was a study that found ",
+  ];
+  if (Math.random() < 0.5 && sentences.length > 1) {
+    const anchor = anchors[Math.floor(Math.random() * anchors.length)];
+    const pos = Math.min(1, sentences.length - 1); // Sisipkan di kalimat ke-1 atau ke-2
+    sentences[pos] = anchor + sentences[pos].charAt(0).toLowerCase() + sentences[pos].slice(1);
+  }
+  
+  // 2. Tambahkan "idle" sentences (tidak informatif) - SISIPKAN DI ANTARA kalimat utuh
   const idlePool = [
     "Anyway.",
     "I don't know why I'm even mentioning this.",
@@ -3018,24 +3155,15 @@ function simulateAuthorVoice(nodes: IdeaNode[]): string {
     "It's just a thought.",
     "Hmm.",
   ];
-  for (let i = 0; i < Math.min(2, Math.floor(nodes.length / 4)); i++) {
-    const pos = Math.floor(Math.random() * result.length);
+  const idleCount = Math.min(2, Math.floor(sentences.length / 4));
+  for (let i = 0; i < idleCount; i++) {
+    const pos = Math.floor(Math.random() * (sentences.length + 1));
     const idle = idlePool[Math.floor(Math.random() * idlePool.length)];
-    result = result.slice(0, pos) + ' ' + idle + ' ' + result.slice(pos);
+    sentences.splice(pos, 0, idle);
   }
   
-  // 2. Tambahkan "external anchor" (referensi dunia nyata)
-  const anchors = [
-    "I read somewhere that ",
-    "My doctor once told me ",
-    "A friend mentioned ",
-    "There was a study that found ",
-  ];
-  if (Math.random() < 0.5) {
-    const anchor = anchors[Math.floor(Math.random() * anchors.length)];
-    const pos = Math.floor(result.length * 0.3);
-    result = result.slice(0, pos) + ' ' + anchor + result.slice(pos).charAt(0).toLowerCase() + result.slice(pos + 1);
-  }
+  // Gabungkan kembali menjadi teks
+  let result = sentences.join(' ');
   
   // 3. Hancurkan template markers
   const templateMarkers = [
@@ -3180,11 +3308,17 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
   result = addHumanTouches(result, tone);
   
   // ============================================================
-  // FINAL: Memory Simulation Pipeline (BUKAN feature injection)
+  // FINAL: Memory Simulation Pipeline + Remove Repeated Phrases
   // Menggunakan pendekatan profesor: simulasi memori manusia
+  // Ditambah pengecekan untuk hapus frasa berulang (template collapse)
   // ============================================================
   if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
     result = memorySimulationPass(result);
+    result = removeRepeatedPhrases(result);
+    result = cleanupEnglishSpacing(result);
+  } else if (!skipHeavyProcessing) {
+    // Untuk tone lain, tetap jalankan removeRepeatedPhrases untuk mencegah template collapse
+    result = removeRepeatedPhrases(result);
     result = cleanupEnglishSpacing(result);
   }
   
