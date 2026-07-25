@@ -611,7 +611,7 @@ async function repairOutputLanguage({
     },
     signal,
     body: JSON.stringify({
-      model: MODEL,
+      model: MAIN_MODEL,
       temperature: 0.35,
       top_p: 0.9,
       max_tokens: 1800,
@@ -950,7 +950,7 @@ async function repairSensitiveEnglishFidelity({
     },
     signal,
     body: JSON.stringify({
-      model: MODEL,
+      model: MAIN_MODEL,
       temperature: 0.4,
       top_p: 0.9,
       max_tokens: 1800,
@@ -2105,7 +2105,7 @@ export async function POST(req: Request) {
       },
       signal: controller.signal,
       body: JSON.stringify({
-        model: MODEL,
+        model: MAIN_MODEL,
         temperature: config.temperature,
         top_p: config.topP,
         max_tokens: config.maxTokens,
