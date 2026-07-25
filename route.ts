@@ -36,6 +36,7 @@ import {
   injectHumanSpecifics,
   forceParagraphSplit,
   sentenceOrderSimilarity,
+  cleanupEnglishSpacing,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -1645,7 +1646,9 @@ function buildSafeEnglishFallback(
   sourceText: string,
   tone: HumanizerPromptConfig["postProcessTone"]
 ) {
-  const editedSource = finalHumanize(sourceText, tone);
+  // REMOVED: finalHumanize was creating predictable fingerprint
+  // Just return the original source text cleaned up
+  const editedSource = cleanupEnglishSpacing(sourceText);
   return hasUnsupportedConversationalAdditions(sourceText, editedSource)
     ? sourceText.trim()
     : editedSource;
@@ -1760,8 +1763,8 @@ ${text}${profileLengthDirective}`,
 
   // For paratactic pass, skip heavy fidelity checks – allow raw, messy output
   if (isParatacticPass) {
-    // Only light cleanup: fix contractions and spacing, preserve the messiness
-    let lightlyCleaned = addHumanTouches(rewritten.trim(), tone);
+    // Only minimal spacing cleanup: preserve the messiness
+    let lightlyCleaned = cleanupEnglishSpacing(rewritten.trim());
     return { text: lightlyCleaned, applied: true };
   }
 
@@ -2222,8 +2225,8 @@ export async function POST(req: Request) {
           // This adds mild grammatical errors, repeated phrases, and uneven rhythm
           // that mimics real human messiness - essential for bypassing PTZero
           currentText = injectRealisticHumanFlaws(currentText);
-          // Then light cleanup only – no heavy regex chains
-          currentText = addHumanTouches(currentText, config.postProcessTone);
+          // Then minimal spacing cleanup only – no heavy regex chains
+          currentText = cleanupEnglishSpacing(currentText);
         }
       } else {
         console.warn("Second pass rejected; applying mandatory structural disruption");
@@ -2251,18 +2254,21 @@ export async function POST(req: Request) {
           // atau set flag untuk regenerate di pass berikutnya
         }
 
-        // --- Step 5: Apply final humanize ---
-        currentText = finalHumanize(currentText, config.postProcessTone);
+        // --- Step 5: Apply minimal cleanup only (NO finalHumanize)
+        currentText = cleanupEnglishSpacing(currentText);
       }
       
-      // NEW: For selective rewrite, inject human-specific elements (numbers, names, questions)
-      const isSelectiveRewritePass = systemPrompt === SELECTIVE_REWRITE_PROMPT;
-      if (isSelectiveRewritePass && config.postProcessTone.startsWith("english-")) {
-        currentText = injectHumanSpecifics(currentText, text);
-      }
+      // REMOVED: For selective rewrite, inject human-specific elements (numbers, names, questions)
+      // This was creating a predictable fingerprint. The LLM output is now left as-is.
+      // const isSelectiveRewritePass = systemPrompt === SELECTIVE_REWRITE_PROMPT;
+      // if (isSelectiveRewritePass && config.postProcessTone.startsWith("english-")) {
+      //   currentText = injectHumanSpecifics(currentText, text);
+      // }
     }
 
-    // --- FINAL: Apply post-processing with fidelity check only for sensitive/academic ---
+    // ============================================================
+    // FINAL: MINIMAL CLEANUP ONLY (NO REGEX INJECTION)
+    // ============================================================
     const isEnglishOutput = !config.postProcessTone.startsWith("indonesian-");
     
     // Profile yang memerlukan fidelity check
@@ -2276,45 +2282,15 @@ export async function POST(req: Request) {
       // currentText is already final from applyConversationalSecondPass
       // No further processing needed - preserve the raw, unpolished style
     } else if (personalRewriteApplied) {
-      // If personal rewrite was applied, skip heavy post-processing
-      // The text already has human flaws injected, so just do light cleanup
-      currentText = addHumanTouches(currentText, config.postProcessTone);
+      // Just minimal spacing cleanup
+      currentText = cleanupEnglishSpacing(currentText);
     } else if (needsFidelityCheck) {
-      console.log(`[DEBUG] postProcessTone used: ${config.postProcessTone}`);
-      console.log(`[DEBUG] finalHumanize called with skipHeavyProcessing: false`);
-      
-      const postProcessedCandidate = finalHumanize(currentText, config.postProcessTone);
-      
-      const finalFidelityIssues = getConversationalFidelityIssues(
-        text,
-        postProcessedCandidate,
-        false
-      );
-      
-      if (isEnglishOutput && finalFidelityIssues.length > 0) {
-        currentText = buildSafeEnglishFallback(text, config.postProcessTone);
-      } else {
-        currentText = postProcessedCandidate;
-      }
+      // For sensitive/academic, only cleanup spacing
+      currentText = cleanupEnglishSpacing(currentText);
     } else {
-      // PERBAIKAN: Untuk profile lain, langsung apply finalHumanize tanpa fidelity check
-      console.log(`[DEBUG] postProcessTone used: ${config.postProcessTone}`);
-      console.log(`[DEBUG] finalHumanize called with skipHeavyProcessing: false`);
-      
-      // Check if text already has human markers - if so, skip aggressive patches
-      if (config.postProcessTone.startsWith("english-") && 
-          /\b(I|me|my|we|us|honestly|look,|the thing is)\b/i.test(currentText)) {
-        // Already in a personal, human style – don't overwrite with aggressive patches
-        currentText = addHumanTouches(currentText, config.postProcessTone);
-      } else {
-        currentText = finalHumanize(currentText, config.postProcessTone);
-      }
-      
-      // NEW: Inject safe specifics and organic chaos for short, generic explanations
-      // This transforms AI-like dense output into something closer to human FAQ style
-      if (config.postProcessTone.startsWith("english-") && isShortGenericExplanation(currentText)) {
-        currentText = injectSafeSpecificsAndOrganicChaos(currentText);
-      }
+      // FOR GENERAL: NO REGEX INJECTION AT ALL
+      // Just clean up spacing
+      currentText = cleanupEnglishSpacing(currentText);
     }
 
     // --- DeepLX ---

@@ -3819,18 +3819,12 @@ function removeSyntheticEnglishHumanizerPhrases(text: string) {
     .replace(/(?:Here'?s a rewritten version[^.]*\.)\s*/gi, "");
 }
 
-function cleanupEnglishSpacing(text: string) {
+export function cleanupEnglishSpacing(text: string) {
+  // Only fix spacing, NO content changes
   return text
     .replace(/\r\n/g, "\n")
     .split("\n")
-    .map((line) =>
-      line
-        .replace(/[ \t]+([,.;:!?])/g, "$1")
-        .replace(/([([{])[ \t]+/g, "$1")
-        .replace(/[ \t]+([\])}])/g, "$1")
-        .replace(/[ \t]{2,}/g, " ")
-        .trim()
-    )
+    .map((line) => line.trim())
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
