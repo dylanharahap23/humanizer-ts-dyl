@@ -2752,26 +2752,81 @@ export function addHumanTouches(
 
   if (usesPlainEnglish) {
     result = simplifyInflatedEnglish(result);
+    result = varyFaithfulDiscourseMarkers(result);
+    result = gentlyVarySentenceRhythm(result);
   }
-  
-  // For general/expository/casual tones, skip aggressive grammar fixes to preserve natural chaos
-  if (tone === "english-general" || tone === "english-expository" || tone === "casual") {
-    // Just minimal cleanup, don't over-fix grammar
-    return cleanupEnglishSpacing(result);
-  }
-  
-  if (tone === "ielts") {
+
+  const allowsContractions =
+    tone === "casual" ||
+    tone === "english-general" ||
+    tone === "english-expository" ||
+    tone === "english-discursive" ||
+    tone === "english-reflective" ||
+    tone === "english-personal" ||
+    tone === "english-argument" ||
+    tone === "english-practical" ||
+    tone === "english-consumer";
+
+  if (allowsContractions) {
     result = applyContractions(result);
-    result = reduceRoboticHedging(result);
-    result = enhanceVocabulary(result);
-    result = strengthenOpinionVoice(result);
-    result = varySentenceStarters(result, 0.3);
-    result = addConjunctionStarts(result, 0.08);
-    result = addNaturalImperfections(result, 0.12);
-    result = addNaturalRedundancy(result, 0.08);
   }
 
   return cleanupEnglishSpacing(result);
+}
+
+/**
+ * Surface-level transition edits only. These replacements do not introduce a
+ * new claim, speaker, example, or degree of certainty.
+ */
+function varyFaithfulDiscourseMarkers(text: string): string {
+  const replacements: Array<[RegExp, string]> = [
+    [/\bFurthermore,\s*/gi, "Also, "],
+    [/\bMoreover,\s*/gi, "Also, "],
+    [/\bAdditionally,\s*/gi, "Also, "],
+    [/\bNevertheless,\s*/gi, "Still, "],
+    [/\bNonetheless,\s*/gi, "Still, "],
+    [/\bConsequently,\s*/gi, "So, "],
+    [/\bTherefore,\s*/gi, "So, "],
+  ];
+
+  return replacements.reduce(
+    (current, [pattern, replacement]) => current.replace(pattern, replacement),
+    text
+  );
+}
+
+/**
+ * Split only at punctuation that already marks a complete clause boundary.
+ * Nothing is deleted, shuffled, or added.
+ */
+function gentlyVarySentenceRhythm(text: string): string {
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) =>
+      splitSentences(paragraph)
+        .flatMap((sentence) => {
+          const wordCount = sentence.split(/\s+/).filter(Boolean).length;
+          if (wordCount < 34 || !sentence.includes(";")) return [sentence];
+
+          const parts = sentence
+            .split(/;\s*/)
+            .map((part) => part.trim())
+            .filter(Boolean);
+          if (parts.length !== 2 || parts.some((part) => part.split(/\s+/).length < 5)) {
+            return [sentence];
+          }
+
+          const first = /[.!?]$/.test(parts[0]) ? parts[0] : parts[0] + ".";
+          const secondBody = parts[1].replace(/[.!?]+$/, "");
+          const second =
+            secondBody.charAt(0).toUpperCase() +
+            secondBody.slice(1) +
+            (sentence.match(/[.!?]+$/)?.[0] ?? ".");
+          return [first, second];
+        })
+        .join(" ")
+    )
+    .join("\n\n");
 }
 
 // ============================================================
@@ -3376,7 +3431,11 @@ export function applyRandomTangentMethod(text: string): string {
 // 10. finalHumanize
 // ============================================================
 
-export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "casual", skipHeavyProcessing = false): string {
+export function finalHumanize(
+  text: string,
+  tone: HumanizerPostProcessTone = "casual",
+  _skipHeavyProcessing = false
+): string {
   if (
     tone === "indonesian-general" ||
     tone === "indonesian-academic" ||
@@ -3387,138 +3446,10 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
 
   if (!text || text.length < 40) return text.trim();
 
-  let result = text.trim();
-
-  // ===== GENUINE HUMAN REWRITE: Skip ALL heavy post-processing, only cleanup =====
-  // When the genuine human rewrite prompt was used, the output is already messy and human-like
-  if (skipHeavyProcessing && tone.startsWith("english-")) {
-    result = addHumanTouches(result, tone);
-    return cleanupEnglishSpacing(result);
-  }
-
-  // ===== BLOG-STYLE OUTPUT: Skip heavy post-processing, already human enough =====
-  const looksLikeBlog = /^[A-Za-z][\w\s,'-]+:?\s*$/gm.test(text) || /^#+\s/.test(text);
-  if (looksLikeBlog && tone.startsWith("english-")) {
-    // Already in blog format – just clean up
-    result = addHumanTouches(result, tone);
-    return cleanupEnglishSpacing(result);
-  }
-
-  // ===== PRODUCT-REVIEW: Skip heavy post-processing, just add human touches =====
-  if (tone === "product-review") {
-    // Model output should already be human enough from the review-style prompt
-    // Just fix contractions and spacing
-    result = addHumanTouches(result, tone);
-    return cleanupEnglishSpacing(result);
-  }
-
-  // ===== PERSONAL-ADVICE: Skip aggressive post-processing, model output should be human enough =====
-  if (tone === "english-personal" && /(your friend|you feel|don't compare|you shouldn't|you can|just because)/i.test(text)) {
-    // For personal advice texts, the model output from PERSONAL_ADVICE_PROMPT is already human-like
-    // Just add basic human touches and cleanup
-    result = addHumanTouches(result, tone);
-    return cleanupEnglishSpacing(result);
-  }
-
-  // ===== ANTI-DETECTION PASS untuk semua profil English =====
-  if (tone.startsWith("english-") || tone === "casual") {
-    result = applyAntiDetectionPass(result, text, tone);
-    // Apply de-jargonizing untuk casual/general/expository register
-    result = deJargonForCasualRegister(result, tone);
-  }
-
-  // Profile-specific direct rewrites (tetap seperti sebelumnya)
-  if (tone === "english-reflective") {
-    result = makeReflectiveEnglishMoreDirect(result);
-  }
-  if (tone === "english-consumer") {
-    result = makeConsumerEnglishMoreDirect(result);
-  }
-  if (tone === "english-policy") {
-    result = makePolicyEnglishMoreDirect(result);
-  }
-  if (tone === "english-discursive") {
-    result = makeDiscursiveEnglishMoreDirect(result);
-  }
-
-  // Existing structural & targeted human imprint (tetap)
-  if (tone === "english-general" || tone === "english-expository" || tone === "english-discursive") {
-    result = humanizeStructureEnglish(result);
-    // Removed applyTargetedHumanImprint to avoid double processing with applyAntiDetectionPass
-  }
-
-  // NEW: Transform comprehensive neutral explanations → personal opinion pieces
-  if (tone.startsWith("english-") && isComprehensiveNeutralExplanation(result)) {
-    result = transformToPersonalOpinion(result);
-  }
-
-  // NEW: Inject safe specifics and organic chaos for short generic explanations
-  if (tone.startsWith("english-") && isShortGenericExplanation(result)) {
-    result = injectSafeSpecificsAndOrganicChaos(result);
-  }
-
-  result = addHumanTouches(result, tone);
-  
-  // ============================================================
-  // FINAL: Memory Simulation Pipeline + Remove Repeated Phrases
-  // Menggunakan pendekatan profesor: simulasi memori manusia
-  // Ditambah pengecekan untuk hapus frasa berulang (template collapse)
-  // ============================================================
-  if ((tone === "english-general" || tone === "english-expository" || tone === "casual") && !skipHeavyProcessing) {
-    result = memorySimulationPass(result);
-    result = removeRepeatedPhrases(result);
-    result = cleanupEnglishSpacing(result);
-  } else if (!skipHeavyProcessing) {
-    // Untuk tone lain, tetap jalankan removeRepeatedPhrases untuk mencegah template collapse
-    result = removeRepeatedPhrases(result);
-    result = cleanupEnglishSpacing(result);
-  }
-  
-  // ===== PROFESSOR'S RECOMMENDATION: Apply humanReconstructionPass as final layer =====
-  if (tone.startsWith("english-") || tone === "casual") {
-    result = humanReconstructionPass(result);
-  }
-
-  // ===== PROFESSOR'S RECOMMENDATION: Apply forceInformationLoss and createUnevenFocus =====
-  if (tone === "english-general" || tone === "casual") {
-    result = forceInformationLoss(result);
-    result = createUnevenFocus(result);
-  }
-
-  // ===== PROFESSOR'S RECOMMENDATION: Apply semanticDestruction for english-general and casual =====
-  // This is the KEY addition based on professor's analysis:
-  // Detectors learn from deep information organization patterns, not surface features.
-  // semanticDestruction radically changes: coverage, focus, noise, and resolution.
-  if (tone === "english-general" || tone === "casual") {
-    result = semanticDestruction(result, text);
-  }
-
-  // ===== NEW: Apply forceSpecificity for ielts tone to add concrete details =====
-  // Based on professor's feedback: detectors distinguish between information-rich content vs shallow content.
-  // AI when asked to "humanize" produces abstract text with meta-commentary.
-  // Humans writing about topics they understand go straight into specific details.
-  if (tone === "ielts") {
-    result = forceSpecificity(result, "ielts");
-  }
-
-  // ===== PROFESSOR'S RECOMMENDATION: Apply ultimateHumanChaos for maximum unpredictability =====
-  if (tone === "english-general" || tone === "casual") {
-    result = ultimateHumanChaos(result, text);
-  }
-
-  // ===== NEW: Anti-Essay Transformation (Professor's Latest Logic) =====
-  // This is the KEY transformation based on crying example analysis:
-  // - Detectors are NOT fooled by forced casual fillers (like, you know, I guess)
-  // - Detectors ARE fooled by text that doesn't look like an essay
-  // - Transform from "explainer" mode to "expresser/advisor" mode
-  // - Remove filler signatures, create fragments, use direct commands, rhetorical questions
-  // IMPORTANT: Only apply this when input looks like explanatory AI text, not when it's already human-like
-  const looksLikeHumanJournal = /\n\n/.test(result) || /^[\w\s,]{1,30}[.!?]$/m.test(result.split('\n')[0]);
-  if ((tone.startsWith("english-") || tone === "casual") && !looksLikeHumanJournal) {
-    result = antiEssayTransformation(result);
-  }
-
-  return cleanupEnglishSpacing(result);
+  // English post-processing is deliberately surface-only. The model may vary
+  // syntax and wording, but this stage never invents people, numbers, examples,
+  // professions, opinions, or personal experience.
+  return addHumanTouches(text, tone);
 }
 
 // ============================================================
