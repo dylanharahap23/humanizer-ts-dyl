@@ -14,30 +14,9 @@ import {
 } from "@/lib/indonesian-humanizer";
 import { isSupabaseServerConfigured } from "@/lib/supabase/server";
 import {
-  finalHumanize,
-  addHumanTouches,
   getEnglishHumanizerConfig,
   getSystemPromptByTone,
   normalizeHumanizerTone,
-  isFormalEssay,
-  isGenericExplanation,
-  isFormalReligiousEssay,
-  isShortGenericExplanation,
-  injectSafeSpecificsAndOrganicChaos,
-  BLOG_STYLE_SECOND_PASS_PROMPT,
-  GENUINE_HUMAN_REWRITE_PROMPT,
-  PERSONAL_OBSERVATION_PROMPT,
-  PARATACTIC_RAW_DRAFT_PROMPT,
-  SELECTIVE_REWRITE_PROMPT,
-  DRUNK_FRIEND_PROMPT,
-  buildSemanticRegenerationPrompt,
-  destroyThreeParagraphStructure,
-  humanizeStructureEnglish,
-  injectRealisticHumanFlaws,
-  isComprehensiveNeutralExplanation,
-  injectHumanSpecifics,
-  forceParagraphSplit,
-  sentenceOrderSimilarity,
   cleanupEnglishSpacing,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
@@ -45,12 +24,22 @@ import {
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Model untuk Pass 1 (utama) - gunakan Grok 4.5
-const MAIN_MODEL = "x-ai/grok-4.5";
+const MAIN_MODEL = "qwen/qwen3-30b-a3b-instruct-2507";
 
-// Model untuk Pass 2 (jika diperlukan) - gunakan Claude atau Gemini
+const FIRST_PASS_FIDELITY_CONTRACT = [
+  "FIDELITY CONTRACT:",
+  "- Rewrite only what is present in the user's text.",
+  "- Never invent or infer a person, relationship, profession, organization, number, statistic, quotation, example, anecdote, personal experience, opinion, motive, or outcome.",
+  "- Preserve every proper name and numeric value exactly.",
+  "- Preserve the original point of view and level of certainty.",
+  "- You may change syntax, ordinary vocabulary, contractions, sentence openings, paragraphing, and clause order only when meaning stays identical.",
+  "- Return only the rewritten text.",
+].join("\n");
+
+// Model untuk Pass 2: source-faithful rewrite
 const SECOND_PASS_MODEL =
   process.env.OPENROUTER_SECOND_PASS_MODEL?.trim() ||
-  "google/gemini-2.5-flash"; // atau "google/gemini-2.0-flash-exp"
+  "mistralai/mistral-large-2407";
 
 const HUMANIZE_TIMEOUT_MS = Math.max(
   45_000,
@@ -1044,130 +1033,38 @@ function shouldUseConversationalSecondPass(
   );
 }
 
+const FAITHFUL_SECOND_PASS_PROMPT = [
+  "Rewrite the English text naturally while preserving its meaning exactly.",
+  "",
+  "SOURCE FIDELITY (highest priority):",
+  "- Treat the SOURCE TEXT as authoritative. The draft is only a wording reference.",
+  "- Preserve every claim, name, number, profession, relationship, example, comparison, qualification, and degree of certainty.",
+  "- Do not add facts, people, anecdotes, personal experience, statistics, locations, occupations, opinions, advice, assumptions, or outside knowledge.",
+  "- Keep the same point of view. Do not introduce I, we, you, or a narrator unless the source already uses that perspective.",
+  "- Do not turn possibilities into facts, strengthen weak claims, or infer motives and outcomes.",
+  "",
+  "ALLOWED EDITS:",
+  "- Change sentence structure and ordinary vocabulary without changing meaning.",
+  "- Use natural contractions where the register allows them.",
+  "- Reorder clauses only when their logical relationship remains identical.",
+  "- Vary sentence openings and paragraph lengths gently.",
+  "- Use at most two light discourse markers such as Well, Still, or Honestly, and only when they do not add an opinion.",
+  "",
+  "DO NOT:",
+  "- Invent a cousin, friend, job, company, number, quotation, failure, success, or personal reaction.",
+  "- Add rhetorical questions unless the source already contains a question.",
+  "- Add deliberate typos, fragments, run-ons, repeated words, fake memories, or random tangents.",
+  "- Drop source information merely to make the text shorter.",
+  "- Add a new conclusion or moral lesson.",
+  "",
+  "Keep the result close to the source length and return only the rewritten text.",
+].join("\n");
+
 function buildConversationalSecondPassPrompt(
-  tone: HumanizerPromptConfig["postProcessTone"],
-  sourceText?: string
+  _tone: HumanizerPromptConfig["postProcessTone"],
+  _sourceText?: string
 ): string {
-  // ============================================================
-  // DRUNK FRIEND PROMPT - For english-general/expository
-  // Based on professor's feedback: break the LLM's natural coherent patterns
-  // ============================================================
-  if (sourceText && (tone === "english-general" || tone === "english-expository")) {
-    return DRUNK_FRIEND_PROMPT;
-  }
-
-  // CEK: apakah ini teks netral komprehensif?
-  if (sourceText && isComprehensiveNeutralExplanation(sourceText) && 
-      (tone === "english-general" || tone === "english-expository" || tone === "english-discursive")) {
-    return SELECTIVE_REWRITE_PROMPT;
-  }
-
-  // NEW: paratactic raw draft for formal religious essays
-  if (sourceText && isFormalReligiousEssay(sourceText)) {
-    return PARATACTIC_RAW_DRAFT_PROMPT;
-  }
-
-  // NEW: personal observation pass for generic explanations
-  if (sourceText && isGenericExplanation(sourceText)) {
-    return PERSONAL_OBSERVATION_PROMPT;
-  }
-
-  if (tone === "english-consumer") {
-    return `You are a human writer re-writing a piece that was just rewritten by AI. The previous rewrite is too clean, too well-structured, and reads as machine-generated. Your job is to "mess it up" — make it sound REAL.
-
-Guidelines for your rewrite:
-- Take the SOURCE TEXT as the source of truth for facts.
-- IGNORE the previous AI draft's structure, sentence order, and paragraph breaks.
-- Re-arrange sentences into a different order that still makes sense.
-- Mix sentence lengths WILDLY: some 3 words, some 50.
-- Insert at least 2 fragments or one-word sentences.
-- Open at least 3 sentences with "But", "And", "So", "Look", or "Honestly".
-- Use casual words: "thing", "stuff", "kind of", "pretty", "really" — varied, not repetitive.
-- Add ONE conversational aside (parenthetical with - or commas) somewhere mid-text.
-- Don't add a conclusion paragraph. End on a concrete point.
-- Don't use "Furthermore", "Moreover", "Additionally", "Consequently". EVER.
-- Don't use exclamation marks. Period only.
-- Aim for about the same length, +/-20%.
-
-Return only the rewritten text.`;
-  }
-  if (tone === "english-policy") {
-    return `Rewrite the legal-policy explanation from the SOURCE, using the draft only as a warning about wording to avoid.
-
-- Open with the practical enforcement gap: the court may issue a warrant, but it cannot carry out the arrest by itself.
-- Recompose the source into three paragraphs with unequal amounts of detail. The first should be brief. The last may carry the travel, cooperation, domestic-law, and political conditions together. Preserve all source claims even when this requires a longer final paragraph.
-- Break dense sentences into shorter complete statements where the qualification remains clear. Prefer "has no police force" to "lacks an enforcement mechanism" and "depends on" to "hinges on".
-- Do not use factor headings or sentence openers such as "Another major challenge", "Political and diplomatic considerations", "As a result", "Consequently", or "Finally".
-- Keep every source fact, named person, institution, treaty, place, jurisdictional dispute, legal qualification, and level of certainty.
-- Keep "generally obligated" qualified as written. Do not turn it into "legally bound", "required", or "must".
-- The source says Israeli authorities are highly unlikely to arrest or surrender Netanyahu. Do not replace that claim with "under no legal obligation".
-- Keep "may face diplomatic consequences" as a possibility. Do not infer that a country is reluctant, chooses not to act, or acts to avoid fallout.
-- Keep the source's statement that arrest depends on travel. Do not strengthen it to "arrest is only possible" or add a new "even if a warrant were issued" condition.
-- Preserve the source term "nationals"; do not narrow it to "citizens". Keep strategic, military, and economic relationships as three distinct source items.
-- Retain the source's observation that states have sometimes failed to execute warrants against other leaders, and retain the final point about state cooperation being a structural limitation.
-- Do not add categories of crimes, countries, leaders, cases, dates, quotations, opinions, sarcasm, analogies, or outside context.
-- Do not use I, we, you, rhetorical questions, forum reactions, fragments, run-ons, filler, or deliberate mistakes.
-- End on the source's final practical condition or institutional limitation. Do not append a recap.
-
-Return only the rewrite.`;
-  }
-  if (tone === "english-practical") {
-    return `Rewrite the learning explanation into three clear, source-faithful paragraphs.
-
-- Paragraph 1 must begin with a direct instruction to reduce distractions, then explain cognitive fatigue using the causes and examples already in the source.
-- Paragraph 2 must explain working memory, cognitive overload, and the prefrontal cortex. Keep every listed distraction, but do not turn a cause into new advice unless the source already presents that action.
-- Paragraph 3 must cover regular study habits, sleep, exercise, active learning, scheduled breaks, focused intervals, summarizing, questioning, and teaching others.
-- Use you/your naturally. Do not use I or we.
-- Preserve every source fact, qualification, and level of certainty. Add no experience, researcher, institution, statistic, location, app, timer length, quotation, or study method.
-- Do not expand notifications or distractions into phones, devices, browser tabs, apps, quiet rooms, or environmental setup. Do not add brain health, productivity, routines, or benefits absent from the source.
-- Keep the source's phrase "a small amount" for working-memory capacity; do not replace it with a numeric or quasi-numeric quantity.
-- Do not copy the source opening or sentence order. Do not add a rhetorical question, slogan, motivational recap, deliberate error, or outside knowledge.
-
-Return only the rewrite.`;
-  }
-  
-  // Generic fallback – choose between conversational rewrite, blog-style restructure, or genuine human re-explain
-  if (sourceText && isFormalEssay(sourceText)) {
-    // For formal essays, use the genuine human rewrite prompt that regenerates from scratch
-    return GENUINE_HUMAN_REWRITE_PROMPT;
-  }
-
-  // ============================================================
-  // PERUBAHAN: Gunakan semantic regeneration untuk general/expository
-  // ============================================================
-  if (tone === "english-general" || tone === "english-expository") {
-    return buildSemanticRegenerationPrompt(sourceText || "", tone);
-  }
-
-  return `Rewrite the draft into a more natural, conversational explanation.
-
-IMPORTANT: This is a REWRITE, not a light edit. Change the sentence order, merge short related points, and vary the paragraph structure. Do NOT preserve the original paragraph order or sentence sequence.
-
-MEANING:
-- Preserve every factual claim, comparison, qualification, and level of certainty from the SOURCE.
-- Do not add examples, statistics, opinions, advice, or outside knowledge.
-- Keep the source point of view. Do not introduce I, we, you, or your unless the source already uses them.
-
-STYLE:
-- Use everyday words. Prefer "but" over "however", "so" over "therefore", "also" over "furthermore".
-- Contractions are welcome: don't, can't, it's, you're.
-- Vary sentence length. Mix short direct statements with longer explanations.
-- Break up long lists into flowing prose.
-- Avoid the "one reason is... another factor is... finally..." structure.
-
-STRUCTURE:
-- Regroup sentences by idea. Do NOT keep the original paragraph breaks.
-- Make paragraphs uneven in length. Some short, some longer.
-- Do not add a concluding summary paragraph. End on the last substantive point.
-- Remove formulaic transitions like "In addition", "Furthermore", "Moreover".
-
-VOICE:
-- Sound like a knowledgeable person explaining something, not a textbook.
-- Use direct, active sentences.
-- Do not add rhetorical questions, filler words, fragments, or fake spontaneity.
-- Do not add "Honestly", "Let's be real", "Here's the thing", or similar phrases.
-
-Return only the rewritten text.`;
+  return FAITHFUL_SECOND_PASS_PROMPT;
 }
 
 function preserveResearchHedge(sourceText: string, candidate: string) {
@@ -1178,24 +1075,99 @@ function preserveResearchHedge(sourceText: string, candidate: string) {
     (match) => (/^[A-Z]/.test(match) ? "Research suggests" : "research suggests")
   );
 }
+function collectNumericTokens(text: string): string[] {
+  return (text.match(/\b\d+(?:[.,]\d+)*(?:%|\b)/g) ?? []).map((token) =>
+    token.toLowerCase()
+  );
+}
+
+function collectMultiwordProperNames(text: string): string[] {
+  const ignoredOpeners = new Set([
+    "a", "an", "the", "this", "that", "these", "those", "many", "some",
+    "most", "another", "finally", "however", "because", "although", "while",
+  ]);
+
+  return (text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g) ?? [])
+    .map((name) => name.trim())
+    .filter((name) => !ignoredOpeners.has(name.split(/\s+/)[0].toLowerCase()));
+}
+
+function valuesOutsideSource(sourceValues: string[], candidateValues: string[]): string[] {
+  const sourceSet = new Set(sourceValues.map((value) => value.toLowerCase()));
+  return [...new Set(candidateValues.filter((value) => !sourceSet.has(value.toLowerCase())))];
+}
+
 function getConversationalFidelityIssues(
   sourceText: string,
   candidate: string,
-  allowSecondPerson = false
+  _allowSecondPerson = false
 ) {
   const issues: string[] = [];
-  if (addsUnsupportedPersonalAddress(sourceText, candidate, allowSecondPerson)) {
-    issues.push("personal-address");
+
+  const sourceHasFirstPerson = /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(sourceText);
+  const candidateHasFirstPerson = /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(candidate);
+  if (!sourceHasFirstPerson && candidateHasFirstPerson) {
+    issues.push("invented-first-person");
+  }
+
+  const sourceHasSecondPerson = /\b(?:you|your|yours|yourself|yourselves)\b/i.test(sourceText);
+  const candidateWithoutDiscourseYouKnow = candidate.replace(/\byou know\b/gi, "");
+  if (
+    !sourceHasSecondPerson &&
+    /\b(?:you|your|yours|yourself|yourselves)\b/i.test(candidateWithoutDiscourseYouKnow)
+  ) {
+    issues.push("invented-second-person");
   }
 
   if (!/\?/.test(sourceText) && /\?/.test(candidate)) {
     issues.push("rhetorical-question");
   }
 
-  const fillerPattern =
-    /\b(?:you know|I mean|know what I mean|let's be real|here's the thing)\b/i;
-  if (!fillerPattern.test(sourceText) && fillerPattern.test(candidate)) {
-    issues.push("conversational-filler");
+  const sourceNumbers = collectNumericTokens(sourceText);
+  const candidateNumbers = collectNumericTokens(candidate);
+  if (valuesOutsideSource(sourceNumbers, candidateNumbers).length > 0) {
+    issues.push("outside-number");
+  }
+  if (valuesOutsideSource(candidateNumbers, sourceNumbers).length > 0) {
+    issues.push("missing-number");
+  }
+
+  const sourceNames = collectMultiwordProperNames(sourceText);
+  const candidateNames = collectMultiwordProperNames(candidate);
+  if (valuesOutsideSource(sourceNames, candidateNames).length > 0) {
+    issues.push("outside-name");
+  }
+  if (valuesOutsideSource(candidateNames, sourceNames).length > 0) {
+    issues.push("missing-name");
+  }
+
+  const relationshipPattern =
+    /\b(?:cousin|uncle|aunt|friend|neighbor|neighbour|mother|father|mom|mum|dad|sister|brother|wife|husband)\b/gi;
+  const professionPattern =
+    /\b(?:CEO|nurse|nursing|doctor|physician|engineer|lawyer|teacher|professor|accountant|entrepreneur|manager)\b/gi;
+  const sourceRelationships = sourceText.match(relationshipPattern) ?? [];
+  const candidateRelationships = candidate.match(relationshipPattern) ?? [];
+  const sourceProfessions = sourceText.match(professionPattern) ?? [];
+  const candidateProfessions = candidate.match(professionPattern) ?? [];
+  if (valuesOutsideSource(sourceRelationships, candidateRelationships).length > 0) {
+    issues.push("outside-relationship");
+  }
+  if (valuesOutsideSource(sourceProfessions, candidateProfessions).length > 0) {
+    issues.push("outside-profession");
+  }
+
+  const certaintyPattern =
+    /\b(?:obviously|clearly|definitely|certainly|undoubtedly|probably|presumably)\b/gi;
+  const sourceCertainty = sourceText.match(certaintyPattern) ?? [];
+  const candidateCertainty = candidate.match(certaintyPattern) ?? [];
+  if (valuesOutsideSource(sourceCertainty, candidateCertainty).length > 0) {
+    issues.push("invented-certainty");
+  }
+
+  const fillerMatches =
+    candidate.match(/\b(?:you know|I mean|let's be real|here's the thing|honestly|well)\b/gi) ?? [];
+  if (fillerMatches.length > 2) {
+    issues.push("excessive-filler");
   }
 
   const promotionalFraming =
@@ -1211,14 +1183,12 @@ function getConversationalFidelityIssues(
 
   const sourceUsesResearchHedge = /\bresearch suggests\b/i.test(sourceText);
   const candidateStrengthensResearch =
-    /\b(?:research|studies) (?:clearly |consistently |keep )?(?:shows?|proves?)\b/i.test(
-      candidate
-    );
+    /\b(?:research|studies) (?:clearly |consistently |keep )?(?:shows?|proves?)\b/i.test(candidate);
   if (sourceUsesResearchHedge && candidateStrengthensResearch) {
     issues.push("strengthened-research-claim");
   }
 
-  return issues;
+  return [...new Set(issues)];
 }
 
 type PolicyAnchor = {
@@ -1663,44 +1633,7 @@ async function applyConversationalSecondPass({
     return { text, applied: false };
   }
 
-  // ============================================================
-  // DRUNK FRIEND PROMPT - For english-general/expository
-  // Based on professor's feedback: break the LLM's natural coherent patterns
-  // ============================================================
-  let systemPrompt: string;
-  const isDrunkFriendPass = (tone === "english-general" || tone === "english-expository") && sourceText;
-  const isSemanticRegeneration = !isDrunkFriendPass && (tone === "english-general" || tone === "english-expository") && sourceText;
-  
-  if (isDrunkFriendPass) {
-    systemPrompt = DRUNK_FRIEND_PROMPT;
-  } else if (isSemanticRegeneration) {
-    systemPrompt = buildSemanticRegenerationPrompt(sourceText, tone);
-  } else {
-    systemPrompt = buildConversationalSecondPassPrompt(tone, sourceText);
-  }
-
-  const isBlogPass = systemPrompt === BLOG_STYLE_SECOND_PASS_PROMPT;
-  const isGenuineHumanRewrite = systemPrompt === GENUINE_HUMAN_REWRITE_PROMPT;
-  const isPersonalPass = systemPrompt === PERSONAL_OBSERVATION_PROMPT;
-  const isParatacticPass = systemPrompt === PARATACTIC_RAW_DRAFT_PROMPT;
-  const isSelectiveRewrite = systemPrompt === SELECTIVE_REWRITE_PROMPT;
-  const isDrunkFriend = systemPrompt === DRUNK_FRIEND_PROMPT;
-  const sourceWordCountForPrompt = sourceText.split(/\s+/).filter(Boolean).length;
-  const profileLengthDirective =
-    tone === "english-policy"
-      ? `\nLENGTH: Keep the rewrite between ${Math.ceil(
-          sourceWordCountForPrompt * 0.75
-        )} and ${Math.ceil(
-          sourceWordCountForPrompt * 1.02
-        )} words so no source claim is compressed away.`
-      : tone === "english-consumer"
-        ? `\nLENGTH: Keep the rewrite between ${Math.ceil(
-            sourceWordCountForPrompt * 0.68
-          )} and ${Math.ceil(
-            sourceWordCountForPrompt * 1.02
-          )} words so the ownership conditions and buying criteria remain complete.`
-        : "";
-
+  const sourceWordCount = sourceText.split(/\s+/).filter(Boolean).length;
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {
@@ -1711,55 +1644,32 @@ async function applyConversationalSecondPass({
     },
     signal,
     body: JSON.stringify({
-      // ============================================================
-      // DRUNK FRIEND PROMPT - Use high temperature for chaotic output
-      // ============================================================
-      model: SECOND_PASS_MODEL, // "anthropic/claude-3.5-sonnet" atau "google/gemini-2.0-flash-exp"
-      temperature: isDrunkFriend ? 1.3 : (isSemanticRegeneration ? 1.2 : (isParatacticPass ? 1.2 : (isPersonalPass ? 1.0 : (isBlogPass ? 0.9 : (
-        tone === "english-argument"
-          ? 0.2
-          : tone === "english-policy"
-            ? 0.25
-            : tone === "english-consumer"
-              ? 0.3
-              : tone === "english-practical"
-                ? 0.3
-                : 0.7
-      ))))),
-      top_p: isDrunkFriend ? 0.98 : (isSemanticRegeneration ? 0.95 : (isParatacticPass ? 0.98 : (isBlogPass ? 0.95 : (
-        tone === "english-argument"
-          ? 0.85
-          : tone === "english-policy"
-            ? 0.86
-            : tone === "english-consumer"
-            ? 0.88
-            : tone === "english-practical"
-              ? 0.88
-              : 0.9
-      )))),
-      max_tokens: 1600,
-      frequency_penalty: isDrunkFriend ? 0.3 : (isSemanticRegeneration ? 0.1 : 0),
-      presence_penalty: isDrunkFriend ? 0.3 : (isSemanticRegeneration ? 0.1 : 0),
-      repetition_penalty: isDrunkFriend ? 1.1 : (isSemanticRegeneration ? 1.05 : 1.02),
+      model: SECOND_PASS_MODEL,
+      temperature: 0.45,
+      top_p: 0.88,
+      max_tokens: Math.max(900, Math.ceil(sourceWordCount * 2.2)),
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      repetition_penalty: 1.02,
       messages: [
         {
           role: "system",
-          content: systemPrompt,
+          content: buildConversationalSecondPassPrompt(tone, sourceText),
         },
         {
           role: "user",
-          // Untuk drunk friend dan semantic regeneration, kita hanya perlu sourceText.
-          // Jangan berikan Pass 1 draft agar model tidak terpengaruh.
-          content: isDrunkFriend || isSemanticRegeneration
-            ? `SOURCE TEXT (use only for facts, ignore its wording and order):\n${sourceText}`
-            : `SOURCE TEXT (authoritative for facts, scope, and point of view):\n${sourceText}\n\nPASS 1 DRAFT (simplify it; do not copy its inflated wording):\n${text}${profileLengthDirective}`,
+          content:
+            "SOURCE TEXT (the only authority for meaning and details):\n" +
+            sourceText +
+            "\n\nPASS 1 DRAFT (use only as a wording option; discard any detail absent from the source):\n" +
+            text,
         },
       ],
     }),
   });
 
   if (!response.ok) {
-    console.warn("Conversational second pass failed", response.status);
+    console.warn("Faithful second pass failed", response.status);
     return { text, applied: false };
   }
 
@@ -1769,102 +1679,23 @@ async function applyConversationalSecondPass({
     return { text, applied: false };
   }
 
-  // For paratactic pass, skip heavy fidelity checks – allow raw, messy output
-  if (isParatacticPass) {
-    // Only minimal spacing cleanup: preserve the messiness
-    let lightlyCleaned = cleanupEnglishSpacing(rewritten.trim());
-    return { text: lightlyCleaned, applied: true };
-  }
-
-  const specificitySafe = removeUnsupportedMeasuredClaims(
+  const cleaned = preserveResearchHedge(
     sourceText,
-    rewritten.trim()
+    cleanupEnglishSpacing(rewritten.trim())
   );
-  const recomposed = recomposeArgumentAroundJudgment(
-    sourceText,
-    specificitySafe,
-    tone
-  );
-  const profileComplete =
-    tone === "english-policy"
-      ? restoreMissingPolicyClaims(sourceText, recomposed)
-      : tone === "english-consumer"
-        ? restoreMissingConsumerClaims(sourceText, recomposed)
-        : recomposed;
-  const cleaned = preserveResearchHedge(sourceText, profileComplete);
-  const sourceWords = sourceText.split(/\s+/).filter(Boolean).length;
-  const outputWords = cleaned.split(/\s+/).filter(Boolean).length;
-  const lengthRatio = sourceWords === 0 ? 1 : outputWords / sourceWords;
-  
-  // Longgarkan pemeriksaan fidelitas untuk selective rewrite
-  const minRatio = isSelectiveRewrite ? 0.3 : (tone === "english-argument" ? 0.55 : 0.65);
-  const maxRatio = isSelectiveRewrite ? 1.8 : 1.2;
-  const minimumLengthRatio = isSelectiveRewrite ? minRatio : (
-    tone === "english-argument"
-      ? 0.55
-      : tone === "english-policy"
-        ? 0.65
-        : tone === "english-consumer"
-          ? 0.65
-          : tone === "english-practical"
-            ? 0.58
-            : 0.65
-  );
+  const outputWordCount = cleaned.split(/\s+/).filter(Boolean).length;
+  const lengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
+  const fidelityIssues = getConversationalFidelityIssues(sourceText, cleaned, false);
 
-  const allowSecondPerson = 
-    tone === "english-practical" ||
-    tone === "english-consumer" ||
-    tone === "english-expository" ||
-    tone === "english-general" ||
-    isSelectiveRewrite;
-
-  // Hanya periksa fidelitas jika BUKAN selective rewrite
-  let fidelityIssues: string[] = [];
-  if (!isSelectiveRewrite) {
-    fidelityIssues = [
-      ...getConversationalFidelityIssues(
-        sourceText,
-        cleaned,
-        allowSecondPerson
-      ),
-      ...(tone === "english-policy"
-        ? getPolicyFidelityIssues(sourceText, cleaned)
-        : []),
-      ...(tone === "english-consumer"
-        ? getConsumerFidelityIssues(sourceText, cleaned)
-        : []),
-    ];
-  }
-  const hasUnsupportedAdditions = fidelityIssues.length > 0;
-  
-  // --- Loosening Fidelity Check for Expository/General/Casual tones ---
-  const isExpositoryOrGeneral = 
-    tone === "english-expository" || 
-    tone === "english-general" || 
-    tone === "casual";
-
-  if (isExpositoryOrGeneral && fidelityIssues.length > 0) {
-    const totalChecks = 5; // jumlah total jenis pengecekan
-    if (fidelityIssues.length / totalChecks < 0.7) {
-      console.warn(`[FIDELITY] Loosened threshold: ${fidelityIssues.length}/${totalChecks} issues - ACCEPTED`);
-      return { text: cleaned, applied: true };
-    }
-  }
-  
   if (
     cleaned.length < 20 ||
-    lengthRatio < minimumLengthRatio ||
-    lengthRatio > maxRatio ||
-    hasUnsupportedAdditions
+    lengthRatio < 0.72 ||
+    lengthRatio > 1.18 ||
+    fidelityIssues.length > 0
   ) {
-    console.warn("Conversational second pass rejected: fidelity check failed", {
+    console.warn("Faithful second pass rejected", {
       lengthRatio: Number(lengthRatio.toFixed(2)),
-      minimumLengthRatio,
-      maxRatio,
-      outputTooShort: cleaned.length < 20,
-      hasUnsupportedAdditions,
       fidelityIssues,
-      isSelectiveRewrite,
     });
     return { text, applied: false };
   }
@@ -2126,7 +1957,7 @@ export async function POST(req: Request) {
         messages: [
           {
             role: "system",
-            content: `${config.systemPrompt}\n\n${config.additionalInstruction}`,
+            content: `${config.systemPrompt}\n\n${config.additionalInstruction}\n\n${FIRST_PASS_FIDELITY_CONTRACT}`,
           },
           {
             role: "user",
@@ -2180,31 +2011,19 @@ export async function POST(req: Request) {
     });
     currentText = sensitiveGuard.text;
 
-    // --- PASS 2: Conversational OR Style Repair ---
+    // --- PASS 2: source-faithful English rewrite ---
     let secondPassApplied = false;
     let secondPassModel: string | null = null;
-    let personalRewriteApplied = false;
-    let paratacticApplied = false;
 
     if (useTwoPass) {
-      const firstPassHasUnsupportedAdditions =
-        getConversationalFidelityIssues(
-          text,
-          currentText,
-          config.postProcessTone === "english-practical" ||
-            config.postProcessTone === "english-consumer" ||
-            config.postProcessTone === "english-expository" ||  // ← PERBAIKAN: Izinkan second-person untuk expository di first pass
-            config.postProcessTone === "english-general"        // ← PERBAIKAN: Izinkan second-person untuk general di first pass
-        ).length > 0;
-      const secondPassInput =
-        config.postProcessTone === "english-argument" ||
-        config.postProcessTone === "english-policy" ||
-        config.postProcessTone === "english-consumer" ||
-        firstPassHasUnsupportedAdditions
-          ? text.trim()
-          : currentText;
+      const firstPassIssues = getConversationalFidelityIssues(
+        text,
+        currentText,
+        false
+      );
+      const secondPassInput = firstPassIssues.length > 0 ? text.trim() : currentText;
 
-      const convPass = await applyConversationalSecondPass({
+      const faithfulPass = await applyConversationalSecondPass({
         text: secondPassInput,
         sourceText: text,
         tone: config.postProcessTone,
@@ -2212,97 +2031,37 @@ export async function POST(req: Request) {
         signal: controller.signal,
       });
 
-      let systemPrompt: string | undefined;
-      if (convPass.applied) {
-        currentText = convPass.text;
-        secondPassApplied = true;
-        secondPassModel = SECOND_PASS_MODEL;
-        // Check if drunk friend prompt was used
-        systemPrompt = buildConversationalSecondPassPrompt(config.postProcessTone, text);
-        const isDrunkFriendPass = systemPrompt === DRUNK_FRIEND_PROMPT;
-        if (isDrunkFriendPass) {
-          // Drunk friend pass already produces chaotic output - minimal cleanup only
-          currentText = cleanupEnglishSpacing(currentText);
-        } else if (systemPrompt === PERSONAL_OBSERVATION_PROMPT) {
-          personalRewriteApplied = true;
-        }
-        // Check if paratactic raw draft prompt was used
-        const isParatacticPass = systemPrompt === PARATACTIC_RAW_DRAFT_PROMPT;
-        if (isParatacticPass) {
-          // Paratactic pass already did light cleanup in applyConversationalSecondPass
-          // Just mark it so we skip finalHumanize later
-          paratacticApplied = true;
-        } else if (!isDrunkFriendPass) {
-          // CRITICAL: Inject realistic human flaws after forced personal rewrite
-          // This adds mild grammatical errors, repeated phrases, and uneven rhythm
-          // that mimics real human messiness - essential for bypassing PTZero
-          currentText = injectRealisticHumanFlaws(currentText);
-          // Then minimal spacing cleanup only – no heavy regex chains
-          currentText = cleanupEnglishSpacing(currentText);
-        }
-      } else {
-        console.warn("Second pass rejected; applying mandatory structural disruption");
-
-        // --- Step 1: Detect single-paragraph text and force split ---
-        const paragraphs = currentText.split(/\n\s*\n/).filter(Boolean);
-        if (paragraphs.length < 3) {
-          console.warn("[DEBUG] Single paragraph detected! Forcing split...");
-          currentText = forceParagraphSplit(currentText);
-          console.log(`[DEBUG] Paragraphs after force split: ${currentText.split(/\n\s*\n/).filter(Boolean).length}`);
-        }
-
-        // --- Step 2: Apply structural disruption ---
-        currentText = destroyThreeParagraphStructure(currentText);
-        currentText = humanizeStructureEnglish(currentText);
-
-        // --- Step 3: Log sentence order similarity ---
-        const similarity = sentenceOrderSimilarity(text, currentText);
-        console.log(`[DEBUG] Sentence order similarity: ${similarity.toFixed(2)}`);
-
-        // --- Step 4: If too similar, force a genuine rewrite (optional but recommended) ---
-        if (similarity > 0.6) {
-          console.warn("[DEBUG] Too similar! Forcing genuine rewrite...");
-          // Opsional: panggil LLM lagi dengan GENUINE_HUMAN_REWRITE_PROMPT
-          // atau set flag untuk regenerate di pass berikutnya
-        }
-
-        // --- Step 5: Apply minimal cleanup only (NO finalHumanize)
-        currentText = cleanupEnglishSpacing(currentText);
-      }
-      
-      // REMOVED: For selective rewrite, inject human-specific elements (numbers, names, questions)
-      // This was creating a predictable fingerprint. The LLM output is now left as-is.
-      // const isSelectiveRewritePass = systemPrompt === SELECTIVE_REWRITE_PROMPT;
-      // if (isSelectiveRewritePass && config.postProcessTone.startsWith("english-")) {
-      //   currentText = injectHumanSpecifics(currentText, text);
-      // }
+      currentText = faithfulPass.text;
+      secondPassApplied = faithfulPass.applied;
+      secondPassModel = faithfulPass.applied ? SECOND_PASS_MODEL : null;
     }
 
-    // ============================================================
-    // FINAL: MINIMAL CLEANUP ONLY (NO REGEX INJECTION)
-    // ============================================================
-    const isEnglishOutput = !config.postProcessTone.startsWith("indonesian-");
-    
-    // Profile yang memerlukan fidelity check
-    const needsFidelityCheck = 
-      config.postProcessTone === "english-sensitive" ||
-      config.postProcessTone === "english-academic";
-    
-    // If paratactic raw draft was applied, skip finalHumanize completely
-    // The text is already raw and messy as intended
-    if (paratacticApplied) {
-      // currentText is already final from applyConversationalSecondPass
-      // No further processing needed - preserve the raw, unpolished style
-    } else if (personalRewriteApplied) {
-      // Just minimal spacing cleanup
-      currentText = cleanupEnglishSpacing(currentText);
-    } else if (needsFidelityCheck) {
-      // For sensitive/academic, only cleanup spacing
-      currentText = cleanupEnglishSpacing(currentText);
-    } else {
-      // FOR GENERAL: NO REGEX INJECTION AT ALL
-      // Just clean up spacing
-      currentText = cleanupEnglishSpacing(currentText);
+    // No random flaws, fake memories, forced anecdotes, or structural destruction.
+    currentText = cleanupEnglishSpacing(currentText);
+
+    if (config.postProcessTone.startsWith("english-")) {
+      const finalFidelityIssues = getConversationalFidelityIssues(
+        text,
+        currentText,
+        false
+      );
+      const sourceWordCount = text.split(/\s+/).filter(Boolean).length;
+      const outputWordCount = currentText.split(/\s+/).filter(Boolean).length;
+      const finalLengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
+
+      if (
+        finalFidelityIssues.length > 0 ||
+        finalLengthRatio < 0.68 ||
+        finalLengthRatio > 1.22
+      ) {
+        console.warn("Final English rewrite rejected; returning source-faithful fallback", {
+          finalLengthRatio: Number(finalLengthRatio.toFixed(2)),
+          finalFidelityIssues,
+        });
+        currentText = buildSafeEnglishFallback(text, config.postProcessTone);
+        secondPassApplied = false;
+        secondPassModel = null;
+      }
     }
 
     // --- DeepLX ---
