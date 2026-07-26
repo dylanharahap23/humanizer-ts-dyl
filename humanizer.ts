@@ -2341,7 +2341,11 @@ function gentleBurstiness(text: string): string {
   return sentences.join(' ');
 } */
 
-function injectSpecificAnchors(text: string): string {
+/**
+ * OLD: injectSpecificAnchors - replaced by new version in the 6-dimension logic
+ * This function is kept for backward compatibility but not used in new logic
+ */
+/* function injectSpecificAnchorsOld(text: string): string {
   let result = text;
   // Decade/year anchors
   result = result.replace(/\bsince independence\b/gi, 'since 1965');
@@ -2360,7 +2364,7 @@ function injectSpecificAnchors(text: string): string {
   result = result.replace(/\bis expensive\b/gi, () => Math.random() < 0.4 ? "doesn't come cheap" : "is expensive");
   result = result.replace(/\bis costly\b/gi, () => Math.random() < 0.4 ? "hits the wallet hard" : "is costly");
   return result;
-}
+} */
 
 /**
  * Break long item lists (daftar istilah berjejer) to avoid AI pattern
@@ -3499,7 +3503,7 @@ export function finalHumanize(text: string, tone: HumanizerPostProcessTone = "ca
 
   // ===== PROFESSOR'S RECOMMENDATION: Apply ultimateHumanChaos for maximum unpredictability =====
   if (tone === "english-general" || tone === "casual") {
-    result = ultimateHumanChaos(result);
+    result = ultimateHumanChaos(result, text);
   }
 
   // ===== NEW: Anti-Essay Transformation (Professor's Latest Logic) =====
@@ -6037,41 +6041,235 @@ export function humanAuthorFinalPass(text: string): string {
 }
 
 // ============================================================
-// PROFESSOR'S RECOMMENDATION: Ultimate Human Chaos Function
-// Final layer untuk english-general dan casual
+// ============================================================
+// NEW LOGIC: Human Chaos Simulator (Based on Lecturer's Analysis)
+// 6 Dimensions of Human Writing Imperfection
 // ============================================================
 
-export function ultimateHumanChaos(text: string): string {
-  let s = text;
+/**
+ * 1. CLUSTERED FILLER: suntikkan 4-5 filler di 1-2 kalimat, sisanya bersih
+ * Fakta: Manusia memakai 5 filler dalam 1 kalimat, lalu 10 kalimat berikutnya bersih total.
+ */
+function injectClusteredFiller(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
   
-  // 1. Hapus 1–2 kalimat acak (lossy)
-  const sentences = splitSentences(s);
-  if (sentences.length > 6) {
-    const drop = Math.floor(Math.random() * 2) + 1;
-    for (let i = 0; i < drop; i++) {
-      const idx = Math.floor(Math.random() * (sentences.length - 4)) + 2;
-      sentences.splice(idx, 1);
-    }
-    s = sentences.join(' ');
+  // Pilih 1-2 kalimat acak (bukan semua)
+  const targetIndices = new Set<number>();
+  const count = Math.min(2, Math.max(1, Math.floor(sentences.length * 0.2)));
+  while (targetIndices.size < count) {
+    targetIndices.add(Math.floor(Math.random() * sentences.length));
   }
   
-  // 2. Tambahkan 3–5 kalimat idle/nganggur
-  s = injectIdleSentences(s);
+  const fillerPool = ['like', 'you know', 'uh', 'I mean', 'kinda', 'sorta', 'right?'];
   
-  // 3. Acak urutan paragraf
-  s = randomizeIdeaOrder(s);
+  for (const idx of targetIndices) {
+    let s = sentences[idx];
+    // Pilih 3-5 filler untuk disuntikkan di kalimat ini
+    const numFillers = 3 + Math.floor(Math.random() * 3);
+    // Suntikkan di posisi acak (awal, tengah, akhir)
+    for (let i = 0; i < numFillers; i++) {
+      const filler = fillerPool[Math.floor(Math.random() * fillerPool.length)];
+      const words = s.split(' ');
+      const pos = Math.floor(Math.random() * (words.length - 1)) + 1;
+      words.splice(pos, 0, filler + ',');
+      s = words.join(' ');
+    }
+    // Ubah kalimat pertama menjadi sangat kasual
+    if (idx === 0) {
+      s = 'so, uh, ' + s.charAt(0).toLowerCase() + s.slice(1);
+    }
+    sentences[idx] = s;
+  }
   
-  // 4. Tambahkan setidaknya 1 kutipan langsung
-  const quotes = [
-    `"It's not that simple," a friend once said.`,
-    `"Honestly, I don't buy it," she replied.`,
-    `"You know what I think?" he asked.`,
-    `"That's the thing, isn't it?"`,
+  return sentences.join(' ');
+}
+
+/**
+ * 2. CONTEXTUAL TYPOS: typo spesifik topik, bukan generik
+ * Fakta: Typo terjadi pada kata kunci spesifik topik, bukan kata umum.
+ */
+function injectContextualTypos(text: string): string {
+  const typoMap: Array<[RegExp, string]> = [
+    [/\bWestern\b/g, 'Westeren'],
+    [/\bwestern\b/g, 'westeren'],
+    [/\bbathroom\b/gi, 'bathrom'],
+    [/\btoilet\b/gi, 'toilit'],
+    [/\bIndia\b/g, 'Indian'],
+    [/\bbidet\b/gi, 'biddet'],
+    [/\bwater\b/gi, 'watter'],
+    [/\bpaper\b/gi, 'paaper'],
+    [/\bplumbing\b/gi, 'plumbingg'],
+    [/\bculture\b/gi, 'cultur'],
+    [/\bhygiene\b/gi, 'hygeine'],
   ];
-  const pos = Math.floor(s.length * 0.5);
-  s = s.slice(0, pos) + ' ' + quotes[Math.floor(Math.random() * quotes.length)] + ' ' + s.slice(pos);
   
-  return s;
+  let result = text;
+  // Hanya lakukan 2-3 perubahan, jangan semua
+  const shuffled = [...typoMap].sort(() => Math.random() - 0.5);
+  let changes = 0;
+  for (const [pattern, replacement] of shuffled) {
+    if (changes >= 2 + Math.floor(Math.random() * 2)) break;
+    if (pattern.test(result)) {
+      result = result.replace(pattern, replacement);
+      changes++;
+    }
+  }
+  return result;
+}
+
+/**
+ * 3. IDIOSYNCRATIC VOCABULARY: ganti kata dasar dengan sinonim aneh/spesifik
+ * Fakta: Manusia memakai "nether regions", "minty fresh", "waddle". AI pakai "clean", "wash", "use".
+ */
+function injectIdiosyncraticVocab(text: string): string {
+  const vocabMap: Array<[RegExp, string[]]> = [
+    [/\bclean\b/gi, ['blast', 'squirt', 'swirl', 'scrub']],
+    [/\bwash\b/gi, ['rinse', 'splash', 'douse']],
+    [/\buse\b/gi, ['waddle over to', 'toddle to', 'reach for']],
+    [/\bgood\b/gi, ['minty fresh', 'crystal clean', 'top-notch']],
+    [/\bbad\b/gi, ['terrible nuisance', 'gross', 'absolutely foul']],
+    [/\bmake\b/gi, ['craft', 'engineer']],
+    [/\bthink\b/gi, ['figure', 'reckon']],
+  ];
+  
+  let result = text;
+  for (const [pattern, replacements] of vocabMap) {
+    if (Math.random() < 0.3 && pattern.test(result)) {
+      const repl = replacements[Math.floor(Math.random() * replacements.length)];
+      result = result.replace(pattern, repl);
+    }
+  }
+  return result;
+}
+
+/**
+ * 4. EMOTIONAL POLARIZATION: ambil sisi absolut + kasar
+ * Fakta: AI selalu "both are valid, I guess". Manusia bilang "Hell no", "feces residue", "terrible nuisance".
+ */
+function injectEmotionalPolarization(text: string, sourceTopic: string): string {
+  let result = text;
+  
+  // Jika topik toilet paper vs water, pilih satu sisi dengan kuat
+  if (/toilet paper|bidet|water|clean/i.test(sourceTopic)) {
+    // Hapus semua "both are fine", "I guess", "to each their own"
+    result = result.replace(/\b(both are fine|to each their own|i guess|i suppose)\b/gi, '');
+    
+    // Tambahkan pernyataan absolut di kalimat pertama atau terakhir
+    const sentences = splitSentences(result);
+    const absolutes = [
+      "Toilet paper is absolutely disgusting.",
+      "I can't believe anyone still uses paper.",
+      "Water is the only way to actually get clean.",
+      "Paper just smears it around, it's foul.",
+    ];
+    const idx = Math.floor(Math.random() * sentences.length);
+    sentences.splice(idx, 0, absolutes[Math.floor(Math.random() * absolutes.length)]);
+    
+    // Tambahkan kata kasar di suatu tempat
+    const profanity = [
+      "Hell no.",
+      "That's fucking gross.",
+      "It's a terrible idea, honestly.",
+      "Just awful.",
+    ];
+    const idx2 = Math.floor(Math.random() * (sentences.length - 1)) + 1;
+    sentences.splice(idx2, 0, profanity[Math.floor(Math.random() * profanity.length)]);
+    
+    result = sentences.join(' ');
+  }
+  
+  return result;
+}
+
+/**
+ * 5. CONCRETE SPECIFIC ANCHORS: tambahkan detail spesifik palsu
+ * Fakta: AI: "my friend", "other places". Manusia: "uncle in Switzerland", "hotel in Waikiki", "RV septic tank".
+ */
+function injectSpecificAnchors(text: string): string {
+  const anchors = [
+    "My cousin in Zurich",
+    "My grandfather's house in Bandung",
+    "A hostel I stayed at in Tokyo",
+    "My aunt who lives in the Netherlands",
+    "The hotel we visited in Bali",
+    "A friend from high school who moved to Canada",
+  ];
+  
+  const details = [
+    " which is frequented by Japanese tourists.",
+    " during a heatwave, no less.",
+    " right after the pandemic lockdowns.",
+    " back in 2019.",
+  ];
+  
+  const sentences = splitSentences(text);
+  if (sentences.length < 2) return text;
+  
+  // Sisipkan 1 anchor di awal
+  if (Math.random() < 0.7) {
+    const anchor = anchors[Math.floor(Math.random() * anchors.length)];
+    const detail = details[Math.floor(Math.random() * details.length)];
+    sentences.splice(1, 0, anchor + detail);
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * 6. EXTREME STRUCTURAL VARIATION: paragraf 1 kalimat vs 8 kalimat
+ * Fakta: Paragraf AI 7-12 kalimat. Manusia: 1 kalimat, 1 kalimat, 1 kalimat, lalu 6 kalimat, lalu 1 kalimat.
+ */
+function applyExtremeStructure(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+  
+  // Buat paragraf 1: 1-2 kalimat pendek
+  const p1 = sentences.slice(0, Math.min(2, sentences.length - 3)).join(' ');
+  
+  // Buat paragraf 2: 5-8 kalimat panjang
+  const midStart = Math.min(2, sentences.length - 4);
+  const midEnd = Math.min(sentences.length - 2, midStart + 4 + Math.floor(Math.random() * 4));
+  const p2 = sentences.slice(midStart, midEnd).join(' ');
+  
+  // Buat paragraf 3: sisa kalimat (biasanya pendek)
+  const p3 = sentences.slice(midEnd).join(' ');
+  
+  let result = p1 + '\n\n' + p2;
+  if (p3.trim()) result += '\n\n' + p3;
+  
+  return result;
+}
+
+// ============================================================
+// MASTER FUNCTION: Gabungkan Semua Logika Baru (6 Dimensi)
+// ============================================================
+
+export function ultimateHumanChaos(text: string, sourceText: string = ''): string {
+  if (!text || text.length < 50) return text;
+  
+  let result = text;
+  
+  // 1. Clustered Filler
+  result = injectClusteredFiller(result);
+  
+  // 2. Contextual Typos (spesifik topik)
+  result = injectContextualTypos(result);
+  
+  // 3. Idiosyncratic Vocab
+  result = injectIdiosyncraticVocab(result);
+  
+  // 4. Emotional Polarization
+  result = injectEmotionalPolarization(result, sourceText);
+  
+  // 5. Specific Anchors
+  result = injectSpecificAnchors(result);
+  
+  // 6. Extreme Structural Variation
+  result = applyExtremeStructure(result);
+  
+  // Cleanup minimal (jangan perbaiki typo!)
+  return result.trim();
 }
 
 // ============================================================

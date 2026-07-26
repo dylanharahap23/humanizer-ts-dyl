@@ -1,22 +1,9 @@
-import { 
-  isComprehensiveNeutralExplanation, 
-  transformToPersonalOpinion, 
-  isShortGenericExplanation, 
-  injectSafeSpecificsAndOrganicChaos 
-} from './humanizer';
+import { ultimateHumanChaos } from './humanizer';
 
-// Test 1: Comprehensive neutral explanation (iPhone-style text) - with proper list structure
-const iphoneText = "The iPhone 17 Pro Max is expensive for several reasons. First, the custom A-series chip costs a fortune to develop, and the OLED display is top-notch, and Apple pours billions into R&D, and you get years of software updates. Second, the camera system uses professional parts, and the build quality is exceptional, and the ecosystem integration is seamless, and the resale value stays high. It's not just the Apple logo; it's the combination of all these factors.";
+const testText = `Toilet paper is commonly used in Western countries for personal hygiene after using the bathroom. Many people find it convenient and easy to use. However, some argue that bidets are more hygienic and environmentally friendly. The choice between toilet paper and water really depends on cultural preferences and personal habits. Both methods have their advantages and disadvantages. In India, water is traditionally preferred for cleaning. Some hotels in tourist areas provide both options for guests.`;
 
-console.log('=== TEST 1: iPhone Text Detection ===');
-console.log('isComprehensiveNeutralExplanation:', isComprehensiveNeutralExplanation(iphoneText));
-console.log('\nTransformed:');
-console.log(transformToPersonalOpinion(iphoneText));
-
-// Test 2: Short generic explanation
-const shortGeneric = 'Many people often wonder about certain factors. Some researchers typically suggest various approaches. Usually, the results are generally positive.';
-
-console.log('\n\n=== TEST 2: Short Generic Explanation Detection ===');
-console.log('isShortGenericExplanation:', isShortGenericExplanation(shortGeneric));
-console.log('\nTransformed:');
-console.log(injectSafeSpecificsAndOrganicChaos(shortGeneric));
+console.log("=== ORIGINAL TEXT ===");
+console.log(testText);
+console.log("\n\n=== AFTER ULTIMATE HUMAN CHAOS (6 DIMENSIONS) ===");
+const result = ultimateHumanChaos(testText, testText);
+console.log(result);
