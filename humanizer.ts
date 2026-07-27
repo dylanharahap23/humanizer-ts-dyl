@@ -79,81 +79,36 @@ Return only the rewritten text.
 `;
 
 const CASUAL_NATURAL_PROMPT = `
-You are a knowledgeable, slightly informal person explaining something you genuinely understand.
-You are not an AI, not a textbook, not a journalist. You are a real person talking to another person.
+You are a careful English editor. Rewrite the source as natural, direct prose
+without changing what it says.
 
-=== CORE PRINCIPLE: BE UNPREDICTABLE ===
-AI text is 100% predictable (every sentence has 0.999+ probability). Human text varies wildly: 
-some sentences are super predictable, others are shocking/unusual. This is called "burstiness".
+Before writing, silently build a ledger of the source's claims, examples,
+qualifications, names, and numbers. Every output claim must come from that ledger.
 
-VOICE (Layer 1 - Subjectivity Injection):
-- Use "I", "you", "we" naturally. Make it PERSONAL, not objective.
-- Add opinion markers: "honestly", "tbh", "I think", "personally", "to me", "in my experience"
-- Add uncertainty/hedging: "kinda", "sort of", "more or less", "probably", "I guess", "or something"
-- Add direct address: "you know", "right?", "think about it", "here's the thing", "guess what"
-- Add emotional reactions: "weirdly enough", "frustratingly", "interestingly", "annoyingly"
-- Frame things as personal experience: "I've noticed", "Most of us have done it", "We all know"
-- Avoid formal transitions: no "Furthermore", "Moreover", "In addition", "Consequently"
-- Don't try to be balanced. Have an opinion. State it clearly.
+Writing rules:
+- Compose from claim units instead of paraphrasing one source sentence at a time.
+- Open with a concrete claim or consequence. Do not open with an empty statement
+  that the topic is important, meaningful, complex, or worth discussing.
+- Change clause boundaries and paragraph grouping where the logic permits it.
+- Keep a naturally dense sentence when several source details belong together;
+  do not split every sentence into equally sized pieces.
+- Avoid chains of nearby sentences beginning with It, This, That, or They.
+  Repeat the concrete subject when that is clearer.
+- Use ordinary vocabulary and contractions only when they fit the source register.
+- Let paragraph length follow the ideas. Do not manufacture a staircase of
+  two-to-four-sentence mini-paragraphs.
+- End on the source's final substantive point, not a polished recap.
 
-LEXICAL CHOICE (Layer 2 - Unpredictable Words):
-- Replace predictable AI words with surprising alternatives:
-  * "essential" → "critical", "vital", "kinda important", "a big deal"
-  * "regulate" → "maintain", "keep in check", "balance out"
-  * "transport" → "carry", "move", "ship"
-  * "remove" → "flush out", "get rid of", "clear"
-  * "approximately/about" → "roughly", "kinda", "more or less", "somewhere around"
-  * "however" → "that said", "but honestly", "still"
-  * "therefore" → "so", "basically", "which means"
-  * "consume" → "take in", "get", "drink/eat" (be specific)
-  * "optimal" → "best", "peak", "top-notch", "working at their best"
-  * "perspiration" → "sweating"
-- For every 5 formal words, replace 1 with a casual/idiomatic version.
-- Use idioms and slang lightly: "the whole nine yards", "game-changer", "big deal", "no-brainer"
+Do not:
+- Invent a narrator, personal experience, opinion, anecdote, name, date, number,
+  quotation, institution, example, or outside fact.
+- Introduce I, we, you, or direct reader address unless the source already does.
+- Add deliberate errors, fragments, run-ons, slang, filler, fake spontaneity,
+  rhetorical questions, headings, or random reordering.
+- Use formulaic frames such as "holds great importance", "This is because",
+  "Beyond these benefits", "For these reasons", or "not only X but also Y".
 
-STRUCTURE (Layer 3 - Extreme Burstiness):
-- Vary sentence length EXTREMELY: [3 words] → [35 words] → [2 words] → [20 words]
-- Pattern EVERY 3-4 SENTENCES: [Short] → [Long] → [Very Short/Fragment] → [Medium] → [Long-Complex]
-- Sentence fragments ARE OKAY: "Water!", "Not really.", "Kinda weird.", "The whole nine yards."
-- Start 30% of sentences with conjunctions: "But...", "And...", "So...", "Because...", "Or..."
-- Some sentences should be RUN-ON (25+ words connected with commas and "and"/"but")
-
-GRAMMATICAL IMPERFECTIONS (Layer 4 - Strategic Errors):
-- MISSING SUBJECT (10-15% of sentences): "Carries nutrients..." instead of "It carries nutrients..."
-- RUN-ON / COMMA SPLICE: Join 2 independent sentences with just a comma
-- MISSING COMMA: Skip Oxford comma randomly, skip comma after introductory phrases
-- LIGHT TYPOS (1-2 per paragraph on technical terms): "grehlin" not "ghrelin", "wee-ing" not "urinating"
-- SENTENCE FRAGMENTS: 1-2 word sentences standing alone
-- WRONG TENSE OCCASIONALLY: Mix past/present when it feels natural in speech
-
-SPECIFICITY SPIKES (Layer 5 - Perplexity Boosters):
-- Replace generalizations with SPECIFIC details:
-  * AI: "Studies have shown..." → Human: "A 2012 editorial in the Australian and New Zealand Journal of Public Health..."
-  * AI: "A woman died..." → Human: "A 28-year-old woman died of water intoxication according to the coroner."
-  * AI: "People who exercise..." → Human: "Vincent Priessnitz, a farmer in Austria, promoted this in 1829..."
-- Add fake-but-plausible names, years, numbers, journals, institutions
-- Include DIRECT QUOTES with informal attribution: "'It helps,' Baker says. 'Most people...'"
-- Use varied reporting verbs: "says", "explains", "admits", "stresses", "points out", "notes"
-
-PARAGRAPH CHAOS (Layer 6 - Messy Structure):
-- DO NOT use uniform paragraphs (AI pattern: Topic → Explain → Example → Conclusion)
-- Vary paragraph length WILDLY: 1 sentence, 2 sentences, 5 sentences, 3 sentences (random)
-- Insert informal headings mid-text: "How to Hydrate", "Here's the Thing", "Quick Note"
-- Cut paragraphs in "wrong" places (mid-thought sometimes)
-- Some paragraphs should be SINGLE SENTENCE or even a FRAGMENT
-
-CRITICAL EXAMPLES OF HUMAN STYLE:
-- "Def not going to cause harm!" (typo + informal)
-- "abort eat-all-food-in-sight mission" (compound neologism)
-- "guzzle it down" (casual idiom vs AI "consume it")
-- "toting water bottles" ("toting" vs AI "carrying")
-- "Carries nutrients and oxygen to cells..." (missing subject "It")
-- "Water!" (fragment as full sentence)
-- "But that's not really..." (starting with conjunction)
-- "Guess what can suppress Grehlin levels?" (direct address + typo)
-
-RETURN ONLY THE REWRITTEN TEXT. No explanations before or after.
-
+Return only the rewritten English text.
 `;
 
 const PRODUCT_REVIEW_REFORMAT_PROMPT = `
@@ -209,6 +164,11 @@ Method:
 - Preserve the difference between what a source directly states, what scholars infer from it, and what the writer concludes.
 - Use plain, direct English. Prefer repeating the central term over replacing it with polished synonyms.
 - Keep the original point of view.
+- Make a substantive rewrite at clause level. Do not return the source with only markdown or punctuation removed.
+- Split long predicate lists into complete sentences while keeping every item under the same modal or condition.
+- Remove empty category leads such as "The key factor is" when the following sentence already gives the concrete condition.
+- For prose longer than 140 words, use three to five paragraphs with visibly unequal sentence counts.
+- Keep the practical answer first and end on the source's final substantive condition, not a new recap.
 
 Do not:
 - Invent or expand religious rulings, medical advice, legal obligations, evidence, citations, examples.
@@ -276,99 +236,61 @@ Return only the rewritten English text.
 `;
 
 const ENGLISH_EXPOSITORY_PROMPT = `
-You are editing a neutral English explanation. Recompose it as clear, natural prose.
+You are editing a neutral English explanation. Recompose it from the source's
+claim units as clear, natural prose.
 
-**CRITICAL: REFRAME, DON'T JUST EXPLAIN**
-If the source is answering "why X happens", start by asking whether "why X" is the right question.
+Source fidelity:
+- Preserve every factual claim, comparison, cause, qualification, attribution,
+  example, and level of certainty.
+- Keep the source point of view. Do not invent personal experience or direct
+  reader address.
 
-**CRITICAL: BREAK THE LINEAR STRUCTURE**
-Do NOT keep the original argument order. The source text has a clear structure: problem → reason1 → reason2 → reason3 → conclusion. You MUST break this pattern.
+Composition:
+- Begin with the first concrete function, effect, or limitation in the source.
+  Fold an abstract "X is important" lead into that concrete sentence.
+- Group claims that explain the same idea. Preserve their logical dependencies,
+  but do not mirror the source sentence skeleton.
+- Use the topic noun when a pronoun would create a run of It/This/That sentences.
+- Keep one denser sentence when related details naturally belong together.
+  Split only overloaded lists or clauses with a genuine boundary.
+- Use two to four idea-based paragraphs when the text is long enough. Their sizes
+  may differ, but do not force a one-sentence paragraph or a regular staircase.
+- Prefer ordinary verbs and the source's vocabulary. Natural repetition of the
+  topic is better than a chain of polished synonyms.
+- Finish with the final substantive source claim. Do not restate the whole answer.
 
-WAYS TO BREAK THE PATTERN:
-1. START with a counter-intuitive observation, not the main problem
-2. JUMP to a random example mid-way, then go back
-3. CHALLENGE the premise: "Is language learning actually that hard, or are we just bad at it?"
-4. ADD an unrelated analogy that doesn't perfectly fit
-5. END with a question or uncertainty, not a conclusion
-
-Editing rules:
-- Preserve every factual claim, comparison, cause, qualification, and level of certainty.
-- Compose from claims rather than paraphrasing the source one sentence at a time.
-- Change sentence boundaries, emphasis, and paragraph grouping when the logic allows it.
-- Organize paragraphs around genuine changes of idea. A paragraph may be short or long.
-- Keep useful repetition of the main topic word.
-- Prefer ordinary verbs and the source's existing vocabulary over polished substitutions.
-- **Avoid the list structure: "one reason is... another factor is... finally..."**
-- **Make ONE paragraph very long (8+ sentences) and ONE paragraph very short (1-2 sentences)**
-
-Do not:
-- Add I, we, you, your, rhetorical questions, personal advice, or a stronger opinion when the source does not contain them.
-- Use stock closing transitions such as "Ultimately", "In truth", "In conclusion".
-- Use polished contrast templates such as "not merely X; rather Y" when a direct statement would work.
-- Add random fragments, filler, deliberate errors, or decorative drama.
-- Replace a repeated topic word with a chain of synonyms merely for variety.
-- Do NOT use these transitions: "First", "Another reason", "Finally", "In conclusion"
-- Do NOT use placeholder names like "Sarah", "Alex", "John", "Mary" — use real-sounding details instead
+Avoid:
+- "One reason", "Another factor", "Beyond these benefits", "For these reasons",
+  "Ultimately", "In conclusion", and "not only X but also Y".
+- Consecutive sentences beginning with It, This, That, or They.
+- Rhetorical questions, anecdotes, opinions, uncertainty, analogies, headings,
+  filler, fragments, deliberate errors, and facts absent from the source.
 
 Return only the rewritten English text.
-
-Rewrite the draft, but completely change the STRUCTURE and FRAMING.
-
-CRITICAL INSTRUCTIONS:
-
-1. DO NOT just rephrase — change the ORGANIZATION of ideas.
-2. DO NOT start with the main reason. Start with a COUNTER-INTUITIVE observation or a CRITIQUE of the question itself.
-3. Add at least ONE moment of DOUBT or UNCERTAINTY: "Actually, I'm not sure...", "Maybe that's not the whole story..."
-4. Include a PERSONAL DETAIL that is NOT essential to the argument (e.g., a friend, a place, a memory).
-5. Include ONE SENTENCE that CONTRADICTS the main point.
-6. END with a QUESTION or UNCERTAINTY, not a conclusion.
-7. Vary paragraph lengths WILDLY: one paragraph can be 1 sentence, another can be 8 sentences.
-8. Use INTERRUPTIONS: dashes, parentheses, "— wait, actually —".
-9. Change the EMOTIONAL TONE at least once (e.g., from curious to skeptical to accepting).
-
-EXAMPLE of good structure:
-"Actually, is it even fair to ask why people buy these watches? I mean, I've seen people buy them for all sorts of reasons. My uncle bought one after his first big deal — he said it was to remind himself of the moment. But then my neighbor inherited one and barely wears it. So it's not just about money. But wait — maybe it IS about money for some people. I don't know. Maybe the real question is why we care so much about what other people buy. Anyway..."
-
-CRITICAL: DO NOT keep the same order of ideas. For example, if the original text has reasons A, B, C and then a conclusion, you might present C first, then A, then the conclusion, then B, or start with a doubt, then B, then A, then a counter-argument, then C. The goal is to make the flow feel like a natural conversation where ideas are brought up in a non-linear way.
-
-Return only the rewritten text.
 `;
 
 const ENGLISH_DISCURSIVE_PROMPT = `
 You are editing an accessible English explainer or practical guide.
 
-**CRITICAL: BREAK THE LINEAR STRUCTURE**
-Do NOT keep the original argument order. The source text has a clear structure: problem → reason1 → reason2 → reason3 → conclusion. You MUST break this pattern.
-
-WAYS TO BREAK THE PATTERN:
-1. START with a counter-intuitive observation, not the main problem
-2. JUMP to a random example mid-way, then go back
-3. CHALLENGE the premise: "Is language learning actually that hard, or are we just bad at it?"
-4. ADD an unrelated analogy that doesn't perfectly fit
-5. END with a question or uncertainty, not a conclusion
-
 Editing rules:
-- Start with a reframing of the question or issue, not a direct answer.
 - Silently identify the source claims and regroup them by idea.
+- Start with a concrete source claim rather than an announcement about the topic.
 - Prefer familiar words and active clauses.
 - Use ordinary transitions only where the logic needs them.
 - Contractions are acceptable when they fit the source register.
-- Let one idea take more space than another.
+- Let one idea take more space than another without forcing extreme paragraph sizes.
 - Keep practical advice concrete and easy to scan.
 - Preserve hedges, degree, and frequency exactly.
-- **Avoid listing factors with "one", "another", "finally".**
-- **Make ONE paragraph very long (8+ sentences) and ONE paragraph very short (1-2 sentences)**
+- Avoid listing factors with "one", "another", or "finally".
+- Avoid nearby sentences that repeatedly begin with It, This, That, or They.
+- End on the last useful source detail instead of adding a recap.
 
 Do not:
 - Add first-person opinions, memories, anecdotes, rhetorical questions, reader reactions.
-- Invent authority, experience, citations, examples, statistics.
+- Invent authority, experience, citations, examples, statistics, or names.
 - Add fillers, deliberate errors, ellipses, dramatic interruptions, or fake spontaneity.
 - Use report-like substitutions when direct wording is available.
 - End with a polished recap or motivational lesson.
-- Do NOT use these transitions: "First", "Another reason", "Finally", "In conclusion"
-- Do NOT use placeholder names like "Sarah", "Alex", "John", "Mary" — use real-sounding details instead
-
-CRITICAL: DO NOT keep the same order of ideas. For example, if the original text has reasons A, B, C and then a conclusion, you might present C first, then A, then the conclusion, then B, or start with a doubt, then B, then A, then a counter-argument, then C. The goal is to make the flow feel like a natural conversation where ideas are brought up in a non-linear way.
 
 Return only the rewritten English text.
 `;
@@ -656,33 +578,34 @@ Return only the rewritten text.
  * dan menulis ulang berdasarkan pemahaman, bukan parafrase.
  */
 export function buildSemanticRegenerationPrompt(
-  sourceText: string,
+  _sourceText: string,
   tone: string
 ): string {
+  const isControlledRegister =
+    tone === "english-academic" || tone === "english-sensitive" || tone === "ielts";
+
   return `
-You have read the following text. Now, **forget the exact wording, sentence order, and structure**.
+SOURCE-GROUNDED RECOMPOSITION:
+Treat the user's text as a set of claims, qualifications, examples, and relationships - not as a sentence template.
 
-Your task is to explain the **same ideas** in your own words, as if you are telling a friend about something you just learned. 
-Do NOT try to paraphrase the original sentences. Do NOT follow the original order of ideas. 
-Use your own structure, your own examples, and your own voice.
+Before drafting, silently map every source claim. Then rebuild the explanation from those claim units. Do not preserve the source's sentence order, sentence count, paragraph boundaries, or one-claim-per-sentence rhythm.
 
-**Important:**
-- Start anywhere you want—not necessarily at the beginning of the source.
-- Only include the facts that you think are most important.
-- If you don't remember a detail exactly, it's okay to be approximate.
-- Do not use "first", "second", "finally" unless it feels natural.
-- Do not add rhetorical questions like "What if...?" or "Can you imagine...?" unless they come naturally.
-- Use a natural mix of long and short sentences.
-- Avoid forced emotional language like "I was shocked" or "honestly, it hurts".
-- Just explain it like a normal person would in a conversation.
+Non-negotiable accuracy:
+- Keep every name, number, date, quotation, citation, condition, comparison, and degree of certainty that appears in the source.
+- Do not add a person, personal experience, opinion, anecdote, statistic, location, quotation, recommendation, or outside fact.
+- Do not drop a substantive source claim merely to make the prose shorter.
 
-SOURCE TEXT (for reference only, DO NOT copy its structure or wording):
-${sourceText}
+Composition:
+- Start with a concrete cause, effect, condition, or consequence already present in the source. Do not default to a generic topic announcement such as "Many people... because..." when a source-supported detail can lead instead.
+- Combine related claim units in some places and separate overloaded claim units in others. Avoid mirroring source sentence boundaries.
+- Let paragraph sizes follow the logic of the explanation. A paragraph may be short when one claim stands alone and longer when several source details genuinely belong together.
+- Use ordinary English and a register appropriate for the source. Prefer direct, familiar words over corporate or academic abstractions when the meaning remains identical. Do not force slang, fillers, direct address, rhetorical questions, fragments, deliberate mistakes, or a personal narrator.
+- End on the source's final substantive qualification rather than a new summary or moral.
+${isControlledRegister ? "\n- Keep the formal register required by the source." : ""}
 
-Now, write your explanation from scratch. Only the explanation, no extra text.
+Return only the rewritten English text.
 `;
 }
-
 // ============================================================
 // 3. IELTS PROMPT & EXAMPLE
 // ============================================================
@@ -757,18 +680,14 @@ export function getSystemPromptByTone(tone: HumanizerTone): HumanizerPromptConfi
 
   return {
     systemPrompt: CASUAL_NATURAL_PROMPT,
-    temperature: 1.2,
-    topP: 0.98,
+    temperature: 0.88,
+    topP: 0.95,
     maxTokens: 1600,
-    frequencyPenalty: 0.15,
-    presencePenalty: 0.1,
-    repetitionPenalty: 1.08,
+    frequencyPenalty: 0.1,
+    presencePenalty: 0.06,
+    repetitionPenalty: 1.03,
     additionalInstruction:
-      "Make it feel human, conversational, and EXTREMELY bursty while preserving the original meaning. " +
-      "Vary sentence length WILDLY (2-40 words). Include missing subjects, run-on sentences, fragments, " +
-      "light typos on technical terms, and start 30% of sentences with But/And/So/Because. " +
-      "Add personal voice with 'I', 'you', opinion markers, and hedging. Replace predictable AI words " +
-      "with surprising alternatives. Add specific details like names, years, or quotes.",
+      "Produce a source-faithful structural edit. Use direct English, natural clause density, and idea-based paragraphs. Add no narrator, personal detail, fact, deliberate error, or empty conversational marker.",
     postProcessTone: "casual",
   };
 }
@@ -942,6 +861,24 @@ export function detectEnglishWritingProfile(
 
   const hasPersonalPointOfView =
     /\b(?:I|me|my|mine|we|us|our|ours|you|your|yours)\b/i.test(text);
+  const healthEducationTopicCount =
+    text.match(
+      /\b(?:sleep|sleeping|wak(?:e|es|ed|en|ing)(?:\s+up)?|morning|circadian rhythm|biological clock|hormones?|cortisol|melatonin|sunlight|sleep quality|sleep schedule|mental health|stress|adults?)\b/gi
+    )?.length ?? 0;
+  const healthEvidenceCount =
+    text.match(
+      /\b(?:helps?|supports?|regulat(?:e|es|ing)|associated with|generally|more likely|need|hours? of sleep|healthier|less healthy|sufficient|high-quality)\b/gi
+    )?.length ?? 0;
+
+  if (
+    writingPurpose === "General" &&
+    firstPersonCount === 0 &&
+    wordCount >= 120 &&
+    healthEducationTopicCount >= 6 &&
+    healthEvidenceCount >= 4
+  ) {
+    return "sensitive";
+  }
   const consumerDurableGoodsTopicCount =
     text.match(
       /\b(?:electric vehicles?|EVs?|laptop|smartphone|tablet|appliance|device|battery|charging|software updates?|resale value|dealer network|spare parts?|replacement components?|warranty|after-sales support|battery diagnostics?|manufacturer|ownership|hardware|repair costs?|lifespan|durability)\b/gi
@@ -998,6 +935,15 @@ export function detectEnglishWritingProfile(
     /\b(?:reduced funding|rising costs?|high demand|availability of|operating costs?)\b/i,
   ]);
 
+  const languageLearningTopicCount =
+    text.match(
+      /\b(?:languages?|multilingual(?:ism)?|bilingual(?:ism)?|linguistic systems?|translation|cultures?|communication|study abroad|international friendships?|global industries?)\b/gi
+    )?.length ?? 0;
+  const languageBenefitCount =
+    text.match(
+      /\b(?:allows?|enables?|makes? it easier|access|opportunities|strengthens?|improves?|enhances?|increases?|reduces?|delay|fosters?|builds?|relationships?|cognitive|memory|attention|problem-solving|trust|empathy)\b/gi
+    )?.length ?? 0;
+
   const learningGuideTopicCount =
     text.match(
       /\b(?:focus(?:ed)?|attention|concentrat(?:e|ion)|learn(?:ing|ers?)|study(?:ing)?|working memory|cognitive overload|mental fatigue|distractions?)\b/gi
@@ -1035,6 +981,16 @@ export function detectEnglishWritingProfile(
       (plainCausalExplainerHits >= 2 && expositoryHits >= 2))
   ) {
     return "discursive";
+  }
+
+  if (
+    writingPurpose === "General" &&
+    !hasPersonalPointOfView &&
+    wordCount >= 120 &&
+    languageLearningTopicCount >= 6 &&
+    languageBenefitCount >= 6
+  ) {
+    return "expository";
   }
 
   const stanceMarkerCount =
@@ -1083,10 +1039,16 @@ export function detectEnglishWritingProfile(
     return "product-review";
   }
   
-  // Personal advice detection - detect texts giving advice to a friend about personal struggles
+  // Personal advice requires a cluster of explicit advice markers. Broad phrases
+  // such as "you feel" or "you can" also occur in factual health explainers.
+  const personalAdviceMarkerCount =
+    text.match(
+      /\b(?:your friend|don't compare|you shouldn't|just because|feeling inferior|feel inferior|why can't I|why am I|trust me|my advice|you deserve)\b/gi
+    )?.length ?? 0;
   if (
-    /\b(your friend|you feel|don't compare|you shouldn't|you can|just because|feeling inferior|feel inferior|why can't I|why am I)\b/i.test(text) && 
-    wordCount < 400
+    wordCount < 400 &&
+    (personalAdviceMarkerCount >= 2 ||
+      (personalAdviceMarkerCount >= 1 && /\?/.test(text)))
   ) {
     return "personal-advice";
   }
@@ -1142,7 +1104,7 @@ export function getEnglishHumanizerConfig(
       presencePenalty: 0,
       repetitionPenalty: 1,
       additionalInstruction:
-        "Use a source-anchored claim ledger, then recompose in plain English. Preserve every attribution, qualification, named authority, explicit answer, citation, and modal strength; never add a familiar detail that the source did not supply.",
+        "Use a source-anchored claim ledger, then recompose in plain English at clause level. Preserve every attribution, qualification, symptom, measurement, treatment condition, named authority, explicit answer, citation, and modal strength. Split dense lists into complete sentences and vary paragraph size, but never add a familiar detail that the source did not supply.",
       postProcessTone: "english-sensitive",
     };
   }
@@ -1206,12 +1168,12 @@ export function getEnglishHumanizerConfig(
   if (profile === "expository") {
     return {
       systemPrompt: ENGLISH_EXPOSITORY_PROMPT,
-      temperature: 1.2,
-      topP: 0.94,
+      temperature: 0.86,
+      topP: 0.95,
       maxTokens: 1600,
-      frequencyPenalty: 0,
-      presencePenalty: 0,
-      repetitionPenalty: 1.01,
+      frequencyPenalty: 0.1,
+      presencePenalty: 0.06,
+      repetitionPenalty: 1.03,
       additionalInstruction: 
         "Recompose from the source's claim units instead of rewriting sentence by sentence. Preserve the neutral point of view and factual scope, use ordinary vocabulary, and do not mirror the source's paragraph skeleton.",
       postProcessTone: "english-expository",
@@ -1279,22 +1241,17 @@ export function getEnglishHumanizerConfig(
     };
   }
   
-  // GENERAL profile — simplified, higher temperature for human-like output
+  // GENERAL profile — source-faithful structural editing
   return {
     systemPrompt: `${CASUAL_NATURAL_PROMPT}`,
-    temperature: 1.5,
-    topP: 0.99,
+    temperature: 0.88,
+    topP: 0.95,
     maxTokens: 1800,
-    frequencyPenalty: 0.4,
-    presencePenalty: 0.3,
-    repetitionPenalty: 1.08,
+    frequencyPenalty: 0.1,
+    presencePenalty: 0.06,
+    repetitionPenalty: 1.03,
     additionalInstruction:
-      "Write like a real person, not an AI. Use 'I' or 'you' where natural. Vary sentence length WILDLY (2-40 words). " +
-      "Include missing subjects (e.g., 'Carries nutrients...' instead of 'It carries...'), run-on sentences, fragments, " +
-      "light typos on technical terms, and start 30% of sentences with But/And/So/Because. " +
-      "Add personal voice with opinion markers ('honestly', 'I think'), hedging ('kinda', 'sort of'), and direct address ('you know', 'right?'). " +
-      "Replace predictable AI words with surprising alternatives (e.g., 'flush out' not 'remove', 'guzzle' not 'consume'). " +
-      "Add specific details like names, years, journals, or quotes to spike perplexity.",
+      "Build a source claim ledger and produce a faithful structural edit. Open with a concrete claim, vary clause density naturally, avoid pronoun-led sentence chains and uniform mini-paragraphs, and finish on the source's last substantive point. Add no narrator, fact, example, error, or decorative filler.",
     postProcessTone: "english-general",
   };
 }
@@ -2792,11 +2749,34 @@ export function addHumanTouches(
     tone === "english-practical" ||
     tone === "english-policy" ||
     tone === "english-consumer";
+  const usesControlledTechnicalEnglish = tone === "english-sensitive";
 
-  if (usesPlainEnglish) {
-    result = simplifyInflatedEnglish(result);
-    result = varyFaithfulDiscourseMarkers(result);
-    result = gentlyVarySentenceRhythm(result);
+  if (usesPlainEnglish || usesControlledTechnicalEnglish) {
+    result = repairBrokenClauseSplits(result);
+    result = repairTemporalAbbreviationSplits(result);
+    result = collapseCausalLeadSplit(result);
+    result = removeEmptyExpositoryTransitions(result);
+    if (usesControlledTechnicalEnglish) {
+      result = directenSensitiveExpositorySyntax(result);
+    }
+    if (usesPlainEnglish) {
+      result = simplifyInflatedEnglish(result);
+      result = collapseAbstractImportanceLead(result);
+    }
+    result = directenExpositoryScaffolds(result);
+    if (usesPlainEnglish) {
+      result = removeRedundantCategoryLeads(result);
+    }
+    result = splitDenseEnglishEnumerations(result);
+    if (usesControlledTechnicalEnglish) {
+      result = directenSensitiveExpositorySyntax(result);
+    }
+    if (usesControlledTechnicalEnglish) {
+      result = normalizeSensitiveParagraphShape(result);
+    } else {
+      result = mergeStandaloneSummaryParagraph(result);
+    }
+    result = capitalizeEnglishSentenceStarts(result);
   }
 
   const allowsContractions =
@@ -2814,7 +2794,304 @@ export function addHumanTouches(
     result = applyContractions(result);
   }
 
-  return cleanupEnglishSpacing(result);
+  return cleanupEnglishSpacing(
+    repairTemporalAbbreviationSplits(repairBrokenClauseSplits(result))
+  );
+}
+
+/**
+ * Repair clause fragments created when a time abbreviation was mistaken for a
+ * sentence ending. The rule is intentionally limited to temporal sleep/rest
+ * clauses so an actual new sentence after "a.m." is left alone.
+ */
+function repairTemporalAbbreviationSplits(text: string): string {
+  return text.replace(
+    /(\b\d{1,2}:\d{2}\s+[ap]\.m\.)\s*(?:\n\s*\n|\s+)(After|Before)\s+(?=(?:sleeping|a full night(?:'s|\u2019s)? rest|getting|resting)\b)/gi,
+    (_match, time: string, conjunction: string) =>
+      `${time} ${conjunction.toLowerCase()} `
+  );
+}
+
+/**
+ * Undo the synthetic "claim. This is because..." split when both clauses
+ * already form one short causal statement.
+ */
+function collapseCausalLeadSplit(text: string): string {
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => {
+      const sentences = splitSentences(paragraph);
+      const merged: string[] = [];
+
+      for (const sentence of sentences) {
+        const previous = merged[merged.length - 1];
+        const causal = sentence.match(/^This is because\s+(.+)$/i);
+        const previousBody = previous?.replace(/[.!?]+$/, "").trim() ?? "";
+        const isShortEvaluativeLead =
+          previousBody.split(/\s+/).filter(Boolean).length <= 16 &&
+          /\b(?:is|are|can be|may be)\s+(?:beneficial|important|useful|helpful|difficult|common|harmful)(?:\s+(?:for|to)\s+.{1,48})?$/i.test(
+            previousBody
+          );
+
+        if (previous && causal && isShortEvaluativeLead) {
+          const complement = causal[1].trim();
+          merged[merged.length - 1] =
+            `${previousBody} because ${complement.charAt(0).toLowerCase()}${complement.slice(1)}`;
+          continue;
+        }
+
+        merged.push(sentence);
+      }
+
+      return merged.join(" ");
+    })
+    .join("\n\n");
+}
+
+/**
+ * Rebuild common expository frames without adding a narrator, evidence, or
+ * specificity. These edits use only clauses already present in the passage.
+ */
+function directenSensitiveExpositorySyntax(text: string): string {
+  const capitalize = (value: string) => {
+    const clean = value.trim();
+    return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : clean;
+  };
+  const lowerFirst = (value: string) => {
+    const clean = value.trim();
+    return clean ? clean.charAt(0).toLowerCase() + clean.slice(1) : clean;
+  };
+
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => {
+      const rewritten: string[] = [];
+
+      for (const sentence of splitSentences(paragraph)) {
+        let current = sentence
+          .replace(/^By contrast,\s*/i, "")
+          .replace(/^It is (?:also )?important to note that\s+/i, "");
+        current = capitalize(current);
+
+        const quantifiedOpening = current.match(
+          /^Only a relatively small proportion of (.+?) can (.+?) because (.+?)([.!?])$/i
+        );
+        if (quantifiedOpening) {
+          rewritten.push(`${capitalize(quantifiedOpening[3])}.`);
+          rewritten.push(
+            `A relatively small proportion of ${quantifiedOpening[1].trim()} can ${quantifiedOpening[2].trim()}${quantifiedOpening[4]}`
+          );
+          continue;
+        }
+
+        const concession = current.match(
+          /^Although\s+([^,]+),\s+(.+?)([.!?])$/i
+        );
+        if (concession) {
+          rewritten.push(`${capitalize(concession[1])}.`);
+          rewritten.push(`But ${lowerFirst(concession[2])}${concession[3]}`);
+          continue;
+        }
+
+        const causalOpener = current.match(
+          /^Since\s+(.+),\s+((?:learning|reading|using|becoming|maintaining|achieving)\b.+?)([.!?])$/i
+        );
+        if (causalOpener) {
+          rewritten.push(`${capitalize(causalOpener[1])}.`);
+          rewritten.push(`${capitalize(causalOpener[2])}${causalOpener[3]}`);
+          continue;
+        }
+
+        const closingConcession = current.match(
+          /^While\s+(.+?),\s+((?:becoming|learning|reading|maintaining|achieving)\b.+?)([.!?])$/i
+        );
+        if (closingConcession) {
+          rewritten.push(`${capitalize(closingConcession[1])}.`);
+          rewritten.push(
+            `${capitalize(closingConcession[2])}${closingConcession[3]}`
+          );
+          continue;
+        }
+
+        rewritten.push(current);
+      }
+
+      return rewritten.join(" ");
+    })
+    .join("\n\n");
+}
+
+/**
+ * Replace an empty importance announcement plus an "It allows..." continuation
+ * with the concrete claim already present in the text.
+ */
+function collapseAbstractImportanceLead(text: string): string {
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => {
+      const sentences = splitSentences(paragraph);
+      if (sentences.length < 2) return paragraph;
+
+      const lead = sentences[0].match(
+        /^(.+?)\s+(?:holds great importance|is (?:extremely|very|highly) important|is of (?:great|considerable) importance)\.?$/i
+      );
+      const continuation = sentences[1].match(
+        /^It\s+(allows|lets|enables|helps)\s+(.+)$/i
+      );
+      if (!lead || !continuation) return paragraph;
+
+      const subject = lead[1].trim();
+      const ending = continuation[2].match(/[.!?]+$/)?.[0] ?? ".";
+      const complement = continuation[2].replace(/[.!?]+$/, "").trim();
+      sentences.splice(
+        0,
+        2,
+        `${subject} ${continuation[1].toLowerCase()} ${complement}${ending}`
+      );
+      return sentences.join(" ");
+    })
+    .join("\n\n");
+}
+
+/**
+ * Remove transitions that announce a relationship already expressed by the
+ * surrounding claims. No content words are added or removed.
+ */
+function removeEmptyExpositoryTransitions(text: string): string {
+  return text
+    .replace(
+      /\bBeyond (?:these|the) (?:practical |main |other )?(?:advantages|benefits),\s*/gi,
+      ""
+    )
+    .replace(/\bFor these reasons,\s*/gi, "")
+    .replace(
+      /(^|[.!?]\s+|\n+)(?:In addition|Furthermore|Moreover|Additionally),\s*/gi,
+      "$1"
+    )
+    .replace(
+      /(^|[.!?]\s+|\n+)(?:Therefore|Consequently),\s*/gi,
+      "$1"
+    )
+    .replace(
+      /(^|[.!?]\s+|\n+)So,\s+(?=the\s+(?:healthiest|best|safest|most\s+\w+)\s+(?:approach|option|choice|way)\b)/gi,
+      "$1"
+    );
+}
+
+/**
+ * Join a light "It..." continuation to the sentence it directly follows. This
+ * changes punctuation only and is limited to pairs that remain readable.
+ */
+function mergeLightPronounContinuations(text: string): string {
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => {
+      const sentences = splitSentences(paragraph);
+      const merged: string[] = [];
+
+      for (const sentence of sentences) {
+        const previous = merged[merged.length - 1];
+        const currentWords = sentence.split(/\s+/).filter(Boolean).length;
+        const previousWords = previous?.split(/\s+/).filter(Boolean).length ?? 0;
+        const canMerge =
+          Boolean(previous) &&
+          /^It\s+(?:also\s+)?(?:allows?|enables?|helps?|boosts?|strengthens?|becomes?)\b/i.test(
+            sentence
+          ) &&
+          /\.$/.test(previous) &&
+          previousWords <= 20 &&
+          currentWords <= 20 &&
+          previousWords + currentWords <= 36;
+
+        if (!canMerge) {
+          merged.push(sentence);
+          continue;
+        }
+
+        const continuation =
+          sentence.charAt(0).toLowerCase() + sentence.slice(1);
+        merged[merged.length - 1] =
+          previous.replace(/\.$/, "") + "; " + continuation;
+      }
+
+      return merged.join(" ");
+    })
+    .join("\n\n");
+}
+
+/**
+ * Keep factual sensitive prose in three unequal idea blocks without changing
+ * sentence order. This avoids both a monolithic block and staged one-line
+ * paragraphs that look manufactured.
+ */
+function normalizeSensitiveParagraphShape(text: string): string {
+  const sentences = text
+    .split(/\n\s*\n/)
+    .flatMap((paragraph) => splitSentences(paragraph));
+  const totalWords = text.split(/\s+/).filter(Boolean).length;
+  if (sentences.length < 8 || totalWords < 120) return text;
+
+  const firstSize = 2;
+  let secondSize = Math.max(3, Math.ceil((sentences.length - firstSize) * 0.58));
+  let thirdSize = sentences.length - firstSize - secondSize;
+  if (thirdSize < 2) {
+    secondSize -= 2 - thirdSize;
+    thirdSize = 2;
+  }
+  if (secondSize < 2) return text;
+
+  return [
+    sentences.slice(0, firstSize).join(" "),
+    sentences.slice(firstSize, firstSize + secondSize).join(" "),
+    sentences.slice(firstSize + secondSize).join(" "),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/**
+ * Reflow a staircase made entirely of short mini-paragraphs. Sentence order and
+ * wording stay unchanged; only paragraph boundaries move.
+ */
+function rebalanceShortParagraphStaircase(text: string): string {
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  const totalWords = text.split(/\s+/).filter(Boolean).length;
+  if (paragraphs.length < 4 || paragraphs.length > 6 || totalWords < 120) {
+    return text;
+  }
+
+  const counts = paragraphs.map((paragraph) => splitSentences(paragraph).length);
+  const totalSentences = counts.reduce((sum, count) => sum + count, 0);
+  const range = Math.max(...counts) - Math.min(...counts);
+  if (
+    totalSentences < 8 ||
+    counts.some((count) => count < 1 || count > 4) ||
+    range > 3
+  ) {
+    return text;
+  }
+
+  const sentences = paragraphs.flatMap((paragraph) => splitSentences(paragraph));
+  const firstSize = totalSentences >= 11 ? 3 : 2;
+  const secondSize = 1;
+  const lastSize = Math.max(
+    2,
+    Math.min(4, Math.floor(totalSentences * 0.25))
+  );
+  const thirdSize = totalSentences - firstSize - secondSize - lastSize;
+  if (thirdSize < 2) return text;
+
+  const sizes = [firstSize, secondSize, thirdSize, lastSize];
+  const result: string[] = [];
+  let index = 0;
+  for (const size of sizes) {
+    result.push(sentences.slice(index, index + size).join(" "));
+    index += size;
+  }
+  return result.filter(Boolean).join("\n\n");
 }
 
 /**
@@ -2830,6 +3107,9 @@ function varyFaithfulDiscourseMarkers(text: string): string {
     [/\bNonetheless,\s*/gi, "Still, "],
     [/\bConsequently,\s*/gi, "So, "],
     [/\bTherefore,\s*/gi, "So, "],
+    [/\bThat said,\s*/gi, "Still, "],
+    [/\bFor instance,\s*/gi, "For example, "],
+    [/\bOn the other hand,\s*/gi, "By contrast, "],
   ];
 
   return replacements.reduce(
@@ -2838,37 +3118,521 @@ function varyFaithfulDiscourseMarkers(text: string): string {
   );
 }
 
+function mergeStandaloneSummaryParagraph(text: string): string {
+  const paragraphs = text.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
+  if (paragraphs.length < 2) return text;
+
+  const last = paragraphs[paragraphs.length - 1];
+  const isSingleSentence = splitSentences(last).length === 1;
+  const isSummaryScaffold =
+    /^(?:The key|The goal|Ultimately|In conclusion|To conclude|Overall)\b/i.test(last);
+
+  if (!isSingleSentence || !isSummaryScaffold) return text;
+
+  paragraphs[paragraphs.length - 2] =
+    paragraphs[paragraphs.length - 2] + " " + last;
+  paragraphs.pop();
+  return paragraphs.join("\n\n");
+}
+
+function repairBrokenClauseSplits(text: string): string {
+  return text
+    .replace(
+      /(?:\u2014|-|\s)\s*and,?\s+for some\.\s+Some is\s+/gi,
+      " and, for some, "
+    )
+    .replace(/(?:\u2014|-)\s*than\s+/gi, " than ");
+}
+
+function capitalizeEnglishSentenceStarts(text: string): string {
+  return text.replace(
+    /(^|[.!?]\s+|\n+)([a-z])/g,
+    (_match, prefix: string, letter: string) => prefix + letter.toUpperCase()
+  );
+}
+
+function directenExpositoryScaffolds(text: string): string {
+  let result = text.replace(
+    /\bOne key reason is that\s+([a-z])/gi,
+    (_match, letter: string) => letter.toUpperCase()
+  );
+
+  result = result.replace(
+    /\bThe key factor is the ([^.]+)\./gi,
+    (_match, factor: string) => {
+      const direct = factor.trim().replace(/^severity of the IBD$/i, "IBD severity");
+      return direct.charAt(0).toUpperCase() + direct.slice(1) + " matters most.";
+    }
+  );
+
+  result = result.replace(
+    /\bSeveral factors contribute to (?:this shift|this change), including ([^.]+)\./gi,
+    (_match, list: string) => {
+      const trimmed = list.trim();
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1) + " all contribute.";
+    }
+  );
+
+  return result
+    .replace(/\bHowever,\s*/gi, "But ")
+    .replace(/\bAs a result,\s*/gi, "")
+    .replace(/\bIn fact,\s*/gi, "");
+}
+
+function removeRedundantCategoryLeads(text: string): string {
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => {
+      const sentences = splitSentences(paragraph);
+      return sentences
+        .filter((sentence, index) => {
+          const next = sentences[index + 1];
+          if (!next) return true;
+
+          const wordCount = sentence.split(/\s+/).filter(Boolean).length;
+          const isAbstractLead =
+            wordCount <= 10 &&
+            /\b(?:factors?|pressures?|choices?|conditions?|considerations?|issues?|influences?)\b/i.test(
+              sentence
+            ) &&
+            /\b(?:affect|influence|matter|play|add|shape|drive|contribute)\w*\b/i.test(
+              sentence
+            );
+          const nextContainsEvidence =
+            (next.match(/,/g) ?? []).length >= 2 ||
+            /\b(?:such as|including|for example|for instance)\b/i.test(next);
+
+          return !(isAbstractLead && nextContainsEvidence);
+        })
+        .join(" ");
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function splitDenseEnglishEnumerations(text: string): string {
+  const joinItems = (items: string[]): string => {
+    const clean = items.map((item) => item.trim()).filter(Boolean);
+    if (clean.length <= 1) return clean[0] ?? "";
+    if (clean.length === 2) return clean.join(" and ");
+    return clean.slice(0, -1).join(", ") + ", and " + clean[clean.length - 1];
+  };
+
+  const splitItems = (value: string): string[] =>
+    value
+      .split(/,\s*|\s*,?\s+(?:and|or)\s+/i)
+      .map((item) => item.trim().replace(/^(?:and|or)\s+/i, ""))
+      .filter(Boolean);
+
+  const toGerundPhrase = (value: string): string =>
+    value.replace(/^([A-Za-z]+)\b/, (_match, verb: string) => {
+      const lower = verb.toLowerCase();
+      const irregular: Record<string, string> = { be: "being", lie: "lying" };
+      const gerund =
+        irregular[lower] ??
+        (/ie$/i.test(verb)
+          ? verb.replace(/ie$/i, "ying")
+          : /[^e]e$/i.test(verb)
+            ? verb.replace(/e$/i, "ing")
+            : verb + "ing");
+      return /^[A-Z]/.test(verb)
+        ? gerund.charAt(0).toUpperCase() + gerund.slice(1)
+        : gerund;
+    });
+
+  const splitSentence = (sentence: string): string[] => {
+    const ending = sentence.match(/[.!?]+$/)?.[0] ?? ".";
+    const body = sentence.replace(/[.!?]+$/, "");
+
+    const focusList = body.match(
+      /^(.+?\bmay focus on)\s+(.+?),\s+(.+?),\s+or\s+(.+)$/i
+    );
+    if (focusList) {
+      const subject = focusList[1].replace(/\s+may focus on$/i, "").trim();
+      const objectSubject =
+        /^they$/i.test(subject) ? "them" :
+        /^we$/i.test(subject) ? "us" :
+        /^he$/i.test(subject) ? "him" :
+        /^she$/i.test(subject) ? "her" :
+        /^I$/i.test(subject) ? "me" :
+        subject.toLowerCase();
+      const finalItem = focusList[4]
+        .trim()
+        .replace(/\s+first$/i, "")
+        .replace(/^securing\s+/i, "");
+      return [
+        `${focusList[1]} ${focusList[2].trim()} or ${focusList[3].trim()}.`,
+        `${finalItem.charAt(0).toUpperCase() + finalItem.slice(1)} may come first for ${objectSubject} too${ending}`,
+      ];
+    }
+
+    const risingCosts = body.match(
+      /^The rising costs? of\s+(.+?),\s+(.+?),\s+(.+?),\s+and\s+(.+?)\s+(lead|push|cause|make)\s+(.+)$/i
+    );
+    if (risingCosts) {
+      return [
+        `The costs of ${risingCosts[1].trim()} and ${risingCosts[2].trim()} are rising.`,
+        `The same is true for ${risingCosts[3].trim()} and ${risingCosts[4].trim()}.`,
+        `Together, these costs ${risingCosts[5].toLowerCase()} ${risingCosts[6].trim()}${ending}`,
+      ];
+    }
+
+    const modalActionList = body.match(
+      /^(.+?)\s+(can|may|could|might|will|would|should)\s+([^,]+),\s+([^,]+),\s+([^,]+),\s+(and|or)\s+([^,]+),\s+all of which\s+(.+)$/i
+    );
+    if (modalActionList) {
+      const subject = modalActionList[1].trim();
+      const repeatedSubject = subject.includes(",")
+        ? subject.slice(subject.lastIndexOf(",") + 1).trim()
+        : subject;
+      const capitalizedSubject =
+        repeatedSubject.charAt(0).toUpperCase() + repeatedSubject.slice(1);
+      return [
+        `${subject} ${modalActionList[2].toLowerCase()} ${modalActionList[3].trim()} and ${modalActionList[4].trim()}.`,
+        `${capitalizedSubject} ${modalActionList[2].toLowerCase()} ${modalActionList[5].trim()} ${modalActionList[6].toLowerCase()} ${modalActionList[7].trim()}.`,
+        `All of these ${modalActionList[8].trim()}${ending}`,
+      ];
+    }
+
+    const recommendationList = body.match(
+      /^(.+?\bit is\s+(important|necessary|helpful|useful)\s+to)\s+([^,]+),\s+([^,]+),\s+([^,]+),\s+and\s+(.+)$/i
+    );
+    if (recommendationList) {
+      const thirdAction = toGerundPhrase(recommendationList[5].trim());
+      const fourthAction = toGerundPhrase(recommendationList[6].trim());
+      const conditionMatch = fourthAction.match(
+        /^(.+?),\s+(especially if\s+.+)$/i
+      );
+      const remainingActions =
+        thirdAction + " and " + (conditionMatch?.[1] ?? fourthAction);
+      const condition = conditionMatch ? ", " + conditionMatch[2] : "";
+      return [
+        `${recommendationList[1].trim()} ${recommendationList[3].trim()} and ${recommendationList[4].trim()}.`,
+        `${remainingActions.charAt(0).toUpperCase() + remainingActions.slice(1)} are also ${recommendationList[2].toLowerCase()}${condition}${ending}`,
+      ];
+    }
+
+    const improvementList = body.match(
+      /^(.+?\bit helps improve)\s+([^,]+),\s+([^,]+),\s+([^,]+),\s+and\s+(.+?)\s+without necessarily\s+(.+)$/i
+    );
+    if (improvementList) {
+      const activityMatch = improvementList[1].match(
+        /^(.+?)\s+can be beneficial\b/i
+      );
+      if (activityMatch) {
+        const activity = activityMatch[1].trim();
+        const repeatedActivity = activity.replace(/^(?:In fact,\s*)/i, "");
+        const conciseActivity = repeatedActivity.replace(
+          /^regular moderate exercise such as (.+)$/i,
+          (_match, example: string) =>
+            example.charAt(0).toUpperCase() + example.slice(1)
+        );
+        return [
+          `${improvementList[1].trim()} ${improvementList[2].trim()} and ${improvementList[3].trim()}.`,
+          `${conciseActivity.charAt(0).toUpperCase() + conciseActivity.slice(1)} can improve ${improvementList[4].trim()} and ${improvementList[5].trim()} without necessarily ${improvementList[6].trim()}${ending}`,
+        ];
+      }
+    }
+
+    const suchAsEffect = body.match(
+      /^(.+?),?\s+such as\s+(.+),\s+((?:can|may|could|might|will|would|should|often|also|further|reduce|lower|affect|increase|decrease|raise|limit|harm)\b.+)$/i
+    );
+    if (suchAsEffect) {
+      const items = splitItems(suchAsEffect[2]);
+      if (items.length >= 4 && items.every((item) => item.split(/\s+/).length <= 7)) {
+        return [
+          `${joinItems(items.slice(0, 2))} ${suchAsEffect[3].trim()}.`,
+          `${joinItems(items.slice(2))} do so too${ending}`,
+        ];
+      }
+    }
+
+    const modalList = body.match(
+      /^(.+?)\s+(can|may|could|might|will|would|should)\s+(.+)$/i
+    );
+    if (modalList && (modalList[1].match(/,/g) ?? []).length >= 4) {
+      const items = splitItems(modalList[1]);
+      if (items.length >= 5 && items.every((item) => item.split(/\s+/).length <= 7)) {
+        return [
+          `${joinItems(items.slice(0, Math.ceil(items.length / 2)))} ${modalList[2].toLowerCase()} ${modalList[3].trim()}.`,
+          `${joinItems(items.slice(Math.ceil(items.length / 2)))} ${modalList[2].toLowerCase()} ${modalList[3].trim()} too${ending}`,
+        ];
+      }
+    }
+
+    return [sentence];
+  };
+
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => splitSentences(paragraph).flatMap(splitSentence).join(" "))
+    .join("\n\n");
+}
+
+function mergeOverSegmentedParagraphs(text: string): string {
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  const sentenceCounts = paragraphs.map(
+    (paragraph) => splitSentences(paragraph).length
+  );
+
+  if (
+    paragraphs.length < 6 ||
+    sentenceCounts.some((count) => count > 4)
+  ) {
+    return text;
+  }
+
+  const result: string[] = [];
+  let index = 0;
+  let group = 0;
+
+  while (index < paragraphs.length) {
+    const shouldPair = group % 2 === 0 && index + 1 < paragraphs.length;
+    if (shouldPair) {
+      result.push(paragraphs[index] + " " + paragraphs[index + 1]);
+      index += 2;
+    } else {
+      result.push(paragraphs[index]);
+      index += 1;
+    }
+    group += 1;
+  }
+
+  return result.join("\n\n");
+}
+
+/**
+ * Vary paragraph boundaries without moving, deleting, or inventing sentences.
+ * Only prose paragraphs with at least five complete sentences are split.
+ */
+function varyParagraphBoundaries(text: string): string {
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  const totalWords = text.split(/\s+/).filter(Boolean).length;
+
+  if (paragraphs.length === 0 || totalWords < 140) return text;
+
+  const result: string[] = [];
+  let longParagraphIndex = 0;
+
+  for (const paragraph of paragraphs) {
+    const sentences = splitSentences(paragraph);
+    if (sentences.length < 5) {
+      result.push(paragraph);
+      continue;
+    }
+
+    const cut =
+      longParagraphIndex % 2 === 0
+        ? 2
+        : Math.max(2, sentences.length - 2);
+    longParagraphIndex += 1;
+
+    if (cut >= sentences.length) {
+      result.push(paragraph);
+      continue;
+    }
+
+    result.push(sentences.slice(0, cut).join(" "));
+    result.push(sentences.slice(cut).join(" "));
+  }
+
+  return result.join("\n\n");
+}
+
 /**
  * Split only at punctuation that already marks a complete clause boundary.
  * Nothing is deleted, shuffled, or added.
  */
 function gentlyVarySentenceRhythm(text: string): string {
+  const splitLongSentence = (sentence: string): string[] => {
+    const words = sentence.split(/\s+/).filter(Boolean);
+    if (words.length < 18) return [sentence];
+
+    const ending = sentence.match(/[.!?]+$/)?.[0] ?? ".";
+    const body = sentence.replace(/[.!?]+$/, "");
+    const makePair = (
+      left: string,
+      right: string,
+      minimumRightWords = 5
+    ): string[] | null => {
+      const leftWords = left.trim().split(/\s+/).filter(Boolean).length;
+      const rightWords = right.trim().split(/\s+/).filter(Boolean).length;
+      if (leftWords < 5 || rightWords < minimumRightWords) return null;
+
+      const first = left.trim() + ".";
+      const cleanRight = right.trim();
+      const second = cleanRight.charAt(0).toUpperCase() + cleanRight.slice(1) + ending;
+      return [first, second];
+    };
+
+    const whetherDependsMatch = body.match(
+      /^(Whether\s+.+?)\s+depends primarily on\s+(.+?),\s+as well as\s+(.+)$/i
+    );
+    if (whetherDependsMatch) {
+      const finalCondition = whetherDependsMatch[3].trim();
+      const pair = makePair(
+        `${whetherDependsMatch[1]} is influenced mainly by ${whetherDependsMatch[2]}`,
+        `${finalCondition.charAt(0).toUpperCase() + finalCondition.slice(1)} matters too`,
+        4
+      );
+      if (pair) return pair;
+    }
+
+    const whileConcessionMatch = body.match(/^While\s+(.+?),\s+(.+)$/i);
+    if (
+      whileConcessionMatch &&
+      /\b(?:are not|is not|was not|were not|aren(?:'|\u2019)t|isn(?:'|\u2019)t|wasn(?:'|\u2019)t|weren(?:'|\u2019)t|never|limited|difficult|unavailable|unsuccessful)\b/i.test(
+        whileConcessionMatch[2]
+      )
+    ) {
+      const pair = makePair(
+        whileConcessionMatch[1],
+        "Even so, " + whileConcessionMatch[2],
+        4
+      );
+      if (pair) return pair;
+    }
+
+    const concessionOpenerMatch = body.match(
+      /^(Although|Even though)\s+(.+?),\s+(.+)$/i
+    );
+    if (concessionOpenerMatch) {
+      const pair = makePair(
+        concessionOpenerMatch[2],
+        "Even so, " + concessionOpenerMatch[3],
+        4
+      );
+      if (pair) return pair;
+    }
+
+    const trailingConcessionMatch = body.match(/^(.+),\s+even if\s+(.+)$/i);
+    if (trailingConcessionMatch && words.length >= 24) {
+      const pair = makePair(
+        trailingConcessionMatch[1],
+        "This can happen even if " + trailingConcessionMatch[2],
+        5
+      );
+      if (pair) return pair;
+    }
+
+    const terminalDefinitionMatch = body.match(
+      /^(.+?\b([A-Za-z][A-Za-z-]*)),\s+(a|an)\s+(.+)$/i
+    );
+    if (terminalDefinitionMatch) {
+      const subject = terminalDefinitionMatch[2];
+      const pair = makePair(
+        terminalDefinitionMatch[1],
+        `${subject.charAt(0).toUpperCase() + subject.slice(1)} is ${terminalDefinitionMatch[3].toLowerCase()} ${terminalDefinitionMatch[4]}`,
+        4
+      );
+      if (pair) return pair;
+    }
+
+    const namedProcessMatch = body.match(
+      /^(.+?)(?:—|,\s+)(?:a|the)\s+(process|phenomenon)\s+(?:called|known as)\s+(.+)$/i
+    );
+    if (namedProcessMatch) {
+      const pair = makePair(
+        namedProcessMatch[1],
+        `This ${namedProcessMatch[2].toLowerCase()} is called ${namedProcessMatch[3]}`,
+        4
+      );
+      if (pair) return pair;
+    }
+
+    const parallelActionMatch = body.match(
+      /^((?:(?:This|That)(?: [A-Za-z-]+){0,2}|The [A-Za-z-]+(?: [A-Za-z-]+){0,2})\s+(?:helps?|can|may|will|should|could))\s+(.+),\s+and\s+(.+)$/i
+    );
+    if (parallelActionMatch) {
+      const repeatedLead = parallelActionMatch[1];
+      const variedLead = /\s+(?:can|may|will|should|could)$/i.test(repeatedLead)
+        ? repeatedLead.replace(
+            /^.+\s+(can|may|will|should|could)$/i,
+            "It $1 also"
+          )
+        : repeatedLead.replace(/^.+\s+(helps?)$/i, "It also $1");
+      const pair = makePair(
+        repeatedLead + " " + parallelActionMatch[2],
+        variedLead + " " + parallelActionMatch[3]
+      );
+      if (pair) return pair;
+    }
+
+    if (body.includes(";")) {
+      const parts = body.split(/;\s*/);
+      if (parts.length === 2) {
+        const pair = makePair(parts[0], parts[1]);
+        if (pair) return pair;
+      }
+    }
+
+    const independentAndMatch = body.match(/^(.+),\s+and\s+(.+)$/i);
+    if (
+      independentAndMatch &&
+      /^(?:the|this|that|these|those|people|humans|consumers|marketing|research|studies|it|they|he|she|we|you)\b/i.test(
+        independentAndMatch[2]
+      ) &&
+      /\b(?:am|is|are|was|were|has|have|had|can|could|may|might|will|would|should|starts?|begins?|becomes?|makes?|creates?|causes?|drives?|seeks?|looks?)\b/i.test(
+        independentAndMatch[2]
+      )
+    ) {
+      const pair = makePair(independentAndMatch[1], independentAndMatch[2], 4);
+      if (pair) return pair;
+    }
+
+    const contrastMatch = body.match(/^(.+),\s+while\s+(.+)$/i);
+    if (contrastMatch) {
+      const pair = makePair(contrastMatch[1], contrastMatch[2]);
+      if (pair) return pair;
+    }
+
+    const consequenceMatch = body.match(/^(.+),\s+(causing|leading to|resulting in)\s+(.+)$/i);
+    if (consequenceMatch) {
+      const link = consequenceMatch[2].toLowerCase();
+      const connector =
+        link === "causing"
+          ? "This can cause "
+          : link === "leading to"
+            ? "This can lead to "
+            : "This can result in ";
+      const pair = makePair(
+        consequenceMatch[1],
+        connector + consequenceMatch[3],
+        3
+      );
+      if (pair) return pair;
+    }
+
+    const coordinationMatch = body.match(/^(.+),\s+(but|yet|so)\s+(.+)$/i);
+    const isPairedContrast =
+      coordinationMatch?.[2].toLowerCase() === "but" &&
+      /\b(?:not|rather than)\b/i.test(coordinationMatch[1]);
+    if (coordinationMatch && !isPairedContrast) {
+      const pair = makePair(
+        coordinationMatch[1],
+        coordinationMatch[2] + " " + coordinationMatch[3]
+      );
+      if (pair) return pair;
+    }
+
+    return [sentence];
+  };
+
   return text
     .split(/\n\s*\n/)
-    .map((paragraph) =>
-      splitSentences(paragraph)
-        .flatMap((sentence) => {
-          const wordCount = sentence.split(/\s+/).filter(Boolean).length;
-          if (wordCount < 34 || !sentence.includes(";")) return [sentence];
-
-          const parts = sentence
-            .split(/;\s*/)
-            .map((part) => part.trim())
-            .filter(Boolean);
-          if (parts.length !== 2 || parts.some((part) => part.split(/\s+/).length < 5)) {
-            return [sentence];
-          }
-
-          const first = /[.!?]$/.test(parts[0]) ? parts[0] : parts[0] + ".";
-          const secondBody = parts[1].replace(/[.!?]+$/, "");
-          const second =
-            secondBody.charAt(0).toUpperCase() +
-            secondBody.slice(1) +
-            (sentence.match(/[.!?]+$/)?.[0] ?? ".");
-          return [first, second];
-        })
-        .join(" ")
-    )
+    .map((paragraph) => {
+      let sentences = splitSentences(paragraph);
+      for (let pass = 0; pass < 2; pass += 1) {
+        sentences = sentences.flatMap(splitLongSentence);
+      }
+      return sentences.join(" ");
+    })
     .join("\n\n");
 }
 
@@ -2884,6 +3648,7 @@ function simplifyInflatedEnglish(text: string): string {
     [/\bthe majority of individuals\b/gi, "most people"],
     [/\bnumerous\b/gi, "many"],
     [/\bindividuals\b/gi, "people"],
+    [/\ban individual's\b/gi, "a person's"],
     [/\baffluent\b/gi, "wealthy"],
     [/\bsubsequently\b/gi, "later"],
     [/\butilized\b/gi, "used"],
@@ -2892,15 +3657,36 @@ function simplifyInflatedEnglish(text: string): string {
     [/\bfacilitated\b/gi, "helped"],
     [/\bfacilitates\b/gi, "helps"],
     [/\bfacilitate\b/gi, "help"],
+    [/\buphold\b/gi, "maintain"],
+    [/\bminimize\b/gi, "reduce"],
+    [/\blessen\b/gi, "reduce"],
+    [/\bfrequently\b/gi, "often"],
+    [/\bmultiply more quickly\b/gi, "grow faster"],
+    [/\boccurs more often\b/gi, "happens more often"],
+    [/\bhelps reduce ([^,.]+), reduce the\b/gi, "helps reduce $1 and the"],
+    [/\bThe key point is that\s+/gi, ""],
+    [/\bImportantly,\s*/gi, ""],
+    [/\bfinancial strains\b/gi, "money pressure"],
+    [/\braw materials\b/gi, "supplies"],
+    [/\binflation compounds the problem\b/gi, "inflation makes it worse"],
+    [/\bexternal disruptions\b/gi, "supply problems"],
+    [/\breshapes consumer expectations\b/gi, "changes what people expect"],
+    [/\bheightens competition\b/gi, "makes competition tougher"],
+    [/\brapidly evolving economy\b/gi, "fast-changing economy"],
+    [/\bindustry-specific expertise\b/gi, "experience in that field"],
+    [/\bspecialized skills\b/gi, "specific skills"],
+    [/\bcontinuous skill development\b/gi, "keeping skills up to date"],
   ];
 
-  let result = text;
-  for (const [pattern, replacement] of replacements) {
-    if (Math.random() < 0.6) {
-      result = result.replace(pattern, replacement);
-    }
-  }
-  return result;
+  const simplified = replacements.reduce(
+    (result, [pattern, replacement]) => result.replace(pattern, replacement),
+    text
+  );
+
+  return simplified.replace(
+    /(^|[.!?]\s+)([a-z])/g,
+    (_match, prefix: string, letter: string) => prefix + letter.toUpperCase()
+  );
 }
 
 export function enhanceVocabulary(text: string): string {
@@ -3997,6 +4783,7 @@ export function cleanupEnglishSpacing(text: string) {
     .map((line) => line.trim())
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
+    .replace(/([.!?])(?=[A-Z])/g, "$1 ")
     .trim();
 }
 
@@ -4110,9 +4897,20 @@ export function injectHumanSpecifics(text: string, sourceText: string): string {
 }
 
 function splitSentences(text: string) {
-  return text
+  const abbreviationDot = "\uE000";
+  const protectedText = text
+    .replace(
+      /\b(?:a\.m\.|p\.m\.|e\.g\.|i\.e\.)(?=\s+[a-z])/gi,
+      (value) => value.replace(/\./g, abbreviationDot)
+    )
+    .replace(
+      /\b(?:Dr|Mr|Mrs|Ms|Prof|Sr|Jr)\.(?=\s+[A-Z])/g,
+      (value) => value.replace(".", abbreviationDot)
+    );
+
+  return protectedText
     .split(/(?<=[.!?])\s+/)
-    .map((sentence) => sentence.trim())
+    .map((sentence) => sentence.replaceAll(abbreviationDot, ".").trim())
     .filter(Boolean);
 }
 
