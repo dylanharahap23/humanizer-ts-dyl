@@ -7220,9 +7220,21 @@ export function injectRealFragments(text: string): string {
   const sentences = splitSentences(text);
   if (sentences.length < 5) return text;
 
-  const fragments = ['Well.', 'No.', 'Yeah.', 'Right.', 'Hmm.', 'Okay.', 'Sure.', 'Anyway.', 'So.', 'But.', 'And.'];
+  // === UPDATED: Natural fragments, bukan 1 kata ===
+  const fragments = [
+    'Well, not always.',
+    'Not always, certainly.',
+    'But then again, maybe not.',
+    'Actually, that\'s debatable.',
+    'Or so they say.',
+    'At least that\'s what I\'ve heard.',
+    'To be fair, though.',
+    'Honestly, I\'m not sure.',
+    'That said, it depends.',
+    'Fair enough, but still.',
+  ];
 
-  // Sisipkan 2-3 fragments di posisi berbeda (tidak semua sekaligus)
+  // Sisipkan 2-3 fragments di posisi berbeda
   const count = 2 + Math.floor(Math.random() * 2);
   const positions = new Set<number>();
   while (positions.size < count && positions.size < sentences.length - 1) {
@@ -8292,4 +8304,119 @@ export function injectExtremeParagraphVariation(text: string): string {
   }
 
   return paragraphs.join('\n\n');
+}
+
+// ============================================================
+// NEW: DETECT ESSAY TOPIC (untuk injectTopicAnchors yang lebih baik)
+// ============================================================
+
+export function detectEssayTopic(text: string): string {
+  const lower = text.toLowerCase();
+  if (/\b(city|urban|urbanisation|metropolitan|population|overcrowding|transport|housing)\b/i.test(lower)) {
+    return 'urban';
+  }
+  if (/\b(education|reading|child|learn|play|student|teacher|school)\b/i.test(lower)) {
+    return 'education';
+  }
+  if (/\b(women|gender|female|male|equality|traditional roles|housewife|homemaker)\b/i.test(lower)) {
+    return 'gender';
+  }
+  if (/\b(ai|artificial intelligence|chatgpt|openai|llm|model|machine learning|technology)\b/i.test(lower)) {
+    return 'technology';
+  }
+  if (/\b(crime|criminal|police|prison|justice|law|offender)\b/i.test(lower)) {
+    return 'crime';
+  }
+  return 'general';
+}
+
+// ============================================================
+// NEW: INJECT UNCERTAINTY ENDING (Gap - Kesimpulan terlalu optimis)
+// ============================================================
+
+/**
+ * Mengubah kesimpulan yang optimis menjadi lebih skeptis/terbuka
+ */
+export function injectUncertaintyEnding(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+  
+  // Cari kalimat terakhir
+  const lastSentence = sentences[sentences.length - 1];
+  
+  // Jika terakhir adalah kesimpulan optimis, ganti
+  if (/\b(can become|will become|should be|must be)\b/i.test(lastSentence) && 
+      /\b(healthier|more sustainable|more enjoyable|better|improved)\b/i.test(lastSentence)) {
+    const uncertainClosings = [
+      'Various solutions exist to mitigate such drawbacks, but nevertheless a definite solution has yet to be found.',
+      'Though progress is possible, the challenges are far from fully resolved.',
+      'In the end, the answer remains elusive for many cities.',
+      'There is no simple solution, and each city must find its own path.',
+    ];
+    sentences[sentences.length - 1] = uncertainClosings[Math.floor(Math.random() * uncertainClosings.length)];
+  }
+  
+  return sentences.join(' ');
+}
+
+// ============================================================
+// NEW: HUMANIZE ACADEMIC STRUCTURE (Gap - Base text masih AI)
+// ============================================================
+
+/**
+ * Mengubah esai formulaik menjadi alur yang lebih human:
+ * - Historical opening (bukan "In recent years...")
+ * - Paradox framing ("paradoxically")
+ * - Ketidakpastian di akhir ("no definite solution has yet been found")
+ * - Contoh spesifik on-topic
+ */
+export function humanizeAcademicStructure(text: string, topic: string): string {
+  // Deteksi topik
+  const lower = text.toLowerCase();
+  let isUrban = /\b(city|urban|urbanisation|metropolitan|population|overcrowding|transport|housing)\b/i.test(lower);
+  let isEducation = /\b(education|reading|child|learn|play)\b/i.test(lower);
+  let isGender = /\b(women|gender|female|male|equality|traditional roles)\b/i.test(lower);
+  
+  // Pilih opening alternatif berdasarkan topik
+  let opening = '';
+  if (isUrban) {
+    opening = 'The global phenomenon of urbanisation from the beginning of industrialisation to the present day has brought opportunity and prosperity, albeit at a cost in the quality of life. With an increasing city population, the complexity of the challenges also increases. The causes and solutions for this are outlined below.';
+  } else if (isEducation) {
+    opening = 'Parents throughout the world spend time reading with their offspring to prepare them for school where their literacy skills are further developed; however, recent research suggests that focusing on reading at an early age can be detrimental, and participating in fun activities would be far more beneficial.';
+  } else if (isGender) {
+    opening = 'Women and men have had different roles in the community since the beginning. Under modern pretexts these differences are slowly converging. However, due to the genetic inheritance and socio-demographic components, these differences do exist.';
+  } else {
+    // Fallback: ambil 2 kalimat pertama dari teks, tapi ubah sedikit
+    const sentences = splitSentences(text);
+    if (sentences.length >= 2) {
+      opening = sentences[0] + ' ' + sentences[1];
+    } else {
+      opening = text.slice(0, 150);
+    }
+  }
+  
+  // 1. Ganti pembuka dengan opening alternatif
+  let result = opening + ' ';
+  
+  // 2. Ambil kalimat-kalimat inti (tanpa transisi formulaik)
+  const bodySentences = splitSentences(text).slice(2); // skip 2 kalimat pertama
+  
+  // 3. Tambahkan "paradoxically" framing di suatu tempat
+  const paradoxFraming = 'The causes for the decrease in the quality of life are paradoxically the prosperity endowed on such metropolitan centres.';
+  result += paradoxFraming + ' ';
+  
+  // 4. Tambahkan body sentences
+  result += bodySentences.join(' ') + ' ';
+  
+  // 5. Ubah kesimpulan menjadi ketidakpastian
+  const uncertainEnding = 'Various solutions exist to mitigate such drawbacks, but nevertheless a definite solution has yet to be found.';
+  
+  // Cari "In conclusion" dan ganti dengan uncertain ending
+  if (result.includes('In conclusion')) {
+    result = result.replace(/In conclusion[^.]*\./i, uncertainEnding);
+  } else {
+    result += uncertainEnding;
+  }
+  
+  return result;
 }
