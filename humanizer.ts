@@ -338,18 +338,22 @@ You are rewriting a general explanation about an emotionally relatable life expe
 
 Voice and structure:
 - Silently identify the source's claim units, then rebuild the passage around the reader's experience.
-- You may use second person conditionally.
+- Preserve the source point of view. Use second person only when it already appears in the source or in verified author context.
 - Preserve hedging and scope.
 - Do not use first-person pronouns unless they already appear in the source.
 - Contractions are welcome where they sound natural.
 - Keep the emotional tone already present in the source.
 - Use ordinary words. Keep the language literal and direct.
-- For a source between 120 and 350 words, use three coherent paragraphs with visibly different lengths.
+- For a source between 120 and 350 words, use two or three idea-based paragraphs with visibly different lengths.
+- Create rhythm from the source itself: isolate an existing consequence as a short complete sentence, keep a related explanation naturally dense, and vary clause openings.
+- Break up polished three-part and four-part lists when the same items can be carried across uneven complete sentences.
 - Do not add a final summary paragraph that lists the factors again.
 
 Do not:
 - Invent personal experience, scenes, dialogue, facts, examples, statistics, advice, or a life lesson.
 - Make a general example more specific.
+- Invent research, studies, authorities, or stronger causal language than the source provides.
+- Replace ordinary source wording with dramatic intensifiers or clinical-sounding synonyms.
 - Add random fillers, emojis, deliberate errors, profanity, or performative phrases.
 - Change an explanation into instructions.
 
@@ -578,11 +582,29 @@ Return only the rewritten text.
  * dan menulis ulang berdasarkan pemahaman, bukan parafrase.
  */
 export function buildSemanticRegenerationPrompt(
-  _sourceText: string,
+  sourceText: string,
   tone: string
 ): string {
   const isControlledRegister =
     tone === "english-academic" || tone === "english-sensitive" || tone === "ielts";
+  const sourceHasFirstPerson =
+    /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(sourceText);
+  const sourceHasSecondPerson =
+    /\b(?:you|your|yours|yourself|yourselves)\b/i.test(sourceText);
+  const sourceHasQuestion = /\?/.test(sourceText);
+  const sourceWordCount = sourceText.split(/\s+/).filter(Boolean).length;
+  const rhythmOptions = [
+    "Separate one source-supported consequence into a short complete sentence, while leaving one closely related explanation naturally dense.",
+    "Rework one parallel list across uneven complete clauses, preserving every item and its original governing claim.",
+    "Vary the openings by leading some sentences with a concrete cause, condition, or consequence already present in the source.",
+  ];
+  const rhythmOption =
+    rhythmOptions[simpleHash(`${tone}:${sourceText}`) % rhythmOptions.length];
+  const rhythmContract =
+    sourceWordCount >= 100
+      ? `- ${rhythmOption}
+- Include visible sentence-length contrast, but do not manufacture fragments, padding, or a repeated short-long-short formula.`
+      : "- Let sentence length follow the source ideas; do not force a template.";
 
   return `
 SOURCE-GROUNDED RECOMPOSITION:
@@ -595,11 +617,20 @@ Non-negotiable accuracy:
 - Do not add a person, personal experience, opinion, anecdote, statistic, location, quotation, recommendation, or outside fact.
 - Do not drop a substantive source claim merely to make the prose shorter.
 
+Point of view:
+- ${sourceHasFirstPerson ? "Preserve the source's existing first-person perspective without adding a new experience or opinion." : "Do not introduce I, me, my, we, us, or our."}
+- ${sourceHasSecondPerson ? "Preserve source-supported second-person address without treating the reader as a known individual." : "Do not introduce you, your, or direct reader address."}
+- ${sourceHasQuestion ? "Keep questions only where they preserve a question already asked by the source." : "Do not add rhetorical questions or question marks."}
+
 Composition:
 - Start with a concrete cause, effect, condition, or consequence already present in the source. Do not default to a generic topic announcement such as "Many people... because..." when a source-supported detail can lead instead.
 - Combine related claim units in some places and separate overloaded claim units in others. Avoid mirroring source sentence boundaries.
 - Let paragraph sizes follow the logic of the explanation. A paragraph may be short when one claim stands alone and longer when several source details genuinely belong together.
-- Use ordinary English and a register appropriate for the source. Prefer direct, familiar words over corporate or academic abstractions when the meaning remains identical. Do not force slang, fillers, direct address, rhetorical questions, fragments, deliberate mistakes, or a personal narrator.
+- Use ordinary English and a register appropriate for the source. Prefer direct, familiar words over corporate or academic abstractions when the meaning remains identical.
+- Do not upgrade a documented link into proof, a possibility into a prediction, or ordinary emphasis into words such as significantly, dramatically, relentlessly, or inevitably unless the source already does.
+- Avoid repeated abstract-subject openings and polished A, B, and C lists. Preserve every item, but distribute clauses naturally when the source allows it.
+${rhythmContract}
+- Do not force slang, fillers, direct address, rhetorical questions, fragments, deliberate mistakes, or a personal narrator.
 - End on the source's final substantive qualification rather than a new summary or moral.
 ${isControlledRegister ? "\n- Keep the formal register required by the source." : ""}
 
@@ -1126,14 +1157,14 @@ export function getEnglishHumanizerConfig(
   if (profile === "reflective") {
     return {
       systemPrompt: ENGLISH_REFLECTIVE_PROMPT,
-      temperature: 0.64,
-      topP: 0.9,
+      temperature: 0.72,
+      topP: 0.92,
       maxTokens: 1600,
-      frequencyPenalty: 0.03,
-      presencePenalty: 0.03,
+      frequencyPenalty: 0.06,
+      presencePenalty: 0.04,
       repetitionPenalty: 1.01,
       additionalInstruction: 
-        "Use a reader-oriented reflective voice from the source claims only. Conditional second person is allowed, but preserve every hedge, fact, example, and causal relationship; add no illustrative detail.",
+        "Use a source-faithful reflective voice with uneven but complete sentence rhythms. Preserve the source point of view, every hedge, fact, example, and causal relationship; add no narrator, reader address, research attribution, or illustrative detail.",
       postProcessTone: "english-reflective",
     };
   }
