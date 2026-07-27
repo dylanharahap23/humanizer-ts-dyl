@@ -2420,8 +2420,8 @@ export async function POST(req: Request) {
       // 3. Inject real fragments (kalimat tidak lengkap)
       currentText = injectRealFragments(currentText);
 
-      // 4. Inject obsession loop (ulangi 1 ide)
-      currentText = injectObsessionAcrossText(currentText);
+      // 4. Inject obsession loop (ulangi 1 ide) - gunakan sourceText untuk cek first/second person
+      currentText = injectObsessionAcrossText(currentText, text);
 
       // 5. Inject clustered hedging (keraguan tercluster)
       currentText = injectClusteredHedging(currentText);
@@ -2429,8 +2429,8 @@ export async function POST(req: Request) {
       // 6. Force conversational register
       currentText = forceConversationalRegister(currentText);
 
-      // 7. Inject topic-specific anchors
-      currentText = injectTopicAnchors(currentText);
+      // 7. Inject topic-specific anchors - gunakan sourceText untuk cek first/second person
+      currentText = injectTopicAnchors(currentText, text);
 
       // 8. Inject cognitive uncertainty
       currentText = injectCognitiveUncertaintyFinal(currentText);
