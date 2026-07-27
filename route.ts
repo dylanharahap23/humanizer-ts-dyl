@@ -58,6 +58,14 @@ import {
   concretizeAbstractions,
   flattenStructure,
   addControversialOpinion,
+  destroyRestatingOpening,
+  destroyThesisTemplateImproved,
+  destroyFormulaicTransitions,
+  fixSynonymOverload,
+  injectBurstiness,
+  addNaturalGrammarErrors,
+  strengthenPersonalVoice,
+  destroyParallelLists,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -3037,31 +3045,43 @@ export async function POST(req: Request) {
         
         // ========== STRATEGI GUN ESSAY (hampir lolos) ==========
         
-        // 1. Hancurkan participial phrase di opening (paling penting!)
+        // 1. Hancurkan restating opening (paling penting!)
+        currentText = destroyRestatingOpening(currentText);
+        console.log('[HUMANIZE] After destroyRestatingOpening');
+        
+        // 2. Hancurkan participial phrase di opening
         currentText = destroyParticipialPhraseOpening(currentText);
         console.log('[HUMANIZE] After destroyParticipialPhraseOpening');
         
-        // 2. Hancurkan thesis template AI
-        currentText = destroyThesisTemplate(currentText);
-        console.log('[HUMANIZE] After destroyThesisTemplate');
+        // 3. Hancurkan thesis template AI (versi improved)
+        currentText = destroyThesisTemplateImproved(currentText);
+        console.log('[HUMANIZE] After destroyThesisTemplateImproved');
         
-        // 3. Hancurkan daftar 3 item paralel
+        // 4. Hancurkan transition words formulaic
+        currentText = destroyFormulaicTransitions(currentText);
+        console.log('[HUMANIZE] After destroyFormulaicTransitions');
+        
+        // 5. Fix synonym overload - biarkan repetisi natural
+        currentText = fixSynonymOverload(currentText);
+        console.log('[HUMANIZE] After fixSynonymOverload');
+        
+        // 6. Hancurkan daftar 3 item paralel
         currentText = destroyListOfThree(currentText);
         console.log('[HUMANIZE] After destroyListOfThree');
         
-        // 4. Hapus paragraf kesimpulan eksplisit
+        // 7. Hapus paragraf kesimpulan eksplisit
         currentText = destroyConclusionParagraph(currentText);
         console.log('[HUMANIZE] After destroyConclusionParagraph');
         
-        // 5. Ubah abstraksi menjadi konkret
+        // 8. Ubah abstraksi menjadi konkret
         currentText = concretizeAbstractions(currentText);
         console.log('[HUMANIZE] After concretizeAbstractions');
         
-        // 6. Flatten structure (buat paragraf tidak seimbang)
+        // 9. Flatten structure (buat paragraf tidak seimbang)
         currentText = flattenStructure(currentText);
         console.log('[HUMANIZE] After flattenStructure');
         
-        // 7. Tambahkan opini kontroversial
+        // 10. Tambahkan opini kontroversial
         currentText = addControversialOpinion(currentText);
         console.log('[HUMANIZE] After addControversialOpinion');
         
@@ -3098,9 +3118,21 @@ export async function POST(req: Request) {
         currentText = injectBoldOpinion(currentText);
         console.log('[HUMANIZE] After injectBoldOpinion');
 
-        // Tambahkan kalimat outlier (sangat pendek & sangat panjang)
-        currentText = injectOutlierSentences(currentText);
-        console.log('[HUMANIZE] After injectOutlierSentences');
+        // Tambahkan kalimat outlier (sangat pendek & sangat panjang) - BURSTINESS
+        currentText = injectBurstiness(currentText);
+        console.log('[HUMANIZE] After injectBurstiness');
+
+        // Tambahkan grammatical errors natural
+        currentText = addNaturalGrammarErrors(currentText);
+        console.log('[HUMANIZE] After addNaturalGrammarErrors');
+
+        // Strengthen personal voice
+        currentText = strengthenPersonalVoice(currentText);
+        console.log('[HUMANIZE] After strengthenPersonalVoice');
+
+        // Destroy parallel lists
+        currentText = destroyParallelLists(currentText);
+        console.log('[HUMANIZE] After destroyParallelLists');
 
         // Hancurkan keseimbangan paragraf
         currentText = injectExtremeParagraphVariation(currentText);

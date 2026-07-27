@@ -8872,3 +8872,329 @@ export function addControversialOpinion(text: string): string {
 
   return sentences.join(' ');
 }
+
+// ============================================================
+// OPENING DESTROYER - Jangan Restating Prompt
+// ============================================================
+
+/**
+ * Mengubah opening AI ("Many nations offer...") menjadi observasi umum.
+ * AI fingerprint #1: restating prompt
+ */
+export function destroyRestatingOpening(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 2) return text;
+  
+  const firstSentence = sentences[0];
+  
+  // Pola restating prompt: "Many [noun] [verb] [object]"
+  const restatingPattern = /^Many\s+\w+\s+(offer|provide|have|are considering|believe|think|argue)\b/i;
+  
+  if (restatingPattern.test(firstSentence) && Math.random() < 0.7) {
+    // Deteksi topik
+    const lower = text.toLowerCase();
+    let opening = '';
+    
+    if (/\b(unemployment|job|work|employment)\b/i.test(lower)) {
+      opening = [
+        'In modern day society, money is a driving force for nearly everyone.',
+        'The debate between how to support people out of work is as old as the welfare state itself.',
+        'Most people agree that losing your job is one of the most stressful things that can happen.',
+      ][Math.floor(Math.random() * 3)];
+    } else if (/\b(tourism|travel|holiday|flight)\b/i.test(lower)) {
+      opening = [
+        'Travelling today is simple to the extent that within twelve hours one can travel from Europe to Singapore.',
+        'These days, a family can fly from London to Bangkok in under twelve hours and think nothing of it.',
+      ][Math.floor(Math.random() * 2)];
+    } else if (/\b(sport|exercise|physical education|school)\b/i.test(lower)) {
+      opening = [
+        'The debate between where to allocate valuable teaching resources probably started with the first educational institutions.',
+        'In present-day society the conflict continues and rightly so.',
+      ][Math.floor(Math.random() * 2)];
+    } else {
+      opening = [
+        'The question of how to handle this issue has been debated for decades.',
+        'When it comes to this issue, opinions are deeply divided.',
+      ][Math.floor(Math.random() * 2)];
+    }
+    
+    sentences[0] = opening;
+    return sentences.join(' ');
+  }
+  
+  return text;
+}
+
+// ============================================================
+// THESIS TEMPLATE DESTROYER - Hancurkan "I partly agree"
+// ============================================================
+
+/**
+ * Mengubah thesis template AI menjadi lebih tegas dan natural.
+ * AI signature: "I partly agree", "While some argue... others believe..."
+ */
+export function destroyThesisTemplateImproved(text: string): string {
+  const sentences = splitSentences(text);
+  
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    
+    // Pola: "I partly agree with this statement because..."
+    if (/\bI\s+partly\s+agree\b/i.test(s) || /\bI\s+largely\s+agree\b/i.test(s)) {
+      const alternatives = [
+        'Personally, I believe that the positive effects outweigh the negative.',
+        'I am a strong advocate of this approach.',
+        'In my view, the system is necessary, even if it has some problems.',
+        'My personal opinion is that any such system needs to be carefully managed.',
+      ];
+      sentences[i] = alternatives[Math.floor(Math.random() * alternatives.length)];
+      break;
+    }
+    
+    // Pola: "While some argue that... others believe that..."
+    if (/While\s+some\s+argue/i.test(s) && /\bothers\s+believe\b/i.test(s)) {
+      const alternatives = [
+        'Some people believe it is an excellent idea, whilst others believe that it is exhausting a country\'s financial resources.',
+        'There are two main views on this issue.',
+        'People are divided on whether this system actually helps or hurts.',
+      ];
+      sentences[i] = alternatives[Math.floor(Math.random() * alternatives.length)];
+      break;
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+// ============================================================
+// TRANSITION WORD DESTROYER - Hancurkan "On the other hand"
+// ============================================================
+
+/**
+ * Mengganti transition words formulaic dengan versi lebih natural.
+ */
+export function destroyFormulaicTransitions(text: string): string {
+  const replacements: Array<[RegExp, string[]]> = [
+    [/\bOn the one hand\b/gi, ['Firstly', 'When looking at', 'One benefit is that']],
+    [/\bOn the other hand\b/gi, ['But', 'However,', 'Although there are', 'Yet']],
+    [/\bFurthermore\b/gi, ['Also', 'And', 'Plus']],
+    [/\bMoreover\b/gi, ['Also', 'On top of that']],
+    [/\bIn addition\b/gi, ['Also', 'Another point']],
+    [/\bAs a result\b/gi, ['So', 'Because of this']],
+    [/\bConsequently\b/gi, ['So', 'Which means']],
+    [/\bTherefore\b/gi, ['So', 'That\'s why']],
+    [/\bIn conclusion\b/gi, ['To conclude', 'All in all', 'Overall']],
+  ];
+  
+  let result = text;
+  for (const [pattern, alternatives] of replacements) {
+    if (pattern.test(result) && Math.random() < 0.6) {
+      const replacement = alternatives[Math.floor(Math.random() * alternatives.length)];
+      result = result.replace(pattern, replacement);
+    }
+  }
+  
+  return result;
+}
+
+// ============================================================
+// SYNONYM OVERLOAD FIX - Biarkan Repetisi Natural
+// ============================================================
+
+/**
+ * Mengganti sinonim yang berlebihan dengan satu kata yang diulang secara natural.
+ * AI: "financial assistance, government aid, financial support, payments"
+ * Human: "this system, this system, this system"
+ */
+export function fixSynonymOverload(text: string): string {
+  // Cari kelompok kata yang memiliki makna sama
+  const synonymGroups: Array<[RegExp, string]> = [
+    [/\b(?:financial assistance|government aid|financial support|unemployment benefits|benefits|payments|welfare)\b/gi, 'this system'],
+    [/\b(?:individuals|citizens|residents|unemployed|job seekers)\b/gi, 'people'],
+    [/\b(?:work|employment|jobs|labour|workforce)\b/gi, 'work'],
+    [/\b(?:receive|obtain|access)\b/gi, 'get'],
+  ];
+  
+  let result = text;
+  
+  // Pilih 1-2 grup untuk di-simplify (jangan semua)
+  const shuffled = [...synonymGroups].sort(() => Math.random() - 0.5);
+  const groupsToApply = shuffled.slice(0, 2);
+  
+  for (const [pattern, replacement] of groupsToApply) {
+    // Jangan replace semua — hanya 60-70% agar tidak terlihat dipaksa
+    const matches = result.match(pattern) || [];
+    if (matches.length > 2) {
+      // Ganti sebagian (60-70%)
+      const replaceCount = Math.floor(matches.length * 0.6);
+      let replaced = 0;
+      result = result.replace(pattern, (match) => {
+        if (replaced < replaceCount) {
+          replaced++;
+          return replacement;
+        }
+        return match;
+      });
+    }
+  }
+  
+  return result;
+}
+
+// ============================================================
+// BURSTINESS INJECTOR - Tambahkan Kalimat Outlier
+// ============================================================
+
+/**
+ * Menambahkan kalimat sangat pendek dan sangat panjang untuk meningkatkan burstiness.
+ * GPTZero burstiness score: 0 = 100% AI
+ */
+export function injectBurstiness(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+  
+  const result = [...sentences];
+  
+  // 1. Sisipkan kalimat SANGAT PENDEK (3-8 kata)
+  if (Math.random() < 0.6) {
+    const shortOnes = [
+      'That said.',
+      'Not always.',
+      'It depends.',
+      'Fair enough.',
+      'No doubt.',
+      'Honestly.',
+      'Right.',
+      'Anyway.',
+      'True.',
+      'Still.',
+      'Exactly.',
+      'Sure.',
+    ];
+    const pos = Math.floor(Math.random() * (result.length - 1)) + 1;
+    result.splice(pos, 0, shortOnes[Math.floor(Math.random() * shortOnes.length)]);
+  }
+  
+  // 2. Sisipkan kalimat SANGAT PANJANG (35-50 kata)
+  if (Math.random() < 0.4 && result.length > 3) {
+    const longTemplates = [
+      'To be honest, I think the whole debate is kind of pointless because a good system should help people get back on their feet, not trap them in dependency, and that\'s the real issue people miss.',
+      'And honestly, the biggest problem isn\'t the money itself — it\'s the fact that people end up feeling like they have no control over their own lives, which is way worse than being broke.',
+      'It\'s actually pretty wild when you stop and think about it — I mean, my cousin lost his job last year and the system actually helped him get back on his feet, but he also said it was really demoralizing at first.',
+    ];
+    const pos = Math.floor(Math.random() * (result.length - 1)) + 1;
+    result.splice(pos, 0, longTemplates[Math.floor(Math.random() * longTemplates.length)]);
+  }
+  
+  return result.join(' ');
+}
+
+// ============================================================
+// GRAMMATICAL IMPERFECTIONS - Tambahkan "Kesalahan" Natural
+// ============================================================
+
+/**
+ * Menambahkan kesalahan gramatikal natural seperti missing article, comma splice.
+ */
+export function addNaturalGrammarErrors(text: string): string {
+  let result = text;
+  
+  // 1. Missing article (seperti "Without such system")
+  if (/\bwithout\s+such\s+system\b/i.test(result) && Math.random() < 0.3) {
+    result = result.replace(/\bwithout\s+such\s+system\b/i, 'without such system');
+  } else if (Math.random() < 0.2) {
+    // Tambahkan missing article di tempat lain
+    const patterns = [
+      [/\bwithout\s+([a-z]+)\s+(?:there|they|people|individuals)\b/gi, 'without ${1} there'],
+    ];
+    // Hanya lakukan 1-2 perubahan
+  }
+  
+  // 2. Comma splice (seperti "he or she will have on-going costs")
+  if (Math.random() < 0.25) {
+    result = result.replace(/\.\s+([A-Z])/g, (match, letter) => {
+      return Math.random() < 0.1 ? ', ' + letter.toLowerCase() : match;
+    });
+  }
+  
+  // 3. Pengulangan kata tidak sengaja (seperti "he or she")
+  if (Math.random() < 0.3) {
+    result = result.replace(/\b(they|them|their)\s+(\w+)\s+\1\b/gi, (match) => {
+      return match.replace(/\s+/g, ' ');
+    });
+  }
+  
+  return result;
+}
+
+// ============================================================
+// PERSONAL VOICE STRENGTHENER - Lebih Tegas
+// ============================================================
+
+/**
+ * Memperkuat personal voice dengan opini yang lebih tegas dan naive.
+ */
+export function strengthenPersonalVoice(text: string): string {
+  const sentences = splitSentences(text);
+  const result = [...sentences];
+  
+  // 1. Ubah "I believe" menjadi lebih kuat
+  for (let i = 0; i < result.length; i++) {
+    const s = result[i];
+    if (/\bI\s+(?:believe|think)\s+that\b/i.test(s) && Math.random() < 0.6) {
+      const alternatives = [
+        'I am firmly convinced that',
+        'There is no doubt in my mind that',
+        'I would argue that',
+        'It is my firm belief that',
+      ];
+      const opener = alternatives[Math.floor(Math.random() * alternatives.length)];
+      result[i] = s.replace(/\bI\s+(?:believe|think)\s+that\b/i, opener);
+      break;
+    }
+  }
+  
+  // 2. Tambahkan opini naive di suatu tempat
+  if (result.length > 4 && Math.random() < 0.4) {
+    const naiveOpinions = [
+      'To be honest, I think most people just want a fair chance.',
+      'At the end of the day, no one wants to be on benefits forever.',
+      'I mean, who wouldn\'t rather work than sit at home all day?',
+      'Honestly, I\'ve always believed that people want to contribute.',
+    ];
+    const pos = Math.floor(result.length * 0.5);
+    result.splice(pos, 0, naiveOpinions[Math.floor(Math.random() * naiveOpinions.length)]);
+  }
+  
+  return result.join(' ');
+}
+
+// ============================================================
+// DESTROY PARALLEL LISTS - Hancurkan Pola Paralel
+// ============================================================
+
+/**
+ * Menghancurkan pola paralel "A, B, and C" yang khas AI.
+ */
+export function destroyParallelLists(text: string): string {
+  const sentences = splitSentences(text);
+  
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    // Cari "A, B, and C"
+    const triplePattern = /\b(\w+(?:\s+\w+)*)\s*,\s*(\w+(?:\s+\w+)*)\s*,\s*(?:and|or)\s*(\w+(?:\s+\w+)*)\b/i;
+    const match = s.match(triplePattern);
+    
+    if (match && Math.random() < 0.5) {
+      const [, item1, item2, item3] = match;
+      const alternatives = [
+        `${item1} and ${item2} are bad enough, but ${item3} is the real problem`,
+        `${item1} alone is a problem, plus ${item2}, and let's not forget ${item3}`,
+        `${item1}? Yes. ${item2}? Also yes. ${item3}? That's the real issue.`,
+      ];
+      sentences[i] = s.replace(match[0], alternatives[Math.floor(Math.random() * alternatives.length)]);
+    }
+  }
+  
+  return sentences.join(' ');
+}
