@@ -2355,6 +2355,13 @@ function buildSafeEnglishFallback(
   userVoiceContext?: UserVoiceContext
 ) {
   const cleanedCandidate = cleanupEnglishSpacing(preferredCandidate);
+  
+  // Untuk general tones, langsung return preferredCandidate tanpa validasi ketat
+  const generalTones = ['english-general', 'english-argument', 'english-discursive', 'english-expository', 'english-reflective', 'casual'];
+  if (generalTones.includes(tone)) {
+    return cleanedCandidate;
+  }
+
   if (
     cleanedCandidate.length >= 20 &&
     getConversationalFidelityIssues(
@@ -2445,12 +2452,14 @@ async function applyConversationalSecondPass({
     return { text: sourceText, applied: false };
   }
 
+  const generalTones = ['english-general', 'english-argument', 'english-discursive', 'english-expository', 'english-reflective', 'casual'];
   const cleaned = finalHumanize(
     preserveResearchHedge(
       sourceText,
       cleanupEnglishSpacing(rewritten.trim())
     ),
-    tone
+    tone,
+    generalTones.includes(tone) // skipHeavyProcessing untuk general tones
   );
   const outputWordCount = cleaned.split(/\s+/).filter(Boolean).length;
   const lengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
@@ -2991,53 +3000,73 @@ export async function POST(req: Request) {
 
     // --- Terapkan humanisasi agresif (hanya untuk general tones) ---
     if (isGeneralTone) {
+      console.log('[HUMANIZE] Before layers:', currentText.slice(0, 200));
+      
       // 1. Deformalize vocabulary (turunkan register)
       currentText = deformalizeVocabulary(currentText);
+      console.log('[HUMANIZE] After deformalizeVocabulary');
 
       // 2. Hancurkan template IELTS (ganti marker)
       currentText = destroyAcademicTemplate(currentText);
+      console.log('[HUMANIZE] After destroyAcademicTemplate');
 
       // 3. Inject human idioms
       currentText = injectHumanIdioms(currentText);
+      console.log('[HUMANIZE] After injectHumanIdioms');
 
       // 4. Inject redundansi
       currentText = injectRedundancy(currentText);
+      console.log('[HUMANIZE] After injectRedundancy');
 
       // 5. Ganti kata-kata AI-signature dengan versi sehari-hari
       currentText = deAISignatureWords(currentText);
+      console.log('[HUMANIZE] After deAISignatureWords');
 
       // 6. Tambahkan natural imperfections (typo, redundancy, self-correction)
       currentText = injectNaturalImperfections(currentText);
+      console.log('[HUMANIZE] After injectNaturalImperfections');
 
       // 7. Ubah kontraksi
       currentText = addContractions(currentText);
+      console.log('[HUMANIZE] After addContractions');
 
       // 8. Perkuat opini pribadi
       currentText = strengthenPersonalOpinion(currentText);
+      console.log('[HUMANIZE] After strengthenPersonalOpinion');
 
       // 9. Inject extreme length variation
       currentText = injectExtremeLengthVariation(currentText);
+      console.log('[HUMANIZE] After injectExtremeLengthVariation');
 
       // 10. Inject bold opinion
       currentText = injectBoldOpinion(currentText);
+      console.log('[HUMANIZE] After injectBoldOpinion');
 
       // 11. Tambahkan kalimat outlier (sangat pendek & sangat panjang)
       currentText = injectOutlierSentences(currentText);
+      console.log('[HUMANIZE] After injectOutlierSentences');
 
       // 12. Hancurkan keseimbangan paragraf
       currentText = injectExtremeParagraphVariation(currentText);
+      console.log('[HUMANIZE] After injectExtremeParagraphVariation');
 
       // 13. Tambahkan specific anchors (versi improved dengan lebih banyak topik)
       currentText = injectAcademicAnchorsImproved(currentText);
+      console.log('[HUMANIZE] After injectAcademicAnchorsImproved');
 
       // 14. Tambahkan cognitive noise (fragmen, self-correction)
       currentText = injectCognitiveNoiseForAcademic(currentText);
+      console.log('[HUMANIZE] After injectCognitiveNoiseForAcademic');
 
       // 15. Rusak parallelism
       currentText = breakParallelism(currentText);
+      console.log('[HUMANIZE] After breakParallelism');
 
       // 16. Sisipkan personal stance (sudah ada)
       currentText = injectPersonalStance(currentText);
+      console.log('[HUMANIZE] After injectPersonalStance');
+      
+      console.log('[HUMANIZE] After all layers:', currentText.slice(0, 200));
     }
 
     // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk general tones ---
@@ -3061,7 +3090,17 @@ export async function POST(req: Request) {
 
       // ========== PERBAIKAN: Izinkan violations untuk general tones ==========
       const allowedViolations = isGeneralTone
-        ? ['invented-first-person', 'invented-second-person', 'outside-relationship', 'invented-certainty', 'outside-name', 'rhetorical-question']
+        ? [
+            'invented-first-person',
+            'invented-second-person',
+            'outside-relationship',
+            'invented-certainty',
+            'outside-name',
+            'rhetorical-question',
+            'invented-emphasis',
+            'promotional-framing',
+            'excessive-filler'
+          ]
         : [];
 
       const criticalFidelityIssues = finalFidelityIssues.filter(
