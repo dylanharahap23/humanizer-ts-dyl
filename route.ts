@@ -49,6 +49,8 @@ import {
   injectUncertaintyEnding,
   detectEssayTopic,
   humanizeAcademicStructure,
+  isHumanFingerprintEligible,
+  HUMAN_FINGERPRINT_REWRITE_PROMPT,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -2851,6 +2853,19 @@ export async function POST(req: Request) {
         : body.useTwoPass === true ||
           config.postProcessTone !== "english-academic";
 
+    // --- Deteksi eligible untuk human fingerprint rewrite ---
+    const isEligibleForFingerprint = isHumanFingerprintEligible(text, config.postProcessTone);
+
+    if (isEligibleForFingerprint) {
+      console.log('[HUMANIZE] Human fingerprint rewrite eligible - overriding system prompt');
+      // Override system prompt dengan human fingerprint rewrite
+      config.systemPrompt = HUMAN_FINGERPRINT_REWRITE_PROMPT.replace('{sourceText}', text);
+      // Turunkan temperature sedikit agar lebih konsisten tapi tetap kreatif
+      config.temperature = 0.78;
+      config.topP = 0.92;
+      config.maxTokens = 1200;
+    }
+
     const controller = new AbortController();
     timeout = setTimeout(() => controller.abort(), HUMANIZE_TIMEOUT_MS);
 
@@ -3005,86 +3020,93 @@ export async function POST(req: Request) {
 
     // --- Terapkan humanisasi agresif (hanya untuk general tones) ---
     if (isGeneralTone) {
-      console.log('[HUMANIZE] Before layers:', currentText.slice(0, 200));
-      
-      // 1. Deformalize vocabulary (turunkan register)
-      currentText = deformalizeVocabulary(currentText);
-      console.log('[HUMANIZE] After deformalizeVocabulary');
+      // Jika output sudah dari human fingerprint, lewati semua inject noise
+      if (isEligibleForFingerprint) {
+        console.log('[HUMANIZE] Human fingerprint rewrite applied – skipping aggressive noise injections');
+        // Hanya lakukan cleanup spacing
+        currentText = cleanupEnglishSpacing(currentText);
+      } else {
+        console.log('[HUMANIZE] Before layers:', currentText.slice(0, 200));
+        
+        // 1. Deformalize vocabulary (turunkan register)
+        currentText = deformalizeVocabulary(currentText);
+        console.log('[HUMANIZE] After deformalizeVocabulary');
 
-      // 2. Hancurkan template IELTS (ganti marker)
-      currentText = destroyAcademicTemplate(currentText);
-      console.log('[HUMANIZE] After destroyAcademicTemplate');
+        // 2. Hancurkan template IELTS (ganti marker)
+        currentText = destroyAcademicTemplate(currentText);
+        console.log('[HUMANIZE] After destroyAcademicTemplate');
 
-      // 3. Humanize academic structure (historical opening, paradox framing, uncertain ending)
-      const detectedTopic = detectEssayTopic(text);
-      currentText = humanizeAcademicStructure(currentText, detectedTopic);
-      console.log('[HUMANIZE] After humanizeAcademicStructure');
+        // 3. Humanize academic structure (historical opening, paradox framing, uncertain ending)
+        const detectedTopic = detectEssayTopic(text);
+        currentText = humanizeAcademicStructure(currentText, detectedTopic);
+        console.log('[HUMANIZE] After humanizeAcademicStructure');
 
-      // 4. Inject human idioms
-      currentText = injectHumanIdioms(currentText);
-      console.log('[HUMANIZE] After injectHumanIdioms');
+        // 4. Inject human idioms
+        currentText = injectHumanIdioms(currentText);
+        console.log('[HUMANIZE] After injectHumanIdioms');
 
-      // 5. Inject redundansi
-      currentText = injectRedundancy(currentText);
-      console.log('[HUMANIZE] After injectRedundancy');
+        // 5. Inject redundansi
+        currentText = injectRedundancy(currentText);
+        console.log('[HUMANIZE] After injectRedundancy');
 
-      // 6. Ganti kata-kata AI-signature dengan versi sehari-hari
-      currentText = deAISignatureWords(currentText);
-      console.log('[HUMANIZE] After deAISignatureWords');
+        // 6. Ganti kata-kata AI-signature dengan versi sehari-hari
+        currentText = deAISignatureWords(currentText);
+        console.log('[HUMANIZE] After deAISignatureWords');
 
-      // 7. Tambahkan natural imperfections (typo, redundancy, self-correction)
-      currentText = injectNaturalImperfections(currentText);
-      console.log('[HUMANIZE] After injectNaturalImperfections');
+        // 7. Tambahkan natural imperfections (typo, redundancy, self-correction)
+        currentText = injectNaturalImperfections(currentText);
+        console.log('[HUMANIZE] After injectNaturalImperfections');
 
-      // 8. Ubah kontraksi
-      currentText = addContractions(currentText);
-      console.log('[HUMANIZE] After addContractions');
+        // 8. Ubah kontraksi
+        currentText = addContractions(currentText);
+        console.log('[HUMANIZE] After addContractions');
 
-      // 9. Perkuat opini pribadi
-      currentText = strengthenPersonalOpinion(currentText);
-      console.log('[HUMANIZE] After strengthenPersonalOpinion');
+        // 9. Perkuat opini pribadi
+        currentText = strengthenPersonalOpinion(currentText);
+        console.log('[HUMANIZE] After strengthenPersonalOpinion');
 
-      // 10. Inject extreme length variation
-      currentText = injectExtremeLengthVariation(currentText);
-      console.log('[HUMANIZE] After injectExtremeLengthVariation');
+        // 10. Inject extreme length variation
+        currentText = injectExtremeLengthVariation(currentText);
+        console.log('[HUMANIZE] After injectExtremeLengthVariation');
 
-      // 11. Inject bold opinion
-      currentText = injectBoldOpinion(currentText);
-      console.log('[HUMANIZE] After injectBoldOpinion');
+        // 11. Inject bold opinion
+        currentText = injectBoldOpinion(currentText);
+        console.log('[HUMANIZE] After injectBoldOpinion');
 
-      // 12. Tambahkan kalimat outlier (sangat pendek & sangat panjang)
-      currentText = injectOutlierSentences(currentText);
-      console.log('[HUMANIZE] After injectOutlierSentences');
+        // 12. Tambahkan kalimat outlier (sangat pendek & sangat panjang)
+        currentText = injectOutlierSentences(currentText);
+        console.log('[HUMANIZE] After injectOutlierSentences');
 
-      // 13. Hancurkan keseimbangan paragraf
-      currentText = injectExtremeParagraphVariation(currentText);
-      console.log('[HUMANIZE] After injectExtremeParagraphVariation');
+        // 13. Hancurkan keseimbangan paragraf
+        currentText = injectExtremeParagraphVariation(currentText);
+        console.log('[HUMANIZE] After injectExtremeParagraphVariation');
 
-      // 14. Tambahkan on-topic anchors (London/Bradford untuk urban, dll)
-      currentText = injectTopicAnchors(currentText, text);
-      console.log('[HUMANIZE] After injectTopicAnchors');
+        // 14. Tambahkan on-topic anchors (London/Bradford untuk urban, dll)
+        currentText = injectTopicAnchors(currentText, text);
+        console.log('[HUMANIZE] After injectTopicAnchors');
 
-      // 15. Tambahkan natural fragments (Well, not always.)
-      currentText = injectRealFragments(currentText);
-      console.log('[HUMANIZE] After injectRealFragments');
+        // 15. Tambahkan natural fragments (Well, not always.)
+        currentText = injectRealFragments(currentText);
+        console.log('[HUMANIZE] After injectRealFragments');
 
-      // 16. Tambahkan cognitive noise (fragmen, self-correction)
-      currentText = injectCognitiveNoiseForAcademic(currentText);
-      console.log('[HUMANIZE] After injectCognitiveNoiseForAcademic');
+        // 16. Tambahkan cognitive noise (fragmen, self-correction)
+        currentText = injectCognitiveNoiseForAcademic(currentText);
+        console.log('[HUMANIZE] After injectCognitiveNoiseForAcademic');
 
-      // 17. Rusak parallelism
-      currentText = breakParallelism(currentText);
-      console.log('[HUMANIZE] After breakParallelism');
+        // 17. Rusak parallelism
+        currentText = breakParallelism(currentText);
+        console.log('[HUMANIZE] After breakParallelism');
 
-      // 18. Sisipkan personal stance (sudah ada)
-      currentText = injectPersonalStance(currentText);
-      console.log('[HUMANIZE] After injectPersonalStance');
+        // 18. Sisipkan personal stance (sudah ada)
+        currentText = injectPersonalStance(currentText);
+        console.log('[HUMANIZE] After injectPersonalStance');
 
-      // 19. Ubah kesimpulan jadi tidak pasti
-      currentText = injectUncertaintyEnding(currentText);
-      console.log('[HUMANIZE] After injectUncertaintyEnding');
-      
-      console.log('[HUMANIZE] After all layers:', currentText.slice(0, 200));
+        // 19. Ubah kesimpulan jadi tidak pasti
+        currentText = injectUncertaintyEnding(currentText);
+        console.log('[HUMANIZE] After injectUncertaintyEnding');
+        
+        console.log('[HUMANIZE] After all layers:', currentText.slice(0, 200));
+      }
     }
 
     // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk general tones ---

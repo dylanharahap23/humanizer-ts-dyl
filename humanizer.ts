@@ -111,6 +111,58 @@ Do not:
 Return only the rewritten English text.
 `;
 
+// ============================================================
+// HUMAN FINGERPRINT REWRITE PROMPT (untuk general & academic)
+// ============================================================
+
+export const HUMAN_FINGERPRINT_REWRITE_PROMPT = `
+You are a real person with a strong opinion, writing a short essay on the topic below. You are NOT an AI assistant. You are NOT a textbook. You are a knowledgeable individual sharing your perspective.
+
+CRITICAL RULES (follow strictly):
+
+1. OPENING:
+   - Start with a personal observation, a historical reference, or a counter-intuitive statement. 
+   - NEVER start with "Many people believe", "In recent years", "It is often said", or "There is a growing trend".
+   - Example: "The debate between where to allocate valuable teaching resources probably started with the first educational institutions."
+
+2. STRUCTURE:
+   - Do NOT use "Firstly, ... Secondly, ... Finally, ... In conclusion".
+   - Use organic transitions: "One reason", "Another point", "To sum up", or just jump to the next idea.
+   - Paragraph lengths must vary: one short paragraph (1-2 sentences), one long (4-6 sentences).
+
+3. OPINION & VOICE:
+   - State your opinion clearly and early: "In my opinion", "I strongly believe", "Personally, I think".
+   - Use "I" confidently. Do not hedge excessively.
+   - Use contractions: "don't", "can't", "it's", "we're".
+
+4. EXAMPLES & EVIDENCE:
+   - Include a specific, concrete example (can be a country, city, school, or study).
+   - The example must be ON-TOPIC and relevant to the essay.
+   - Example (for sport essay): "For example, to play almost any sport one has to invest in the appropriate equipment, ranging from shorts, t-shirts to rackets and balls."
+
+5. LANGUAGE:
+   - Use everyday vocabulary. Avoid "fosters", "cultivates", "significantly", "moreover", "furthermore".
+   - Use "helps", "teaches", "improves", "encourages" instead.
+
+6. ENDING:
+   - Do not write a generic "In conclusion" summary.
+   - End with a final thought, a prediction, or a lingering question.
+   - Example: "To conclude, young learners going through school would finish much better prepared for life avoiding sport tuition."
+
+7. FORBIDDEN PATTERNS:
+   - NEVER use: "On the one hand... On the other hand"
+   - NEVER use: "This essay will discuss"
+   - NEVER use: "Firstly, ... Secondly, ... Finally, ... In conclusion"
+   - NEVER use a list of three parallel benefits.
+
+Now rewrite the following text in this human style:
+
+SOURCE TEXT:
+{sourceText}
+
+Return only the rewritten essay. No extra text.
+`;
+
 const PRODUCT_REVIEW_REFORMAT_PROMPT = `
 Rewrite the following explanation as a friendly, informal product review or comparison guide.
 Use a Q&A style or section headings to break up the information.
@@ -789,6 +841,43 @@ export function isFormalReligiousEssay(text: string): boolean {
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   const hasEssayMarkers = /\b(nevertheless|although|whereas|despite|however|in the end|overall|therefore|consequently|furthermore|moreover)\b/i.test(text);
   return hasReligious && wordCount > 120 && hasEssayMarkers;
+}
+
+/**
+ * Determines if the source text is a generic IELTS-style essay that needs
+ * a full human fingerprint rewrite.
+ */
+export function isHumanFingerprintEligible(
+  text: string,
+  tone: HumanizerPostProcessTone
+): boolean {
+  // Hanya untuk general/academic/argument/discursive/expository
+  const eligibleTones = [
+    'english-general',
+    'english-academic',
+    'english-argument',
+    'english-discursive',
+    'english-expository',
+    'casual',
+  ];
+  if (!eligibleTones.includes(tone)) return false;
+
+  // Panjang teks > 80 kata (bukan pertanyaan pendek)
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (wordCount < 80) return false;
+
+  // Deteksi template IELTS: "Firstly, ... Secondly, ... In conclusion"
+  const hasFirstly = /\bFirstly,?\b/i.test(text);
+  const hasSecondly = /\bSecondly,?\b/i.test(text);
+  const hasInConclusion = /\bIn conclusion,?\b/i.test(text);
+  const hasOnOneHand = /\bOn the one hand,?\b/i.test(text);
+  const hasOnOtherHand = /\bOn the other hand,?\b/i.test(text);
+
+  // Jika punya setidaknya 2 dari 3 marker template, anggap layak
+  const templateMarkers = [hasFirstly, hasSecondly, hasInConclusion, hasOnOneHand, hasOnOtherHand];
+  const count = templateMarkers.filter(Boolean).length;
+
+  return count >= 2;
 }
 
 export function detectEnglishWritingProfile(
