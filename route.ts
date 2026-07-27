@@ -44,6 +44,11 @@ import {
   strengthenPersonalOpinion,
   injectOutlierSentences,
   injectExtremeParagraphVariation,
+  injectTopicAnchors,
+  injectRealFragments,
+  injectUncertaintyEnding,
+  detectEssayTopic,
+  humanizeAcademicStructure,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -3010,61 +3015,74 @@ export async function POST(req: Request) {
       currentText = destroyAcademicTemplate(currentText);
       console.log('[HUMANIZE] After destroyAcademicTemplate');
 
-      // 3. Inject human idioms
+      // 3. Humanize academic structure (historical opening, paradox framing, uncertain ending)
+      const detectedTopic = detectEssayTopic(text);
+      currentText = humanizeAcademicStructure(currentText, detectedTopic);
+      console.log('[HUMANIZE] After humanizeAcademicStructure');
+
+      // 4. Inject human idioms
       currentText = injectHumanIdioms(currentText);
       console.log('[HUMANIZE] After injectHumanIdioms');
 
-      // 4. Inject redundansi
+      // 5. Inject redundansi
       currentText = injectRedundancy(currentText);
       console.log('[HUMANIZE] After injectRedundancy');
 
-      // 5. Ganti kata-kata AI-signature dengan versi sehari-hari
+      // 6. Ganti kata-kata AI-signature dengan versi sehari-hari
       currentText = deAISignatureWords(currentText);
       console.log('[HUMANIZE] After deAISignatureWords');
 
-      // 6. Tambahkan natural imperfections (typo, redundancy, self-correction)
+      // 7. Tambahkan natural imperfections (typo, redundancy, self-correction)
       currentText = injectNaturalImperfections(currentText);
       console.log('[HUMANIZE] After injectNaturalImperfections');
 
-      // 7. Ubah kontraksi
+      // 8. Ubah kontraksi
       currentText = addContractions(currentText);
       console.log('[HUMANIZE] After addContractions');
 
-      // 8. Perkuat opini pribadi
+      // 9. Perkuat opini pribadi
       currentText = strengthenPersonalOpinion(currentText);
       console.log('[HUMANIZE] After strengthenPersonalOpinion');
 
-      // 9. Inject extreme length variation
+      // 10. Inject extreme length variation
       currentText = injectExtremeLengthVariation(currentText);
       console.log('[HUMANIZE] After injectExtremeLengthVariation');
 
-      // 10. Inject bold opinion
+      // 11. Inject bold opinion
       currentText = injectBoldOpinion(currentText);
       console.log('[HUMANIZE] After injectBoldOpinion');
 
-      // 11. Tambahkan kalimat outlier (sangat pendek & sangat panjang)
+      // 12. Tambahkan kalimat outlier (sangat pendek & sangat panjang)
       currentText = injectOutlierSentences(currentText);
       console.log('[HUMANIZE] After injectOutlierSentences');
 
-      // 12. Hancurkan keseimbangan paragraf
+      // 13. Hancurkan keseimbangan paragraf
       currentText = injectExtremeParagraphVariation(currentText);
       console.log('[HUMANIZE] After injectExtremeParagraphVariation');
 
-      // 13. Tambahkan specific anchors (versi improved dengan lebih banyak topik)
-      currentText = injectAcademicAnchorsImproved(currentText);
-      console.log('[HUMANIZE] After injectAcademicAnchorsImproved');
+      // 14. Tambahkan on-topic anchors (London/Bradford untuk urban, dll)
+      currentText = injectTopicAnchors(currentText, text);
+      console.log('[HUMANIZE] After injectTopicAnchors');
 
-      // 14. Tambahkan cognitive noise (fragmen, self-correction)
+      // 15. Tambahkan natural fragments (Well, not always.)
+      currentText = injectRealFragments(currentText);
+      console.log('[HUMANIZE] After injectRealFragments');
+
+      // 16. Tambahkan cognitive noise (fragmen, self-correction)
       currentText = injectCognitiveNoiseForAcademic(currentText);
       console.log('[HUMANIZE] After injectCognitiveNoiseForAcademic');
 
-      // 15. Rusak parallelism
+      // 17. Rusak parallelism
       currentText = breakParallelism(currentText);
       console.log('[HUMANIZE] After breakParallelism');
 
-      // 16. Sisipkan personal stance (sudah ada)
+      // 18. Sisipkan personal stance (sudah ada)
       currentText = injectPersonalStance(currentText);
       console.log('[HUMANIZE] After injectPersonalStance');
+
+      // 19. Ubah kesimpulan jadi tidak pasti
+      currentText = injectUncertaintyEnding(currentText);
+      console.log('[HUMANIZE] After injectUncertaintyEnding');
       
       console.log('[HUMANIZE] After all layers:', currentText.slice(0, 200));
     }
