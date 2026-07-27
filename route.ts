@@ -28,14 +28,6 @@ import {
   normalizeHumanizerTone,
   cleanupEnglishSpacing,
   type HumanizerPromptConfig,
-  transformReasoningGraph,
-  injectRealFragments,
-  injectObsessionAcrossText,
-  injectClusteredHedging,
-  forceConversationalRegister,
-  injectTopicAnchors,
-  injectCognitiveUncertaintyFinal,
-  dropInformationLoss,
 } from "@/lib/humanizer";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -752,34 +744,177 @@ const ENGLISH_FIDELITY_STOPWORDS = new Set([
   "which", "while", "who", "will", "with", "would", "you", "your", "yours",
 ]);
 
+const ENGLISH_CONTENT_TOKEN_ALIASES: Record<string, string> = {
+  alone: "isolated",
+  connected: "connection",
+  concentrate: "focus",
+  concentration: "focus",
+  control: "manage",
+  controlled: "manage",
+  deciding: "decide",
+  decision: "decide",
+  improved: "improve",
+  improving: "improve",
+  odd: "chance",
+  odds: "chance",
+  overwhelmed: "overwhelm",
+  overwhelming: "overwhelm",
+  planning: "plan",
+  "re-entering": "return",
+  reentering: "return",
+  returning: "return",
+  regulating: "manage",
+  supporting: "support",
+  tie: "connection",
+  ties: "connection",
+  workforce: "work",
+};
+
+function normalizeEnglishContentToken(token: string) {
+  const singular =
+    token.length > 4 && token.endsWith("s") && !token.endsWith("ss")
+      ? token.slice(0, -1)
+      : token;
+  return ENGLISH_CONTENT_TOKEN_ALIASES[singular] ?? singular;
+}
+
 function getEnglishContentTokens(text: string) {
-  return new Set(
-    (text.toLowerCase().match(/[a-z][a-z'-]*/g) ?? []).filter(
+  const tokens = (text.toLowerCase().match(/[a-z][a-z'-]*/g) ?? [])
+    .filter(
       (token) => token.length > 2 && !ENGLISH_FIDELITY_STOPWORDS.has(token)
     )
-  );
+    .map(normalizeEnglishContentToken);
+  return new Set(tokens);
 }
 
 const ENGLISH_SCOPE_MARKER_PATTERN =
-  /\b(?:all|always|can|cannot|can't|every|few|generally|less|many|may|might|more|most|must|never|no|none|often|only|rarely|some|sometimes|usually|will|won't|would)\b/gi;
+  /\b(?:all|always|can|cannot|could|every|few|generally|less|many|may|might|more|most|must|never|no|none|not|often|only|rarely|should|some|sometimes|tend|tends|typically|usually|will|would)\b/gi;
 
 function getEnglishScopeMarkers(text: string) {
+  const normalizedText = text
+    .replace(/\ball of which\b/gi, "which")
+    .replace(/\bcan\s+not\b/gi, "cannot")
+    .replace(/\bcan't\b/gi, "cannot")
+    .replace(/\bwon't\b/gi, "will not")
+    .replace(/\b(?:don't|doesn't|didn't|isn't|aren't|wasn't|weren't)\b/gi, "not")
+    .replace(/\b(could|would|should|must)n't\b/gi, "$1 not");
   return new Set(
-    (text.match(ENGLISH_SCOPE_MARKER_PATTERN) ?? []).map((marker) =>
-      marker.toLowerCase()
-    )
+    (normalizedText.match(ENGLISH_SCOPE_MARKER_PATTERN) ?? []).map((marker) => {
+      const normalizedMarker = marker.toLowerCase();
+      return normalizedMarker === "tends" ? "tend" : normalizedMarker;
+    })
   );
 }
 
 function preservesEnglishScope(sourceText: string, candidate: string) {
   const sourceMarkers = getEnglishScopeMarkers(sourceText);
   const candidateMarkers = getEnglishScopeMarkers(candidate);
+  const strongerMarkers = [
+    "all", "always", "cannot", "every", "must", "never", "no", "none",
+    "not", "only", "should", "will",
+  ];
+  if (
+    strongerMarkers.some(
+      (marker) => candidateMarkers.has(marker) && !sourceMarkers.has(marker)
+    )
+  ) return false;
 
-  return (
-    sourceMarkers.size === candidateMarkers.size &&
-    [...sourceMarkers].every((marker) => candidateMarkers.has(marker))
+  const exactRequiredMarkers = [
+    "all", "always", "every", "must", "only", "should", "will",
+  ];
+  if (
+    exactRequiredMarkers.some(
+      (marker) => sourceMarkers.has(marker) && !candidateMarkers.has(marker)
+    )
+  ) return false;
+
+  const sourceHasNegation = ["cannot", "never", "no", "none", "not"].some(
+    (marker) => sourceMarkers.has(marker)
+  );
+  const candidateHasNegation = ["cannot", "never", "no", "none", "not"].some(
+    (marker) => candidateMarkers.has(marker)
+  );
+  if (sourceHasNegation && !candidateHasNegation) return false;
+
+  const possibilityMarkers = ["may", "might"];
+  if (
+    possibilityMarkers.some((marker) => sourceMarkers.has(marker)) &&
+    !possibilityMarkers.some((marker) => candidateMarkers.has(marker))
+  ) return false;
+
+  const abilityMarkers = ["can", "could"];
+  if (
+    abilityMarkers.some((marker) => sourceMarkers.has(marker)) &&
+    !abilityMarkers.some((marker) => candidateMarkers.has(marker))
+  ) return false;
+  if (sourceMarkers.has("would") && !candidateMarkers.has("would")) return false;
+
+  const frequencyMarkers = [
+    "generally", "often", "rarely", "sometimes", "tend", "typically", "usually",
+  ];
+  if (
+    frequencyMarkers.some(
+      (marker) => sourceMarkers.has(marker) && !candidateMarkers.has(marker)
+    )
+  ) return false;
+
+  return ["few", "less", "many", "more", "most", "some"].every(
+    (marker) => !sourceMarkers.has(marker) || candidateMarkers.has(marker)
   );
 }
+function getEnglishListAnchorTokens(text: string) {
+  const commaCount = (text.match(/,/g) ?? []).length;
+  const hasListConjunction = text
+    .split(",").slice(1).some((part) => /^\s*(?:and|or)\b/i.test(part));
+  if (commaCount < 2 || (commaCount < 3 && !hasListConjunction)) return new Set<string>();
+
+  const anchors = new Set<string>();
+  const segments = text.split(",").slice(1);
+  for (const rawSegment of segments) {
+    const beganWithConjunction = /^\s*(?:and|or)\b/i.test(rawSegment);
+    const cleaned = rawSegment
+      .replace(/^\s*(?:and|or|as)\s+/i, "")
+      .split(/[\u2014\u2013]/, 1)[0]
+      .replace(/\b(?:that|which|who)\b[\s\S]*$/i, "")
+      .replace(/\b(?:can|could|may|might|must|will|would)\b[\s\S]*$/i, "");
+    const tokens = [...getEnglishContentTokens(cleaned)];
+    if (tokens.length === 0) continue;
+
+    const anchor =
+      beganWithConjunction && tokens.length > 4
+        ? tokens[Math.min(1, tokens.length - 1)]
+        : tokens[tokens.length - 1];
+    if (anchor) anchors.add(anchor);
+  }
+
+  return anchors;
+}
+
+function preservesEnglishClauseCoverage(
+  sourceSentence: string,
+  outputTokens: Set<string>
+) {
+  const clauses = sourceSentence
+    .split(/[;\u2014\u2013]/)
+    .map((clause) => getEnglishContentTokens(clause))
+    .filter((tokens) => tokens.size > 0);
+  if (clauses.length <= 1) return true;
+  return clauses.every((tokens) => {
+    const covered = [...tokens].filter((token) => outputTokens.has(token)).length;
+    return covered / tokens.size >= 0.25;
+  });
+}
+
+function isOptionalLedgerScaffold(sentence: string) {
+  const wordCount = sentence.split(/\s+/).filter(Boolean).length;
+  return (
+    wordCount <= 10 &&
+    /^(?:The .+ doesn['\u2019]t end there|The .+ does not end there|That (?:isn['\u2019]t|is not) (?:all|the end)|There(?:['\u2019]s| is) more|Another (?:issue|problem|point|factor)\b)/i.test(
+      sentence.trim()
+    )
+  );
+}
+
 function parseReflectiveLedgerOutput(
   text: string,
   sourceSentences: string[],
@@ -787,19 +922,52 @@ function parseReflectiveLedgerOutput(
   maxWords: number,
   requireOpeningClaim = false
 ) {
-  const blocks = text
+  const normalizedText = text
     .trim()
-    .split(/\n\s*\n/)
-    .map((block) => block.trim())
+    .replace(
+      /^\s*S(\d+(?:\s*,\s*S?\d+)*)[.:)]?\s+/gim,
+      "[S$1] "
+    );
+  const taggedLines = normalizedText
+    .split(/\n+/)
+    .map((line) => line.trim())
     .filter(Boolean);
+  if (
+    sourceSentences.length === 0 ||
+    taggedLines.length < 3 ||
+    taggedLines.some((line) => !/^\[S\d+(?:\s*,\s*S?\d+)*\]\s+/.test(line))
+  ) return null;
 
-  if (blocks.length !== 3 || sourceSentences.length === 0) return null;
+  const firstParagraphTarget = Math.max(
+    1,
+    Math.round(sourceSentences.length * 0.2)
+  );
+  const secondParagraphTarget = Math.max(
+    1,
+    Math.round(sourceSentences.length * 0.36)
+  );
+  const firstCut = Math.min(
+    firstParagraphTarget,
+    Math.max(1, taggedLines.length - 2)
+  );
+  const secondCut = Math.min(
+    firstCut + secondParagraphTarget,
+    taggedLines.length - 1
+  );
+  const blocks = [
+    taggedLines.slice(0, firstCut).join("\n"),
+    taggedLines.slice(firstCut, secondCut).join("\n"),
+    taggedLines.slice(secondCut).join("\n"),
+  ];
   if (requireOpeningClaim && !/^\[S1(?:\s*,|\])/.test(blocks[0])) return null;
 
-  const usedSourceIds = new Set<number>();
+  const taggedOutputBySourceId = new Map<number, string[]>();
+  const sourceIdParagraphIndex = new Map<number, number>();
+  const acceptedEvidenceBySourceId = new Map<number, Set<string>>();
+  const emittedSentenceKeys = new Set<string>();
   const allSourceTokens = getEnglishContentTokens(sourceSentences.join(" "));
   const paragraphs: string[] = [];
-  for (const block of blocks) {
+  for (const [blockIndex, block] of blocks.entries()) {
     const matches = [
       ...block.matchAll(
         /\[S(\d+(?:\s*,\s*S?\d+)*)\]\s*([\s\S]*?)(?=\s*\[S\d|$)/g
@@ -826,14 +994,16 @@ function parseReflectiveLedgerOutput(
         return null;
       }
 
-      const sourceIds = taggedSourceIds.filter((id) => !usedSourceIds.has(id));
-      if (sourceIds.length === 0) continue;
-      sourceIds.forEach((id) => usedSourceIds.add(id));
-
       const sentence = match[2].trim().replace(/([.!?])\1+$/g, "$1");
       if (!sentence) continue;
 
-      const sourceText = sourceIds
+      for (const id of taggedSourceIds) {
+        if (!sourceIdParagraphIndex.has(id)) {
+          sourceIdParagraphIndex.set(id, blockIndex);
+        }
+      }
+
+      const sourceText = taggedSourceIds
         .map((id) => sourceSentences[id - 1])
         .join(" ");
       const outputTokens = getEnglishContentTokens(sentence);
@@ -850,27 +1020,248 @@ function parseReflectiveLedgerOutput(
         outputTokens.size === 0 ? 1 : taggedOverlap / outputTokens.size;
       const globalOverlapRatio =
         outputTokens.size === 0 ? 1 : globalOverlap / outputTokens.size;
+      const coveredSourceIds = taggedSourceIds.filter((id) => {
+        const claim = sourceSentences[id - 1];
+        if (isOptionalLedgerScaffold(claim)) return true;
+        const claimTokens = getEnglishContentTokens(claim);
+        if (claimTokens.size === 0) return true;
+        const coveredClaimTokens = [...claimTokens].filter((token) =>
+          outputTokens.has(token)
+        ).length;
+        return coveredClaimTokens / claimTokens.size >= 0.28;
+      });
+      const preservesCoveredScopes = coveredSourceIds.every((id) => {
+        const claim = sourceSentences[id - 1];
+        return (
+          isOptionalLedgerScaffold(claim) ||
+          preservesEnglishScope(claim, sentence)
+        );
+      });
       const expandsLength =
         sentenceWordCount > Math.max(12, Math.ceil(sourceClaimWordCount * 1.35));
       const isTraceable =
+        coveredSourceIds.length > 0 &&
         countEnglishSentences(sentence) === 1 &&
         taggedOverlapRatio >= 0.2 &&
         globalOverlapRatio >= 0.45 &&
-        preservesEnglishScope(sourceText, sentence) &&
+        getConversationalFidelityIssues(sourceText, sentence).length === 0 &&
+        preservesCoveredScopes &&
         !expandsLength;
 
-      sentences.push(isTraceable ? sentence : sourceText);
+      if (isTraceable) {
+        const marginalSourceIds = coveredSourceIds.filter((id) => {
+          const existingEvidence =
+            acceptedEvidenceBySourceId.get(id) ?? new Set<string>();
+          const claimTokens = getEnglishContentTokens(sourceSentences[id - 1]);
+          return [...claimTokens].some(
+            (token) => outputTokens.has(token) && !existingEvidence.has(token)
+          );
+        });
+        const sentenceKey = sentence
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+        if (marginalSourceIds.length > 0 && !emittedSentenceKeys.has(sentenceKey)) {
+          sentences.push(sentence);
+          emittedSentenceKeys.add(sentenceKey);
+          for (const id of coveredSourceIds) {
+            const claimTokens = getEnglishContentTokens(sourceSentences[id - 1]);
+            const existingEvidence =
+              acceptedEvidenceBySourceId.get(id) ?? new Set<string>();
+            for (const token of claimTokens) {
+              if (outputTokens.has(token)) existingEvidence.add(token);
+            }
+            acceptedEvidenceBySourceId.set(id, existingEvidence);
+            const taggedOutput = taggedOutputBySourceId.get(id) ?? [];
+            taggedOutput.push(sentence);
+            taggedOutputBySourceId.set(id, taggedOutput);
+          }
+        }
+      }
     }
 
-    if (sentences.length === 0) return null;
     paragraphs.push(sentences.join(" "));
   }
 
-  if (usedSourceIds.size !== sourceSentences.length) return null;
+  const inadequateSourceIds = new Set<number>();
+  for (
+    let index = 0;
+    index < sourceSentences.length;
+    index++
+  ) {
+    const sourceSentence = sourceSentences[index];
+    const sourceId = index + 1;
+    if (isOptionalLedgerScaffold(sourceSentence)) continue;
+    const sourceTokens = getEnglishContentTokens(sourceSentence);
+    if (sourceTokens.size === 0) continue;
+    const taggedText = (taggedOutputBySourceId.get(sourceId) ?? []).join(" ");
+    const outputTokens = getEnglishContentTokens(taggedText);
+    const coveredTokenCount = [...sourceTokens].filter((token) =>
+      outputTokens.has(token)
+    ).length;
+    const sourceCoverage = coveredTokenCount / sourceTokens.size;
+    const listAnchors = getEnglishListAnchorTokens(sourceSentence);
+    const preservesListItems = [...listAnchors].every(
+      (anchor) =>
+        outputTokens.has(anchor) ||
+        (anchor === "skill" &&
+          /\blearn(?:ing)?(?:\s+(?:something|anything)\s+new|\s+new\s+things?)\b/i.test(taggedText))
+    );
+    const preservesClauses = preservesEnglishClauseCoverage(
+      sourceSentence,
+      outputTokens
+    );
+    if (sourceCoverage >= 0.4 && preservesListItems && preservesClauses) continue;
+    inadequateSourceIds.add(sourceId);
+  }
+
+  const sourceIdsByOutputSentence = new Map<string, Set<number>>();
+  for (const [sourceId, outputSentences] of taggedOutputBySourceId) {
+    for (const outputSentence of outputSentences) {
+      const sourceIds =
+        sourceIdsByOutputSentence.get(outputSentence) ?? new Set<number>();
+      sourceIds.add(sourceId);
+      sourceIdsByOutputSentence.set(outputSentence, sourceIds);
+    }
+  }
+
+  for (const sourceId of inadequateSourceIds) {
+    for (const outputSentence of taggedOutputBySourceId.get(sourceId) ?? []) {
+      const sourceIds =
+        sourceIdsByOutputSentence.get(outputSentence) ?? new Set<number>();
+      if (
+        sourceIds.size === 0 ||
+        ![...sourceIds].every((id) => inadequateSourceIds.has(id))
+      ) {
+        continue;
+      }
+      for (let paragraphIndex = 0; paragraphIndex < paragraphs.length; paragraphIndex++) {
+        paragraphs[paragraphIndex] = paragraphs[paragraphIndex]
+          .split(outputSentence)
+          .join(" ")
+          .replace(/\s{2,}/g, " ")
+          .trim();
+      }
+    }
+  }
+
+  const restoredEntriesByParagraph = new Map<
+    number,
+    Array<{ sourceId: number; text: string }>
+  >();
+  const sourceIdsToRestore = [...inadequateSourceIds].sort((a, b) => a - b);
+  for (const sourceId of sourceIdsToRestore) {
+    const sourceSentence = sourceSentences[sourceId - 1];
+    if (isOptionalLedgerScaffold(sourceSentence)) continue;
+    const sourceIndex = sourceId - 1;
+    const proportionalIndex = Math.min(
+      paragraphs.length - 1,
+      Math.floor((sourceIndex / sourceSentences.length) * paragraphs.length)
+    );
+    const paragraphIndex =
+      sourceIdParagraphIndex.get(sourceId) ?? proportionalIndex;
+    const entries = restoredEntriesByParagraph.get(paragraphIndex) ?? [];
+    entries.push({ sourceId, text: sourceSentence });
+    restoredEntriesByParagraph.set(paragraphIndex, entries);
+  }
+
+  for (let paragraphIndex = 0; paragraphIndex < paragraphs.length; paragraphIndex++) {
+    const acceptedEntries = [...sourceIdsByOutputSentence.entries()]
+      .filter(([sentence]) => paragraphs[paragraphIndex].includes(sentence))
+      .map(([text, sourceIds]) => ({
+        sourceId: Math.min(...sourceIds),
+        text,
+      }));
+    const orderedEntries = [
+      ...acceptedEntries,
+      ...(restoredEntriesByParagraph.get(paragraphIndex) ?? []),
+    ].sort((left, right) => left.sourceId - right.sourceId);
+    const seenText = new Set<string>();
+    paragraphs[paragraphIndex] = orderedEntries
+      .filter(({ text }) => {
+        if (seenText.has(text)) return false;
+        seenText.add(text);
+        return true;
+      })
+      .map(({ text }) => text)
+      .join(" ");
+  }
+
+  const draftBeforeScaffold = paragraphs.join(" ");
+  const hasShortSentence = splitEnglishSentencesForLedger(
+    draftBeforeScaffold
+  ).some(
+    (sentence) => sentence.split(/\s+/).filter(Boolean).length <= 10
+  );
+  const scaffoldIndex = sourceSentences.findIndex(isOptionalLedgerScaffold);
+  if (!hasShortSentence && scaffoldIndex >= 0) {
+    const scaffold = sourceSentences[scaffoldIndex];
+    const sourceId = scaffoldIndex + 1;
+    const proportionalIndex = Math.min(
+      paragraphs.length - 1,
+      Math.floor((scaffoldIndex / sourceSentences.length) * paragraphs.length)
+    );
+    const boundaryIndex =
+      sourceIdParagraphIndex.get(sourceId) ?? proportionalIndex;
+    const paragraphIndex = Math.min(paragraphs.length - 1, boundaryIndex + 1);
+    if (!paragraphs[paragraphIndex].includes(scaffold)) {
+      paragraphs[paragraphIndex] =
+        `${scaffold} ${paragraphs[paragraphIndex]}`.trim();
+    }
+  }
+
+  if (paragraphs.some((paragraph) => !paragraph.trim())) return null;
 
   const result = paragraphs.join("\n\n");
   const wordCount = result.split(/\s+/).filter(Boolean).length;
-  return wordCount >= minWords && wordCount <= maxWords ? result : null;
+  const sourceWordCount = sourceSentences
+    .join(" ")
+    .split(/\s+/)
+    .filter(Boolean).length;
+  const effectiveMinWords = Math.min(
+    minWords,
+    Math.max(60, Math.floor(sourceWordCount * 0.68))
+  );
+  const effectiveMaxWords = Math.max(
+    maxWords,
+    Math.ceil(sourceWordCount * 1.3)
+  );
+  return wordCount >= effectiveMinWords && wordCount <= effectiveMaxWords ? result : null;
+}
+
+function normalizeEnglishSentenceForComparison(sentence: string) {
+  return sentence
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function hasMaterialEnglishRewrite(sourceText: string, candidate: string) {
+  const sourceSentences = splitEnglishSentencesForLedger(sourceText);
+  const candidateSentences = splitEnglishSentencesForLedger(candidate);
+  if (sourceSentences.length === 0) return true;
+
+  const comparableCount = Math.min(
+    sourceSentences.length,
+    candidateSentences.length
+  );
+  let changedSentenceCount = Math.abs(
+    sourceSentences.length - candidateSentences.length
+  );
+  for (let index = 0; index < comparableCount; index++) {
+    if (
+      normalizeEnglishSentenceForComparison(sourceSentences[index]) !==
+      normalizeEnglishSentenceForComparison(candidateSentences[index])
+    ) {
+      changedSentenceCount++;
+    }
+  }
+
+  const requiredChanges = Math.max(
+    2,
+    Math.ceil(sourceSentences.length * 0.25)
+  );
+  return changedSentenceCount >= requiredChanges;
 }
 
 function getEnglishParagraphShape(text: string) {
@@ -1181,7 +1572,7 @@ const SENSITIVE_SECOND_PASS_ADDENDUM = [
 
 function buildConversationalSecondPassPrompt(
   tone: HumanizerPromptConfig["postProcessTone"],
-  _sourceText?: string,
+  sourceText = "",
   userVoiceContext?: UserVoiceContext
 ): string {
   const basePrompt =
@@ -1190,10 +1581,17 @@ function buildConversationalSecondPassPrompt(
       : shouldUseSourceGroundedRegeneration(tone)
         ? SOURCE_GROUNDED_SECOND_PASS_PROMPT
         : FAITHFUL_SECOND_PASS_PROMPT;
+  const recompositionPlan = tone.startsWith("english-")
+    ? buildSemanticRegenerationPrompt(sourceText, tone)
+    : "";
 
-  return hasRealUserContext(userVoiceContext)
-    ? [basePrompt, buildPersonaGroundedPrompt(userVoiceContext)].join("\n\n")
-    : basePrompt;
+  return [
+    basePrompt,
+    recompositionPlan,
+    hasRealUserContext(userVoiceContext)
+      ? buildPersonaGroundedPrompt(userVoiceContext)
+      : "",
+  ].filter(Boolean).join("\n\n");
 }
 
 function preserveResearchHedge(sourceText: string, candidate: string) {
@@ -1229,7 +1627,7 @@ function valuesOutsideSource(sourceValues: string[], candidateValues: string[]):
 function getConversationalFidelityIssues(
   sourceText: string,
   candidate: string,
-  _allowSecondPerson = false,
+  allowSecondPerson = false,
   userVoiceContext?: UserVoiceContext
 ) {
   const issues: string[] = [];
@@ -1245,6 +1643,7 @@ function getConversationalFidelityIssues(
   const allowedHasSecondPerson = /\b(?:you|your|yours|yourself|yourselves)\b/i.test(allowedText);
   const candidateWithoutDiscourseYouKnow = candidate.replace(/\byou know\b/gi, "");
   if (
+    !allowSecondPerson &&
     !allowedHasSecondPerson &&
     /\b(?:you|your|yours|yourself|yourselves)\b/i.test(candidateWithoutDiscourseYouKnow)
   ) {
@@ -1320,6 +1719,22 @@ function getConversationalFidelityIssues(
     /\b(?:research|studies) (?:clearly |consistently |keep )?(?:shows?|proves?)\b/i.test(candidate);
   if (sourceUsesResearchHedge && candidateStrengthensResearch) {
     issues.push("strengthened-research-claim");
+  }
+
+  const sourceHasExplicitEvidenceActor =
+    /\b(?:research|studies|evidence|data|experts?|researchers?)\b/i.test(allowedText);
+  const candidateHasExplicitEvidenceActor =
+    /\b(?:research|studies|evidence|data|experts?|researchers?)\b/i.test(candidate);
+  if (!sourceHasExplicitEvidenceActor && candidateHasExplicitEvidenceActor) {
+    issues.push("invented-research-attribution");
+  }
+
+  const sourceFramesAsAssociation =
+    /\b(?:link(?:ed)?|association|associated|correlat(?:e|ed|ion))\b/i.test(sourceText);
+  const candidateFramesAsCausation =
+    /\b(?:causes?|drives?|raises?|increases?)\b[^.!?]{0,60}\b(?:risk|rates?)\b/i.test(candidate);
+  if (sourceFramesAsAssociation && candidateFramesAsCausation) {
+    issues.push("strengthened-causation");
   }
 
   return [...new Set(issues)];
@@ -1946,6 +2361,7 @@ async function applyConversationalSecondPass({
   sourceText,
   tone,
   userVoiceContext,
+  draftIssues = [],
   apiKey,
   signal,
 }: {
@@ -1953,6 +2369,7 @@ async function applyConversationalSecondPass({
   sourceText: string;
   tone: HumanizerPromptConfig["postProcessTone"];
   userVoiceContext?: UserVoiceContext;
+  draftIssues?: string[];
   apiKey: string;
   signal: AbortSignal;
 }): Promise<{ text: string; applied: boolean }> {
@@ -1962,6 +2379,10 @@ async function applyConversationalSecondPass({
 
   const sourceWordCount = sourceText.split(/\s+/).filter(Boolean).length;
   const secondPassSampling = getSecondPassSampling(tone);
+  const draftValidationNote = draftIssues.length > 0
+    ? `\n\nDRAFT VALIDATION FLAGS (repair these; never copy the defect): ${draftIssues.join(", ")}.`
+    : "";
+
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {
@@ -1990,7 +2411,7 @@ async function applyConversationalSecondPass({
             "SOURCE TEXT (authority for the original claims):\n" +
             sourceText +
             "\n\nAUTHOR CONTEXT: use only the user-supplied context from the system instructions. Do not invent anything beyond the source and that context.\n\nPASS 1 DRAFT (use only as a wording option; discard any detail absent from the source or author context):\n" +
-            text,
+            text + draftValidationNote,
         },
       ],
     }),
@@ -1998,13 +2419,13 @@ async function applyConversationalSecondPass({
 
   if (!response.ok) {
     console.warn("Faithful second pass failed", response.status);
-    return { text, applied: false };
+    return { text: sourceText, applied: false };
   }
 
   const data = await response.json();
   const rewritten = data?.choices?.[0]?.message?.content;
   if (typeof rewritten !== "string" || !rewritten.trim()) {
-    return { text, applied: false };
+    return { text: sourceText, applied: false };
   }
 
   const cleaned = finalHumanize(
@@ -2043,18 +2464,41 @@ async function applyConversationalSecondPass({
       qualityIssues,
       blockingQualityIssues,
     });
-    return { text, applied: false };
+    return { text: sourceText, applied: false };
   }
 
   return { text: cleaned, applied: true };
 }
 
 function needsEnglishStyleRepair(
-  _candidate: string,
-  _sourceText: string,
+  candidate: string,
+  sourceText: string,
   tone: HumanizerPromptConfig["postProcessTone"]
 ) {
-  return tone.startsWith("english-");   // ← PERBAIKAN: Aktif untuk semua English tones
+  if (!tone.startsWith("english-")) return false;
+  if (tone === "english-sensitive") return true;
+  if (splitEnglishSentencesForLedger(sourceText).length >= 6) return true;
+
+  const repairableIssues = new Set([
+    "long-sentence-dominance",
+    "no-rhythm-contrast",
+    "sentence-length-uniformity",
+    "formulaic-expository-scaffolding",
+    "generic-quantifier-opening",
+    "generic-contrast-scaffold",
+    "empty-importance-metadiscourse",
+    "empty-additive-transition",
+    "over-segmented-short-paragraphs",
+    "short-paragraph-staircase",
+    "standalone-summary-paragraph",
+    "polished-recap-closing",
+  ]);
+  const issues = getEnglishSurfaceQualityIssues(candidate);
+  return (
+    getConversationalFidelityIssues(sourceText, candidate).length > 0 ||
+    hasSourceStructureEcho(sourceText, candidate) ||
+    issues.some((issue) => repairableIssues.has(issue))
+  );
 }
 
 async function repairEnglishStyle({
@@ -2075,7 +2519,26 @@ async function repairEnglishStyle({
   }
 
   const sourceSentences = splitEnglishSentencesForLedger(sourceText);
-  const usesSourceLedger = tone === "english-sensitive" && sourceSentences.length >= 6;
+  const usesSourceLedger = tone.startsWith("english-") && sourceSentences.length >= 6;
+  const ledgerFirstParagraphSentences = Math.max(
+    1,
+    Math.round(sourceSentences.length * 0.2)
+  );
+  const ledgerSecondParagraphSentences = Math.max(
+    1,
+    Math.round(sourceSentences.length * 0.36)
+  );
+  const ledgerThirdParagraphSentences = Math.max(
+    1,
+    sourceSentences.length -
+      ledgerFirstParagraphSentences -
+      ledgerSecondParagraphSentences
+  );
+  const ledgerParagraphSentenceShape = [
+    ledgerFirstParagraphSentences,
+    ledgerSecondParagraphSentences,
+    ledgerThirdParagraphSentences,
+  ].join(", ");
 
   const sourceParagraphCount = getEnglishParagraphShape(sourceText).length;
   const candidateParagraphCount = getEnglishParagraphShape(candidate).length;
@@ -2093,7 +2556,7 @@ async function repairEnglishStyle({
     sourceParagraphCount <= 2 ? sourceParagraphCount + 1 : sourceParagraphCount - 1;
   const structureDirective =
     usesSourceLedger
-      ? `Return exactly three coherent prose paragraphs with visibly different sentence counts and ${reflectiveMinWords}-${reflectiveMaxWords} words total. Merge related causes instead of assigning one factor to each paragraph. Do not add a separate recap paragraph; end on the final substantive claim from the source.`
+      ? `Return exactly three coherent prose paragraphs containing ${ledgerParagraphSentenceShape} sentences respectively and ${reflectiveMinWords}-${reflectiveMaxWords} words total. Keep the source claims in order, but choose new paragraph breaks. Use one rewritten sentence per source ID. Do not add a recap paragraph; end on the final substantive claim from the source.`
       : mirrorsSourceStructure
         ? `The source has ${sourceParagraphCount} prose paragraphs and the candidate has ${candidateParagraphCount}. Return exactly ${alternativeParagraphCount} coherent prose paragraphs so the revision no longer mirrors that skeleton.`
         : "Regroup the prose according to its ideas; do not target equal paragraph or sentence lengths.";
@@ -2106,34 +2569,58 @@ async function repairEnglishStyle({
       : "Revise the candidate once because it is too uniform, formulaic, or structurally close to the source.";
   const ledgerFormatDirective =
     usesSourceLedger
-      ? `INTERNAL OUTPUT FORMAT (required): Return exactly three blocks separated by one blank line. Put each sentence on its own line and begin it with the source IDs that support it, for example [S1] or [S2,S3]. Use only IDs S1-S${sourceSentences.length}. Do not write headings, bullets, or any text without a source tag. The tags will be removed before the user sees the result.`
+      ? `INTERNAL OUTPUT FORMAT (required): Return exactly three blocks separated by one blank line and exactly ${sourceSentences.length} tagged sentences total. Put each sentence on its own line and begin it with exactly one source ID. Use every ID from S1 through S${sourceSentences.length} once, in ascending order, with no missing, repeated, or combined IDs. Do not write headings, bullets, or untagged text. The tags will be removed before the user sees the result. Each rewritten sentence must preserve the complete claim, qualification, and list carried by its one source ID.`
       : "";
   const repairUserContent =
     usesSourceLedger
       ? `SOURCE CLAIM LEDGER:\n${sourceSentenceLedger}`
       : `SOURCE:\n${sourceText}\n\nCANDIDATE:\n${candidate}`;
+  const naturalStyleDirective = usesSourceLedger
+    ? `NATURAL PROSE SHAPE:
+- Use ${ledgerParagraphSentenceShape} sentences across the three paragraphs, respectively. Keep one rewritten sentence for each source ID; vary its syntax and length rather than compressing claims together.
+- Include one short complete sentence of 4-9 words when its source ID supports it, plus one naturally dense sentence over 24 words when that single source claim supports the length.
+- Vary sentence openings. Do not repeatedly begin with abstract labels such as "The result", "Financial pressures", or "These reactions" when an existing cause or consequence can lead.
+- Prefer ordinary verbs and source vocabulary. Avoid elevated synonym swaps, polished recap language, and repeated A, B, and C list cadence.
+- Recast at least one long source list as uneven paired clauses or a semicolon construction. Preserve every item and its governing hedge; do not simply delete commas.
+- A source-supported contraction is fine. Do not add slang, filler, fragments, or deliberate errors.`
+    : buildSemanticRegenerationPrompt(sourceText, tone);
 
-  const response = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-      "X-Title": "DylGen AI",
-    },
-    signal,
-    body: JSON.stringify({
-      model: SECOND_PASS_MODEL,
-      temperature: usesSourceLedger ? 0.5 : 0.48,
-      top_p: usesSourceLedger ? 0.92 : 0.9,
-      max_tokens: 1800,
-      frequency_penalty: 0,
-      presence_penalty: 0,
-      repetition_penalty: 1.01,
-      messages: [
-        {
-          role: "system",
-          content: `${repairTaskDirective}
+  const maximumRepairAttempts = usesSourceLedger ? 2 : 1;
+  const retryRewriteTarget = Math.max(
+    2,
+    Math.ceil(sourceSentences.length * 0.25)
+  );
+  let repairedText: string | null = null;
+
+  for (let attempt = 0; attempt < maximumRepairAttempts; attempt++) {
+    const retryDirective =
+      attempt === 0
+        ? ""
+        : `
+
+RETRY REQUIREMENT:
+The previous attempt was rejected because it stayed too close to the source or broke the claim ledger. Rewrite at least ${retryRewriteTarget} source sentences with genuinely different syntax and ordinary wording. Keep every claim, qualifier, list item, ID, and point of view intact.`;
+    const response = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+        "X-Title": "DylGen AI",
+      },
+      signal,
+      body: JSON.stringify({
+        model: SECOND_PASS_MODEL,
+        temperature: usesSourceLedger ? (attempt === 0 ? 0.56 : 0.64) : 0.48,
+        top_p: usesSourceLedger ? 0.92 : 0.9,
+        max_tokens: 1800,
+        frequency_penalty: usesSourceLedger ? 0.03 : 0,
+        presence_penalty: 0,
+        repetition_penalty: usesSourceLedger ? 1.02 : 1.01,
+        messages: [
+          {
+            role: "system",
+            content: `${repairTaskDirective}
 
 STRUCTURE REQUIREMENT:
 ${structureDirective}
@@ -2146,46 +2633,98 @@ Rules:
 - Every output sentence must be traceable to one or more source sentences. If a claim, noun phrase, consequence, or time frame cannot be pointed to in the source, omit it.
 - Preserve degree and frequency exactly. Do not turn "helpful", "may", "often", or "recommended" into "significantly improves", "always", "essential", or "must".
 - Preserve category boundaries and list membership.
+- Preserve every comma-separated or and/or list item. Keep each item's key noun or verb recognizable; never compress away one member of a source list.
 ${voiceDirective}
 - Use direct, ordinary English and prefer the source's plain vocabulary over elevated synonym substitutions.
 - Do not add fragments, filler, deliberate errors, fake facts, or decorative drama.
+${naturalStyleDirective}
+${retryDirective}
+
 - Return only the revised candidate.`,
-        },
-        {
-          role: "user",
-          content: repairUserContent,
-        },
-      ],
-    }),
-  });
+          },
+          {
+            role: "user",
+            content: repairUserContent,
+          },
+        ],
+      }),
+    });
 
-  if (!response.ok) {
-    console.warn("English style repair failed", response.status);
-    return { text: candidate, applied: false };
-  }
+    if (!response.ok) {
+      console.warn("English style repair failed", response.status, { attempt });
+      continue;
+    }
 
-  const data = await response.json();
-  const repaired = data?.choices?.[0]?.message?.content;
-  if (typeof repaired !== "string" || !repaired.trim()) {
-    return { text: candidate, applied: false };
-  }
+    const data = await response.json();
+    const repaired = data?.choices?.[0]?.message?.content;
+    if (typeof repaired !== "string" || !repaired.trim()) continue;
 
-  const repairedText =
-    usesSourceLedger
+    const parsedRepair = usesSourceLedger
       ? parseReflectiveLedgerOutput(
           repaired.trim(),
           sourceSentences,
           reflectiveMinWords,
           reflectiveMaxWords,
-          true
+          tone === "english-sensitive"
         )
       : repaired.trim();
+    if (!parsedRepair) {
+      console.warn("English source-ledger repair rejected: invalid output", {
+        attempt,
+      });
+      continue;
+    }
+    if (
+      usesSourceLedger &&
+      !hasMaterialEnglishRewrite(sourceText, parsedRepair)
+    ) {
+      console.warn("English source-ledger repair stayed too close to source", {
+        attempt,
+      });
+      continue;
+    }
+
+    repairedText = parsedRepair;
+    break;
+  }
+
   if (!repairedText) {
-    console.warn("English source-ledger repair rejected: invalid output");
     return {
-      text: formatReflectiveSourceFallback(sourceText),
+      text: usesSourceLedger
+        ? formatReflectiveSourceFallback(sourceText)
+        : candidate,
       applied: usesSourceLedger,
     };
+  }
+
+  const repairedWordCount = repairedText.split(/\s+/).filter(Boolean).length;
+  const repairedLengthRatio =
+    sourceWordCount === 0 ? 1 : repairedWordCount / sourceWordCount;
+  const repairedFidelityIssues = getConversationalFidelityIssues(
+    sourceText,
+    repairedText
+  );
+  const repairedQualityIssues = getEnglishSurfaceQualityIssues(repairedText);
+  const blockingRepairedQualityIssues =
+    getBlockingEnglishSurfaceQualityIssues(repairedQualityIssues);
+  const sensitiveFidelityIssue =
+    tone === "english-sensitive" &&
+    (losesSensitiveAnchors(sourceText, repairedText) ||
+      addsUnsupportedSensitiveDetails(sourceText, repairedText));
+
+  if (
+    repairedLengthRatio < 0.6 ||
+    repairedLengthRatio > 1.25 ||
+    repairedFidelityIssues.length > 0 ||
+    blockingRepairedQualityIssues.length > 0 ||
+    sensitiveFidelityIssue
+  ) {
+    console.warn("English style repair rejected by final invariants", {
+      repairedLengthRatio: Number(repairedLengthRatio.toFixed(2)),
+      repairedFidelityIssues,
+      blockingRepairedQualityIssues,
+    });
+    return { text: usesSourceLedger ? formatReflectiveSourceFallback(sourceText) : candidate, applied: false };
   }
 
   return { text: repairedText, applied: true };
@@ -2364,6 +2903,7 @@ export async function POST(req: Request) {
     // --- PASS 2: source-faithful English rewrite ---
     let secondPassApplied = false;
     let secondPassModel: string | null = null;
+    let styleRepairApplied = false;
 
     if (useTwoPass) {
       const firstPassIssues = getConversationalFidelityIssues(
@@ -2373,26 +2913,29 @@ export async function POST(req: Request) {
         userVoiceContext
       );
       const firstPassQualityIssues = getEnglishSurfaceQualityIssues(currentText);
-      const secondPassInput =
-        firstPassIssues.length > 0 || firstPassQualityIssues.length > 0
-          ? text.trim()
-          : currentText;
+      const draftIssues = [...firstPassIssues, ...firstPassQualityIssues];
+      const useVerifiedSourceLedger =
+        !hasRealUserContext(userVoiceContext) &&
+        config.postProcessTone.startsWith("english-") &&
+        (config.postProcessTone === "english-sensitive" ||
+          splitEnglishSentencesForLedger(text).length >= 6);
+
 
       const faithfulPass =
-        config.postProcessTone === "english-sensitive" &&
-        !hasRealUserContext(userVoiceContext)
+        useVerifiedSourceLedger
           ? await repairEnglishStyle({
-              candidate: secondPassInput,
+              candidate: currentText,
               sourceText: text,
               tone: config.postProcessTone,
               apiKey,
               signal: controller.signal,
             })
           : await applyConversationalSecondPass({
-              text: secondPassInput,
+              text: currentText,
               sourceText: text,
               tone: config.postProcessTone,
               userVoiceContext,
+              draftIssues,
               apiKey,
               signal: controller.signal,
             });
@@ -2400,45 +2943,29 @@ export async function POST(req: Request) {
       currentText = faithfulPass.text;
       secondPassApplied = faithfulPass.applied;
       secondPassModel = faithfulPass.applied ? SECOND_PASS_MODEL : null;
-    }
-
-    // --- HUMANIZATION LAYERS (diterapkan selalu setelah Pass 1/2, terlepas dari hasil Pass 2) ---
-    // Hanya untuk register English umum, bukan academic/sensitive/policy
-    const applyHumanLayers = config.postProcessTone.startsWith('english-') &&
-                             !['english-academic', 'english-sensitive', 'english-policy'].includes(config.postProcessTone);
-
-    if (applyHumanLayers && currentText.trim()) {
-      console.log("Applying new humanization layers after Pass 1/2");
-      // 1. Drop some coverage (lupa) – hanya jika teks cukup panjang
-      if (currentText.split(/\s+/).length > 120) {
-        currentText = dropInformationLoss(currentText);
+      styleRepairApplied = useVerifiedSourceLedger && faithfulPass.applied;
+      if (
+        !useVerifiedSourceLedger &&
+        needsEnglishStyleRepair(currentText, text, config.postProcessTone)
+      ) {
+        const stylePass = await repairEnglishStyle({
+          candidate: currentText,
+          sourceText: text,
+          tone: config.postProcessTone,
+          apiKey,
+          signal: controller.signal,
+        });
+        if (stylePass.applied) {
+          currentText = stylePass.text;
+          styleRepairApplied = true;
+          secondPassApplied = true;
+          secondPassModel = SECOND_PASS_MODEL;
+        }
       }
-
-      // 2. Transform reasoning graph (acak struktur argumen)
-      currentText = transformReasoningGraph(currentText);
-
-      // 3. Inject real fragments (kalimat tidak lengkap)
-      currentText = injectRealFragments(currentText);
-
-      // 4. Inject obsession loop (ulangi 1 ide) - gunakan sourceText untuk cek first/second person
-      currentText = injectObsessionAcrossText(currentText, text);
-
-      // 5. Inject clustered hedging (keraguan tercluster)
-      currentText = injectClusteredHedging(currentText);
-
-      // 6. Force conversational register
-      currentText = forceConversationalRegister(currentText);
-
-      // 7. Inject topic-specific anchors - gunakan sourceText untuk cek first/second person
-      currentText = injectTopicAnchors(currentText, text);
-
-      // 8. Inject cognitive uncertainty
-      currentText = injectCognitiveUncertaintyFinal(currentText);
-
-      // 9. Cleanup spacing
-      currentText = cleanupEnglishSpacing(currentText);
     }
 
+    // Naturalness now comes from source-grounded recomposition, not random
+    // fragments, fabricated specifics, changed certainty, or information loss.
     // Keep final cleanup source-grounded; no fake memories, facts, or deliberate flaws.
     const preFinalText = currentText;
     
@@ -2460,24 +2987,9 @@ export async function POST(req: Request) {
       const outputWordCount = currentText.split(/\s+/).filter(Boolean).length;
       const finalLengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
 
-      // ========== PERBAIKAN ==========
-      // Kalau tone-nya casual/general, kita izinkan penambahan "I", "my cousin", "honestly"
-      // karena itu memang sengaja kita tambahin untuk humanisasi.
-      const isGeneralTone = config.postProcessTone === "english-general" || 
-                            config.postProcessTone === "casual" ||
-                            config.postProcessTone === "english-discursive" ||
-                            config.postProcessTone === "english-reflective" ||
-                            config.postProcessTone === "english-practical";
-      
-      const allowedViolations = isGeneralTone 
-        ? ['invented-first-person', 'invented-second-person', 'outside-relationship', 'invented-certainty', 'outside-name'] 
-        : [];
-      
-      const criticalFidelityIssues = finalFidelityIssues.filter(
-        issue => !allowedViolations.includes(issue)
-      );
-      // =================================
-
+      // Fidelity stays strict even for casual text. Author context is already
+      // included in the allow-list above, so no fabricated persona is needed.
+      const criticalFidelityIssues = finalFidelityIssues;
       if (
         criticalFidelityIssues.length > 0 ||
         blockingFinalQualityIssues.length > 0 ||
