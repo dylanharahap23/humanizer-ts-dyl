@@ -7206,9 +7206,14 @@ export function injectRealFragments(text: string): string {
 // NEW: INJECT OBSESSION LOOP (Gap 4)
 // ============================================================
 
-export function injectObsessionAcrossText(text: string): string {
+export function injectObsessionAcrossText(text: string, sourceText?: string): string {
   const sentences = splitSentences(text);
   if (sentences.length < 5) return text;
+
+  // Cek apakah sumber memiliki first-person atau second-person
+  const allowedText = sourceText || text;
+  const hasFirstPerson = /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(allowedText);
+  const hasSecondPerson = /\b(?:you|your|yours|yourself|yourselves)\b/i.test(allowedText);
 
   // Ambil kata kunci dari kalimat yang mengandung "because", "since", "reason", dll.
   const keySentences = sentences.filter(s => /\b(because|since|reason|factor|cause|lead to)\b/i.test(s));
@@ -7222,13 +7227,22 @@ export function injectObsessionAcrossText(text: string): string {
   let topic = words.find(w => w.length > 3 && !stopwords.has(w.toLowerCase()));
   if (!topic) topic = 'this';
 
-  const variations = [
-    `It always comes back to ${topic}, doesn't it?`,
-    `I keep thinking about ${topic}.`,
-    `Honestly, ${topic} is the real issue here.`,
-    `You can't really talk about this without mentioning ${topic}.`,
-    `That's why ${topic} matters so much.`,
-  ];
+  // Gunakan variasi yang sesuai dengan keberadaan first/second person di sumber
+  const variations = hasFirstPerson || hasSecondPerson
+    ? [
+        `It always comes back to ${topic}, doesn't it?`,
+        `I keep thinking about ${topic}.`,
+        `Honestly, ${topic} is the real issue here.`,
+        `You can't really talk about this without mentioning ${topic}.`,
+        `That's why ${topic} matters so much.`,
+      ]
+    : [
+        `It always comes back to ${topic}.`,
+        `${topic} keeps coming up.`,
+        `That's why ${topic} matters.`,
+        `This is really about ${topic}.`,
+        `${topic} is the key point here.`,
+      ];
 
   // Sisipkan 2-3 variasi di posisi berbeda
   const result = [...sentences];
@@ -7329,38 +7343,71 @@ export function forceConversationalRegister(text: string): string {
 // NEW: INJECT TOPIC-SPECIFIC ANCHORS (Gap 7)
 // ============================================================
 
-export function injectTopicAnchors(text: string): string {
+export function injectTopicAnchors(text: string, sourceText?: string): string {
   const lower = text.toLowerCase();
+  
+  // Cek apakah sumber memiliki first-person atau second-person
+  const allowedText = sourceText || text;
+  const hasFirstPerson = /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(allowedText);
+  const hasSecondPerson = /\b(?:you|your|yours|yourself|yourselves)\b/i.test(allowedText);
+  
   let anchors: string[] = [];
 
   // Deteksi topik dan pilih anchors yang sesuai
   if (/\b(ai|artificial intelligence|chatgpt|openai|llm|model|machine learning)\b/i.test(lower)) {
-    anchors = [
-      'I mean, just look at how much ChatGPT has improved in two years.',
-      'My colleague uses AI to write code and it saves him hours every week.',
-      'You can see it in how many companies are now integrating AI into their products.',
-      'I remember when GPT-3 came out and everyone was blown away.',
-    ];
+    anchors = hasFirstPerson || hasSecondPerson
+      ? [
+          'I mean, just look at how much ChatGPT has improved in two years.',
+          'My colleague uses AI to write code and it saves him hours every week.',
+          'You can see it in how many companies are now integrating AI into their products.',
+          'I remember when GPT-3 came out and everyone was blown away.',
+        ]
+      : [
+          'Look at how much ChatGPT has improved in two years.',
+          'Many developers use AI to write code and save hours every week.',
+          'It shows in how many companies are now integrating AI into their products.',
+          'When GPT-3 came out, everyone was blown away.',
+        ];
   } else if (/\b(inflation|cost of living|price|expensive|rent|grocery)\b/i.test(lower)) {
-    anchors = [
-      'my grocery bill has gone up by nearly 30%',
-      'the rent for my apartment increased by $200',
-      'I remember when a plate of nasi goreng cost 15,000 rupiah',
-      'my friend in Jakarta says his electricity bill doubled',
-    ];
+    anchors = hasFirstPerson || hasSecondPerson
+      ? [
+          'my grocery bill has gone up by nearly 30%',
+          'the rent for my apartment increased by $200',
+          'I remember when a plate of nasi goreng cost 15,000 rupiah',
+          'my friend in Jakarta says his electricity bill doubled',
+        ]
+      : [
+          'Grocery bills have gone up by nearly 30% in many places.',
+          'Rent for apartments has increased significantly.',
+          'Food prices have risen noticeably over the years.',
+          'Electricity bills have doubled in some regions.',
+        ];
   } else if (/\b(job|career|employment|graduate|application|hire)\b/i.test(lower)) {
-    anchors = [
-      'I applied to 50 companies and only heard back from 3',
-      'my cousin graduated last year and still hasn\'t found a job',
-      'the company I work for just laid off 10% of the staff',
-      'my friend got rejected from 5 interviews before landing a role',
-    ];
+    anchors = hasFirstPerson || hasSecondPerson
+      ? [
+          'I applied to 50 companies and only heard back from 3',
+          'my cousin graduated last year and still hasn\'t found a job',
+          'the company I work for just laid off 10% of the staff',
+          'my friend got rejected from 5 interviews before landing a role',
+        ]
+      : [
+          'Many people apply to dozens of companies and hear back from only a few.',
+          'Recent graduates often struggle to find jobs.',
+          'Companies have been laying off staff across various industries.',
+          'Job seekers frequently face multiple rejections before landing a role.',
+        ];
   } else {
-    anchors = [
-      'I know someone who went through exactly this.',
-      'It reminds me of a situation a friend of mine faced.',
-      'You can see it in everyday life if you pay attention.',
-    ];
+    anchors = hasFirstPerson || hasSecondPerson
+      ? [
+          'I know someone who went through exactly this.',
+          'It reminds me of a situation a friend of mine faced.',
+          'You can see it in everyday life if you pay attention.',
+        ]
+      : [
+          'People go through situations like this all the time.',
+          'This kind of situation is fairly common.',
+          'It happens in everyday life if you pay attention.',
+        ];
   }
 
   // Sisipkan 1-2 anchors di posisi acak
