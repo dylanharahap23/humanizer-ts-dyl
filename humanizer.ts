@@ -7996,3 +7996,294 @@ export function injectAcademicAnchorsImproved(text: string): string {
 
   return result.join(' ');
 }
+
+// ============================================================
+// 6 FUNGSI BARU DARI SARAN DOSEN
+// ============================================================
+
+/**
+ * Mengganti kata-kata yang sering muncul di output AI dengan versi sehari-hari.
+ * Ini menurunkan perplexity karena kata-kata ini kurang prediktabel.
+ */
+export function deAISignatureWords(text: string): string {
+  const replacements: Array<[RegExp, string]> = [
+    [/\bsignificantly reshaped\b/gi, 'changed a lot'],
+    [/\bfacilitated continuous connection\b/gi, 'helped people stay in touch'],
+    [/\bgeographical distances\b/gi, 'long distances'],
+    [/\boverreliance\b/gi, 'too much reliance'],
+    [/\bundermine the depth and authenticity\b/gi, 'hurt the realness of'],
+    [/\bprolonged screen exposure\b/gi, 'too much screen time'],
+    [/\binterpersonal competencies\b/gi, 'people skills'],
+    [/\bcognitive noise\b/gi, 'mental clutter'],
+    [/\benhanced social engagement\b/gi, 'helped people connect'],
+    [/\bintroduced notable social challenges\b/gi, 'brought some social problems'],
+    [/\bsubstantial time\b/gi, 'a lot of time'],
+    [/\bextensive online networks\b/gi, 'many online friends'],
+    [/\bregarded as\b/gi, 'seen as'],
+    [/\bsupplementary tool\b/gi, 'extra tool'],
+    [/\bauthentic, personal relationships\b/gi, 'real personal relationships'],
+    [/\bsignificant concern\b/gi, 'major problem'],
+    [/\bsubstantially reduce\b/gi, 'cut down a lot'],
+    [/\bcomprehensive education\b/gi, 'good education'],
+    [/\brobust social support\b/gi, 'strong community support'],
+    [/\binherently impossible\b/gi, 'basically impossible'],
+    [/\bpersistent presence\b/gi, 'long-standing issue'],
+    [/\bstringent legal frameworks\b/gi, 'strict laws'],
+    [/\bengage in criminal behavior\b/gi, 'commit crimes'],
+    [/\bsocioeconomic factors\b/gi, 'social and money problems'],
+    [/\bsubstance abuse\b/gi, 'drug problems'],
+    [/\bfinancial hardship\b/gi, 'money trouble'],
+    [/\binterrelated challenges\b/gi, 'connected problems'],
+    [/\bundercore the complexity\b/gi, 'show how complex'],
+    [/\bimplement effective strategies\b/gi, 'take effective action'],
+    [/\bmitigate crime\b/gi, 'reduce crime'],
+    [/\bperceived certainty and severity\b/gi, 'chance and seriousness'],
+    [/\bunderlying causes\b/gi, 'root causes'],
+    [/\bviable career prospects\b/gi, 'good job chances'],
+    [/\brecidivism\b/gi, 're-offending'],
+    [/\bfoster greater social cohesion\b/gi, 'build stronger communities'],
+    [/\benduring feature\b/gi, 'long-lasting fact'],
+    [/\beradicated completely\b/gi, 'removed entirely'],
+    [/\bwell-designed government policies\b/gi, 'smart government policies'],
+    [/\bequitable access\b/gi, 'fair access'],
+    [/\bsustained community support\b/gi, 'ongoing community help'],
+    [/\bincidence of crime\b/gi, 'crime rate'],
+    [/\bresilient communities\b/gi, 'stronger communities'],
+    [/\bemerged as\b/gi, 'become'],
+    [/\bprevailing\b/gi, 'common'],
+    [/\bunquestionably\b/gi, 'without a doubt'],
+  ];
+
+  let result = text;
+  for (const [pattern, replacement] of replacements) {
+    if (pattern.test(result) && Math.random() < 0.6) {
+      result = result.replace(pattern, replacement);
+    }
+  }
+  return result;
+}
+
+/**
+ * Menambahkan natural imperfections: typo, redundancy, self-correction.
+ * Contoh: "it's addictive nature", "decreased and diminished", "due to huge the huge"
+ */
+export function injectNaturalImperfections(text: string): string {
+  let result = text;
+
+  // 1. Redundansi tidak sengaja: "decreased and diminished", "clear and obvious"
+  const redundancyPairs: Array<[RegExp, string]> = [
+    [/\bdecreased\b/gi, 'decreased and diminished'],
+    [/\breduced\b/gi, 'reduced and limited'],
+    [/\bincreased\b/gi, 'increased and expanded'],
+    [/\bclear\b/gi, 'clear and obvious'],
+    [/\bstrong\b/gi, 'strong and powerful'],
+    [/\bample\b/gi, 'ample and abundant'],
+    [/\bdoubt\b/gi, 'doubt or question'],
+    [/\btrue\b/gi, 'true and accurate'],
+  ];
+  if (Math.random() < 0.35) {
+    const [pattern, replacement] = redundancyPairs[Math.floor(Math.random() * redundancyPairs.length)];
+    if (pattern.test(result)) {
+      result = result.replace(pattern, replacement);
+    }
+  }
+
+  // 2. Typo strategis (apostrophe salah, pengulangan kata, salah ejaan)
+  const typos: Array<[RegExp, string]> = [
+    [/\bit is\b/gi, 'it\'s'],
+    [/\bits own\b/gi, 'it\'s own'], // typo (seharusnya its)
+    [/\btheir\b/gi, 'thier'],
+    [/\bdefinitely\b/gi, 'definately'],
+    [/\bseparate\b/gi, 'seperate'],
+    [/\boccurred\b/gi, 'occured'],
+    [/\bbeginning\b/gi, 'begining'],
+    [/\bgovernment\b/gi, 'goverment'],
+    [/\bpeople\b/gi, 'ppl'], // kadang-kadang
+  ];
+  if (Math.random() < 0.4) {
+    const [pattern, replacement] = typos[Math.floor(Math.random() * typos.length)];
+    if (pattern.test(result) && !/ppl/.test(replacement)) {
+      result = result.replace(pattern, replacement);
+    }
+  }
+
+  // 3. Self-correction / pengulangan kata tidak sengaja (seperti "due to huge the huge")
+  const sentences = splitSentences(result);
+  if (sentences.length > 4 && Math.random() < 0.3) {
+    const idx = Math.floor(Math.random() * (sentences.length - 2)) + 1;
+    const words = sentences[idx].split(' ');
+    if (words.length > 5) {
+      // duplicate kata pertama setelah kata ke-2
+      words.splice(2, 0, words[0]);
+      sentences[idx] = words.join(' ');
+      result = sentences.join(' ');
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Mengubah kata-kata formal menjadi kontraksi.
+ * Hanya untuk general tones.
+ */
+export function addContractions(text: string): string {
+  const contractionMap: Array<[RegExp, string]> = [
+    [/\bdo not\b/gi, 'don\'t'],
+    [/\bcannot\b/gi, 'can\'t'],
+    [/\bwill not\b/gi, 'won\'t'],
+    [/\bshould not\b/gi, 'shouldn\'t'],
+    [/\bwould not\b/gi, 'wouldn\'t'],
+    [/\bcould not\b/gi, 'couldn\'t'],
+    [/\bdoes not\b/gi, 'doesn\'t'],
+    [/\bdid not\b/gi, 'didn\'t'],
+    [/\bis not\b/gi, 'isn\'t'],
+    [/\bare not\b/gi, 'aren\'t'],
+    [/\bhas not\b/gi, 'hasn\'t'],
+    [/\bhave not\b/gi, 'haven\'t'],
+    [/\bit is\b/gi, 'it\'s'],
+    [/\bthat is\b/gi, 'that\'s'],
+    [/\bwhat is\b/gi, 'what\'s'],
+    [/\bthere is\b/gi, 'there\'s'],
+    [/\bi will\b/gi, 'I\'ll'],
+    [/\byou will\b/gi, 'you\'ll'],
+    [/\bthey will\b/gi, 'they\'ll'],
+    [/\bwe will\b/gi, 'we\'ll'],
+    [/\bi would\b/gi, 'I\'d'],
+    [/\bi have\b/gi, 'I\'ve'],
+    [/\byou have\b/gi, 'you\'ve'],
+    [/\bwe have\b/gi, 'we\'ve'],
+    [/\bthey have\b/gi, 'they\'ve'],
+    [/\bi am\b/gi, 'I\'m'],
+    [/\byou are\b/gi, 'you\'re'],
+    [/\bwe are\b/gi, 'we\'re'],
+    [/\bthey are\b/gi, 'they\'re'],
+  ];
+
+  let result = text;
+  for (const [pattern, replacement] of contractionMap) {
+    if (Math.random() < 0.55) {
+      result = result.replace(pattern, replacement);
+    }
+  }
+  return result;
+}
+
+/**
+ * Mengubah "I partly agree" menjadi opini kuat seperti "I strongly believe".
+ * Juga tambahkan 1-2 kalimat opini bold di tempat strategis.
+ */
+export function strengthenPersonalOpinion(text: string): string {
+  const strongOpinions = [
+    'I strongly believe that ',
+    'I am firmly convinced that ',
+    'There is no doubt in my mind that ',
+    'I would argue that ',
+    'It is my firm belief that ',
+  ];
+
+  const sentences = splitSentences(text);
+  let changed = false;
+
+  // 1. Ubah opini lemah menjadi kuat
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    if (/\b(partly agree|somewhat agree|to some extent|I think|I believe|In my opinion)\b/i.test(s) && !changed) {
+      const opener = strongOpinions[Math.floor(Math.random() * strongOpinions.length)];
+      const rest = s.replace(/^.*?\b(?:I think|I believe|In my opinion|partly agree|somewhat agree|to some extent)\b\s*/i, '');
+      sentences[i] = opener + rest.charAt(0).toLowerCase() + rest.slice(1);
+      changed = true;
+      break;
+    }
+  }
+
+  // 2. Jika belum ada "I" di teks, tambahkan 1 opini kuat di posisi 30-60%
+  if (!changed && !/\b(I|my|me)\b/.test(text) && sentences.length > 3) {
+    const pos = Math.floor(sentences.length * 0.4);
+    const opener = strongOpinions[Math.floor(Math.random() * strongOpinions.length)];
+    const rest = sentences[pos];
+    sentences[pos] = opener + rest.charAt(0).toLowerCase() + rest.slice(1);
+  }
+
+  return sentences.join(' ');
+}
+
+/**
+ * Menambahkan 1-2 kalimat outlier: sangat pendek (3-5 kata) atau super panjang (40+ kata).
+ * Ini menciptakan burstiness tinggi.
+ */
+export function injectOutlierSentences(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  const result = [...sentences];
+
+  // 1. Tambahkan kalimat super pendek (3-6 kata)
+  if (Math.random() < 0.7) {
+    const shortOnes = [
+      'That said.',
+      'Not always.',
+      'It depends.',
+      'Fair enough.',
+      'No doubt.',
+      'Honestly.',
+      'Right.',
+      'Anyway.',
+      'True.',
+      'Still.',
+    ];
+    const pos = Math.floor(Math.random() * (result.length - 1)) + 1;
+    result.splice(pos, 0, shortOnes[Math.floor(Math.random() * shortOnes.length)]);
+  }
+
+  // 2. Tambahkan kalimat super panjang (40+ kata) dengan banyak klausa
+  if (Math.random() < 0.5 && result.length > 3) {
+    const longTemplates = [
+      "And honestly, I think the whole debate is kind of pointless because my grandma can now video call her sister in Jakarta every morning, and that alone — that simple, stupid little thing — proves everything I need to say.",
+      "It's actually pretty wild when you stop and think about it — I mean, my cousin in Switzerland video calls her parents every Sunday, and they're literally thousands of miles apart, but it feels like they're in the same room, and that's not something you could have said even ten years ago, right?",
+      "To be perfectly honest, I've always found it weird how people obsess over whether technology makes us more or less social, because the answer is so obviously both — it just depends on how you use it, and that's the real point people miss.",
+    ];
+    const pos = Math.floor(Math.random() * (result.length - 1)) + 1;
+    result.splice(pos, 0, longTemplates[Math.floor(Math.random() * longTemplates.length)]);
+  }
+
+  return result.join(' ');
+}
+
+/**
+ * Memastikan paragraf memiliki panjang ekstrem: 1 kalimat di satu paragraf,
+ * dan 5+ kalimat di paragraf lain. Hancurkan keseimbangan.
+ */
+export function injectExtremeParagraphVariation(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+
+  // 1. Ubah satu paragraf menjadi sangat pendek (1 kalimat)
+  const shortIdx = Math.floor(Math.random() * paragraphs.length);
+  const sentences = splitSentences(paragraphs[shortIdx]);
+  if (sentences.length > 2) {
+    paragraphs[shortIdx] = sentences.slice(0, 1).join(' ');
+  }
+
+  // 2. Ubah satu paragraf lain menjadi sangat panjang (gabungkan dengan paragraf berikutnya)
+  const longIdx = (shortIdx + 1) % paragraphs.length;
+  if (longIdx < paragraphs.length - 1) {
+    paragraphs[longIdx] = paragraphs[longIdx] + ' ' + paragraphs[longIdx + 1];
+    paragraphs.splice(longIdx + 1, 1);
+  }
+
+  // 3. Jika paragraf masih terlalu seragam, ubah satu paragraf jadi 5+ kalimat
+  if (paragraphs.length > 2) {
+    const anotherIdx = (longIdx + 1) % paragraphs.length;
+    const sentences2 = splitSentences(paragraphs[anotherIdx]);
+    if (sentences2.length > 2 && sentences2.length < 5 && Math.random() < 0.4) {
+      // gabungkan dengan paragraf berikutnya untuk membuat panjang
+      if (anotherIdx < paragraphs.length - 1) {
+        paragraphs[anotherIdx] = paragraphs[anotherIdx] + ' ' + paragraphs[anotherIdx + 1];
+        paragraphs.splice(anotherIdx + 1, 1);
+      }
+    }
+  }
+
+  return paragraphs.join('\n\n');
+}

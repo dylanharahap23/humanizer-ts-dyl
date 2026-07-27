@@ -38,6 +38,12 @@ import {
   injectExtremeLengthVariation,
   injectBoldOpinion,
   injectAcademicAnchorsImproved,
+  deAISignatureWords,
+  injectNaturalImperfections,
+  addContractions,
+  strengthenPersonalOpinion,
+  injectOutlierSentences,
+  injectExtremeParagraphVariation,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -3026,6 +3032,20 @@ export async function POST(req: Request) {
 
       // 10. Personal stance
       currentText = injectPersonalStance(currentText);
+
+      // --- Tambahan dari saran dosen (6 fungsi baru) ---
+      // 11. Ganti kata AI-signature dengan versi sehari-hari
+      currentText = deAISignatureWords(currentText);
+      // 12. Tambahkan natural imperfections (typo, redundancy, self-correction)
+      currentText = injectNaturalImperfections(currentText);
+      // 13. Ubah formal ke kontraksi
+      currentText = addContractions(currentText);
+      // 14. Ubah opini lemah menjadi kuat
+      currentText = strengthenPersonalOpinion(currentText);
+      // 15. Tambahkan kalimat outlier (pendek & panjang ekstrem)
+      currentText = injectOutlierSentences(currentText);
+      // 16. Hancurkan keseimbangan paragraf
+      currentText = injectExtremeParagraphVariation(currentText);
     }
 
     if (config.postProcessTone.startsWith("english-")) {
