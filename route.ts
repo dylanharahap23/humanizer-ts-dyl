@@ -1975,7 +1975,7 @@ async function applyConversationalSecondPass({
       model: SECOND_PASS_MODEL,
       temperature: secondPassSampling.temperature,
       top_p: secondPassSampling.topP,
-      max_tokens: Math.max(420, Math.ceil(sourceWordCount * 1.5)),
+      max_tokens: Math.max(600, Math.ceil(sourceWordCount * 2.0)),
       frequency_penalty: secondPassSampling.frequencyPenalty,
       presence_penalty: secondPassSampling.presencePenalty,
       repetition_penalty: secondPassSampling.repetitionPenalty,
@@ -2031,8 +2031,8 @@ async function applyConversationalSecondPass({
 
   if (
     cleaned.length < 20 ||
-    lengthRatio < 0.72 ||
-    lengthRatio > 1.18 ||
+    lengthRatio < 0.55 ||
+    lengthRatio > 1.25 ||
     fidelityIssues.length > 0 ||
     blockingQualityIssues.length > 0 ||
     sensitiveFidelityIssue
@@ -2361,42 +2361,6 @@ export async function POST(req: Request) {
         });
     currentText = sensitiveGuard.text;
 
-    // --- HUMANIZATION LAYERS (NEW) ---
-    // Hanya untuk register English umum, bukan academic/sensitive
-    const applyHumanLayers = config.postProcessTone.startsWith('english-') &&
-                             !['english-academic', 'english-sensitive', 'english-policy'].includes(config.postProcessTone);
-
-    if (applyHumanLayers) {
-      // 1. Drop some coverage (lupa) – hanya jika teks cukup panjang
-      if (currentText.split(/\s+/).length > 120) {
-        currentText = dropInformationLoss(currentText);
-      }
-
-      // 2. Transform reasoning graph (acak struktur argumen)
-      currentText = transformReasoningGraph(currentText);
-
-      // 3. Inject real fragments (kalimat tidak lengkap)
-      currentText = injectRealFragments(currentText);
-
-      // 4. Inject obsession loop (ulangi 1 ide)
-      currentText = injectObsessionAcrossText(currentText);
-
-      // 5. Inject clustered hedging (keraguan tercluster)
-      currentText = injectClusteredHedging(currentText);
-
-      // 6. Force conversational register
-      currentText = forceConversationalRegister(currentText);
-
-      // 7. Inject topic-specific anchors
-      currentText = injectTopicAnchors(currentText);
-
-      // 8. Inject cognitive uncertainty
-      currentText = injectCognitiveUncertaintyFinal(currentText);
-
-      // 9. Cleanup spacing
-      currentText = cleanupEnglishSpacing(currentText);
-    }
-
     // --- PASS 2: source-faithful English rewrite ---
     let secondPassApplied = false;
     let secondPassModel: string | null = null;
@@ -2436,6 +2400,43 @@ export async function POST(req: Request) {
       currentText = faithfulPass.text;
       secondPassApplied = faithfulPass.applied;
       secondPassModel = faithfulPass.applied ? SECOND_PASS_MODEL : null;
+    }
+
+    // --- HUMANIZATION LAYERS (diterapkan selalu setelah Pass 1/2, terlepas dari hasil Pass 2) ---
+    // Hanya untuk register English umum, bukan academic/sensitive/policy
+    const applyHumanLayers = config.postProcessTone.startsWith('english-') &&
+                             !['english-academic', 'english-sensitive', 'english-policy'].includes(config.postProcessTone);
+
+    if (applyHumanLayers && currentText.trim()) {
+      console.log("Applying new humanization layers after Pass 1/2");
+      // 1. Drop some coverage (lupa) – hanya jika teks cukup panjang
+      if (currentText.split(/\s+/).length > 120) {
+        currentText = dropInformationLoss(currentText);
+      }
+
+      // 2. Transform reasoning graph (acak struktur argumen)
+      currentText = transformReasoningGraph(currentText);
+
+      // 3. Inject real fragments (kalimat tidak lengkap)
+      currentText = injectRealFragments(currentText);
+
+      // 4. Inject obsession loop (ulangi 1 ide)
+      currentText = injectObsessionAcrossText(currentText);
+
+      // 5. Inject clustered hedging (keraguan tercluster)
+      currentText = injectClusteredHedging(currentText);
+
+      // 6. Force conversational register
+      currentText = forceConversationalRegister(currentText);
+
+      // 7. Inject topic-specific anchors
+      currentText = injectTopicAnchors(currentText);
+
+      // 8. Inject cognitive uncertainty
+      currentText = injectCognitiveUncertaintyFinal(currentText);
+
+      // 9. Cleanup spacing
+      currentText = cleanupEnglishSpacing(currentText);
     }
 
     // Keep final cleanup source-grounded; no fake memories, facts, or deliberate flaws.
