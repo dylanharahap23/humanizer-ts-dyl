@@ -6,6 +6,13 @@ import {
   getBearerToken,
   getSupabaseUser,
 } from "@/lib/credits/server";
+import {
+  buildPersonaGroundedPrompt,
+  getUserVoiceContextText,
+  hasRealUserContext,
+  parseUserVoiceContext,
+  type UserVoiceContext,
+} from "@/lib/user-voice-context";
 import { translate as translateWithDeepLXPackage, type SourceLanguage, type TargetLanguage, type TranslateOptions } from "deeplx";
 import {
   applyPythonHumanizeIndonesianPass,
@@ -14,8 +21,10 @@ import {
 } from "@/lib/indonesian-humanizer";
 import { isSupabaseServerConfigured } from "@/lib/supabase/server";
 import {
+  finalHumanize,
   getEnglishHumanizerConfig,
   getSystemPromptByTone,
+  buildSemanticRegenerationPrompt,
   normalizeHumanizerTone,
   cleanupEnglishSpacing,
   type HumanizerPromptConfig,
@@ -33,8 +42,75 @@ const FIRST_PASS_FIDELITY_CONTRACT = [
   "- Preserve every proper name and numeric value exactly.",
   "- Preserve the original point of view and level of certainty.",
   "- You may change syntax, ordinary vocabulary, contractions, sentence openings, paragraphing, and clause order only when meaning stays identical.",
+  "- Restructure clauses instead of merely replacing words with formal synonyms.",
+  "- Prefer direct vocabulary. Do not inflate maintain into uphold, reduce into minimize, or often into frequently.",
+  "- Split long sentences at genuine clause boundaries. Include a few short but complete factual sentences when the source supports them.",
+  "- Do not add fragments, rhetorical reactions, deliberate errors, or a new summary paragraph.",
   "- Return only the rewritten text.",
 ].join("\n");
+function shouldUseSourceGroundedRegeneration(
+  tone: HumanizerPromptConfig["postProcessTone"]
+): boolean {
+  return [
+    "casual",
+    "english-general",
+    "english-expository",
+    "english-discursive",
+    "english-reflective",
+    "english-argument",
+    "english-practical",
+    "english-consumer",
+    "english-personal",
+  ].includes(tone);
+}
+
+function buildFirstPassSystemPrompt(
+  config: HumanizerPromptConfig,
+  sourceText: string,
+  userVoiceContext?: UserVoiceContext
+): string {
+  const baseInstructions = [config.systemPrompt, config.additionalInstruction]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const compositionInstruction = hasRealUserContext(userVoiceContext)
+    ? [
+        shouldUseSourceGroundedRegeneration(config.postProcessTone)
+          ? buildSemanticRegenerationPrompt(sourceText, config.postProcessTone)
+          : FIRST_PASS_FIDELITY_CONTRACT,
+        buildPersonaGroundedPrompt(userVoiceContext),
+      ]
+        .filter(Boolean)
+        .join("\n\n")
+    : shouldUseSourceGroundedRegeneration(config.postProcessTone)
+      ? buildSemanticRegenerationPrompt(sourceText, config.postProcessTone)
+      : FIRST_PASS_FIDELITY_CONTRACT;
+
+  return [baseInstructions, compositionInstruction].filter(Boolean).join("\n\n");
+}
+
+function getSecondPassSampling(tone: HumanizerPromptConfig["postProcessTone"]) {
+  const controlled =
+    tone === "english-sensitive" ||
+    tone === "english-academic" ||
+    tone === "english-policy";
+
+  return controlled
+    ? {
+        temperature: 0.45,
+        topP: 0.88,
+        frequencyPenalty: 0,
+        presencePenalty: 0,
+        repetitionPenalty: 1.02,
+      }
+    : {
+        temperature: 0.78,
+        topP: 0.95,
+        frequencyPenalty: 0.08,
+        presencePenalty: 0.04,
+        repetitionPenalty: 1.03,
+      };
+}
 
 // Model untuk Pass 2: source-faithful rewrite
 const SECOND_PASS_MODEL =
@@ -633,20 +709,11 @@ async function repairOutputLanguage({
 
 
 function countEnglishSentences(paragraph: string) {
-  return paragraph
-    .split(/(?<=[.!?])\s+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean).length;
+  return splitCompleteEnglishSentences(paragraph).length;
 }
 
 function splitEnglishSentencesForLedger(text: string) {
-  return (
-    text
-      .replace(/\s+/g, " ")
-      .match(/[^.!?]+(?:[.!?]+|$)/g)
-      ?.map((sentence) => sentence.trim())
-      .filter(Boolean) ?? []
-  );
+  return splitCompleteEnglishSentences(text.replace(/\s+/g, " "));
 }
 
 function formatReflectiveSourceFallback(sourceText: string) {
@@ -877,7 +944,7 @@ function addsUnsupportedPersonalAddress(
   );
 }
 const SENSITIVE_ANCHOR_PATTERN =
-  /\b(?:Prophet Muhammad|Qur(?:'|’)?an|hadiths?|haram|halal|duff|Hanbali|Maliki|Shafi(?:'|’)?i|Hanafi|Islamic jurisprudence|Allah)\b/gi;
+  /\b(?:Prophet Muhammad|Qur(?:'|’)?an|hadiths?|haram|halal|duff|Hanbali|Maliki|Shafi(?:'|’)?i|Hanafi|Islamic jurisprudence|Allah|inflammatory bowel disease|IBD|active flare|remission|nutrient absorption|calorie needs|persistent diarrhea|abdominal pain|unintended weight loss|cardiovascular fitness|muscle strength|bone health|mental well-being|medical treatment|healthcare professional|dietitian)\b/gi;
 
 function collectSensitiveAnchors(text: string) {
   const terms = text.match(SENSITIVE_ANCHOR_PATTERN) ?? [];
@@ -1029,7 +1096,8 @@ function shouldUseConversationalSecondPass(
     tone === "english-argument" ||
     tone === "english-practical" ||
     tone === "english-policy" ||
-    tone === "english-consumer"
+    tone === "english-consumer" ||
+    tone === "english-sensitive"
   );
 }
 
@@ -1043,28 +1111,81 @@ const FAITHFUL_SECOND_PASS_PROMPT = [
   "- Keep the same point of view. Do not introduce I, we, you, or a narrator unless the source already uses that perspective.",
   "- Do not turn possibilities into facts, strengthen weak claims, or infer motives and outcomes.",
   "",
-  "ALLOWED EDITS:",
-  "- Change sentence structure and ordinary vocabulary without changing meaning.",
-  "- Use natural contractions where the register allows them.",
+  "STRUCTURE AND WORDING:",
+  "- Rebuild sentences at clause level; do not produce a thesaurus-style paraphrase that mirrors every source sentence.",
+  "- Keep a naturally dense sentence when related source details belong together. Split only an overloaded list or a genuine cause, contrast, coordination, or consequence boundary.",
+  "- Derive a few short, complete factual sentences by separating clauses already present in the source. Never add empty reactions or sentence fragments.",
+  "- Prefer plain wording. Use maintain rather than uphold, reduce rather than minimize, often rather than frequently, and grow rather than multiply when the meaning is identical.",
+  "- Use contractions only where the register allows them.",
   "- Reorder clauses only when their logical relationship remains identical.",
-  "- Vary sentence openings and paragraph lengths gently.",
-  "- Use at most two light discourse markers such as Well, Still, or Honestly, and only when they do not add an opinion.",
+  "- Use two to four idea-based paragraphs when the source is long enough. Do not create a regular staircase of two-to-four-sentence mini-paragraphs.",
+  "- Do not create a one-sentence recap paragraph. End with the source's last substantive qualification.",
+  "- Avoid stacking scaffolding such as This practice, That said, For instance, On the other hand, In fact, and The key is.",
+  "- Do not begin nearby sentences repeatedly with It, This, That, or They. Repeat the concrete subject when clearer.",
+  "- Fold an abstract opening such as X is important or X holds great importance into the concrete effect that follows.",
+  "- Avoid polished recap frames such as For these reasons, Beyond these benefits, not only X but also Y, or X becomes an investment in A, B, and C.",
+  "- Do not use category-heading sentences such as One key reason is, Lifestyle choices also affect, Economic pressures add another layer, or Several factors contribute.",
+  "- When a short category sentence merely announces the concrete sentence after it, remove the redundant announcement and keep the concrete evidence.",
+  "- Break lists of five or more items into two complete sentences while preserving every item and the original governing claim.",
+  "- Never split a sentence after a.m., p.m., e.g., i.e., an initial, or a decimal point.",
+  "- Do not create the frames This is because, In addition, or So, the ... approach. Connect the factual clauses directly.",
+  "- Preserve time expressions and any recommended sleep-duration range exactly as written in the source.",
   "",
   "DO NOT:",
   "- Invent a cousin, friend, job, company, number, quotation, failure, success, or personal reaction.",
   "- Add rhetorical questions unless the source already contains a question.",
-  "- Add deliberate typos, fragments, run-ons, repeated words, fake memories, or random tangents.",
+  "- Add deliberate typos, grammar errors, fragments, run-ons, repeated words, fake memories, or random tangents.",
   "- Drop source information merely to make the text shorter.",
   "- Add a new conclusion or moral lesson.",
   "",
   "Keep the result close to the source length and return only the rewritten text.",
 ].join("\n");
 
+const SOURCE_GROUNDED_SECOND_PASS_PROMPT = [
+  "Write a fresh English composition from the source claim units. The SOURCE TEXT is the only authority; the Pass 1 draft is not a sentence template.",
+  "",
+  "ACCURACY:",
+  "- Keep all source claims, names, numbers, dates, quotations, citations, examples, conditions, comparisons, and uncertainty.",
+  "- Do not invent or infer a person, narrator, statistic, anecdote, opinion, recommendation, location, quotation, or outside detail.",
+  "- Keep the original point of view. Do not add I, we, or direct reader address unless it is already in the source.",
+  "",
+  "COMPOSITION:",
+  "- Rebuild the flow from related claim units instead of preserving the source order or paraphrasing each source sentence.",
+  "- Open with a concrete source-supported cause, effect, or condition. Avoid broad topic openings and category-announcement sentences.",
+  "- Change both clause boundaries and paragraph grouping where the source logic allows it. Do not make every paragraph the same size.",
+  "- Use plain, register-appropriate English. Avoid empty transition labels, polished recap language, and a one-sentence summary ending.",
+  "- Preserve all material information. Do not add forced informality, filler, rhetorical questions, fragments, deliberate errors, or fake spontaneity.",
+  "",
+  "Return only the rewritten English text.",
+].join("\n");
+
+const SENSITIVE_SECOND_PASS_ADDENDUM = [
+  "",
+  "SENSITIVE MEDICAL, RELIGIOUS, OR LEGAL TEXT:",
+  "- Preserve every diagnosis, symptom, unit, measurement, treatment condition, provider reference, quotation, citation, and technical term from the source.",
+  "- Preserve modal force and scope: may, can, generally, if, especially, and similar qualifiers must not become stronger or weaker claims.",
+  "- Do not add medical causes, mechanisms, treatment advice, patient stories, legal conclusions, or religious rulings.",
+  "- This must still be a real rewrite. Do not copy the source sentence order or paragraph shape when clauses can be regrouped safely.",
+  "- Keep a factual register. Do not add slang, direct reader address, a personal narrator, jokes, fragments, or deliberate errors.",
+  "- Replace empty category leads with the concrete condition already present in the source.",
+  "- Split long lists of effects, benefits, symptoms, or actions into complete sentences without dropping an item.",
+].join("\n");
+
 function buildConversationalSecondPassPrompt(
-  _tone: HumanizerPromptConfig["postProcessTone"],
-  _sourceText?: string
+  tone: HumanizerPromptConfig["postProcessTone"],
+  _sourceText?: string,
+  userVoiceContext?: UserVoiceContext
 ): string {
-  return FAITHFUL_SECOND_PASS_PROMPT;
+  const basePrompt =
+    tone === "english-sensitive"
+      ? FAITHFUL_SECOND_PASS_PROMPT + SENSITIVE_SECOND_PASS_ADDENDUM
+      : shouldUseSourceGroundedRegeneration(tone)
+        ? SOURCE_GROUNDED_SECOND_PASS_PROMPT
+        : FAITHFUL_SECOND_PASS_PROMPT;
+
+  return hasRealUserContext(userVoiceContext)
+    ? [basePrompt, buildPersonaGroundedPrompt(userVoiceContext)].join("\n\n")
+    : basePrompt;
 }
 
 function preserveResearchHedge(sourceText: string, candidate: string) {
@@ -1100,32 +1221,36 @@ function valuesOutsideSource(sourceValues: string[], candidateValues: string[]):
 function getConversationalFidelityIssues(
   sourceText: string,
   candidate: string,
-  _allowSecondPerson = false
+  _allowSecondPerson = false,
+  userVoiceContext?: UserVoiceContext
 ) {
   const issues: string[] = [];
+  const contextText = getUserVoiceContextText(userVoiceContext);
+  const allowedText = [sourceText, contextText].filter(Boolean).join("\n");
 
-  const sourceHasFirstPerson = /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(sourceText);
+  const allowedHasFirstPerson = /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(allowedText);
   const candidateHasFirstPerson = /\b(?:I|me|my|mine|we|us|our|ours)\b/i.test(candidate);
-  if (!sourceHasFirstPerson && candidateHasFirstPerson) {
+  if (!allowedHasFirstPerson && candidateHasFirstPerson) {
     issues.push("invented-first-person");
   }
 
-  const sourceHasSecondPerson = /\b(?:you|your|yours|yourself|yourselves)\b/i.test(sourceText);
+  const allowedHasSecondPerson = /\b(?:you|your|yours|yourself|yourselves)\b/i.test(allowedText);
   const candidateWithoutDiscourseYouKnow = candidate.replace(/\byou know\b/gi, "");
   if (
-    !sourceHasSecondPerson &&
+    !allowedHasSecondPerson &&
     /\b(?:you|your|yours|yourself|yourselves)\b/i.test(candidateWithoutDiscourseYouKnow)
   ) {
     issues.push("invented-second-person");
   }
 
-  if (!/\?/.test(sourceText) && /\?/.test(candidate)) {
+  if (!/\?/.test(allowedText) && /\?/.test(candidate)) {
     issues.push("rhetorical-question");
   }
 
   const sourceNumbers = collectNumericTokens(sourceText);
+  const allowedNumbers = collectNumericTokens(allowedText);
   const candidateNumbers = collectNumericTokens(candidate);
-  if (valuesOutsideSource(sourceNumbers, candidateNumbers).length > 0) {
+  if (valuesOutsideSource(allowedNumbers, candidateNumbers).length > 0) {
     issues.push("outside-number");
   }
   if (valuesOutsideSource(candidateNumbers, sourceNumbers).length > 0) {
@@ -1133,8 +1258,9 @@ function getConversationalFidelityIssues(
   }
 
   const sourceNames = collectMultiwordProperNames(sourceText);
+  const allowedNames = collectMultiwordProperNames(allowedText);
   const candidateNames = collectMultiwordProperNames(candidate);
-  if (valuesOutsideSource(sourceNames, candidateNames).length > 0) {
+  if (valuesOutsideSource(allowedNames, candidateNames).length > 0) {
     issues.push("outside-name");
   }
   if (valuesOutsideSource(candidateNames, sourceNames).length > 0) {
@@ -1145,22 +1271,22 @@ function getConversationalFidelityIssues(
     /\b(?:cousin|uncle|aunt|friend|neighbor|neighbour|mother|father|mom|mum|dad|sister|brother|wife|husband)\b/gi;
   const professionPattern =
     /\b(?:CEO|nurse|nursing|doctor|physician|engineer|lawyer|teacher|professor|accountant|entrepreneur|manager)\b/gi;
-  const sourceRelationships = sourceText.match(relationshipPattern) ?? [];
+  const allowedRelationships = allowedText.match(relationshipPattern) ?? [];
   const candidateRelationships = candidate.match(relationshipPattern) ?? [];
-  const sourceProfessions = sourceText.match(professionPattern) ?? [];
+  const allowedProfessions = allowedText.match(professionPattern) ?? [];
   const candidateProfessions = candidate.match(professionPattern) ?? [];
-  if (valuesOutsideSource(sourceRelationships, candidateRelationships).length > 0) {
+  if (valuesOutsideSource(allowedRelationships, candidateRelationships).length > 0) {
     issues.push("outside-relationship");
   }
-  if (valuesOutsideSource(sourceProfessions, candidateProfessions).length > 0) {
+  if (valuesOutsideSource(allowedProfessions, candidateProfessions).length > 0) {
     issues.push("outside-profession");
   }
 
   const certaintyPattern =
     /\b(?:obviously|clearly|definitely|certainly|undoubtedly|probably|presumably)\b/gi;
-  const sourceCertainty = sourceText.match(certaintyPattern) ?? [];
+  const allowedCertainty = allowedText.match(certaintyPattern) ?? [];
   const candidateCertainty = candidate.match(certaintyPattern) ?? [];
-  if (valuesOutsideSource(sourceCertainty, candidateCertainty).length > 0) {
+  if (valuesOutsideSource(allowedCertainty, candidateCertainty).length > 0) {
     issues.push("invented-certainty");
   }
 
@@ -1172,12 +1298,12 @@ function getConversationalFidelityIssues(
 
   const promotionalFraming =
     /\b(?:the real magic|full of potential|the real difference[- ]maker|no surprise there|at the end of the day)\b/i;
-  if (!promotionalFraming.test(sourceText) && promotionalFraming.test(candidate)) {
+  if (!promotionalFraming.test(allowedText) && promotionalFraming.test(candidate)) {
     issues.push("promotional-framing");
   }
 
   const markdownEmphasis = /(?:\*\*|__|\*)[^\n*]+(?:\*\*|__|\*)/;
-  if (!markdownEmphasis.test(sourceText) && markdownEmphasis.test(candidate)) {
+  if (!markdownEmphasis.test(allowedText) && markdownEmphasis.test(candidate)) {
     issues.push("invented-emphasis");
   }
 
@@ -1515,10 +1641,21 @@ function hasUnsupportedConversationalAdditions(
 }
 
 function splitCompleteEnglishSentences(text: string) {
-  return (
-    text.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)?.map((sentence) => sentence.trim()) ??
-    []
-  ).filter(Boolean);
+  const abbreviationDot = "\uE000";
+  const protectedText = text
+    .replace(
+      /\b(?:a\.m\.|p\.m\.|e\.g\.|i\.e\.)(?=\s+[a-z])/gi,
+      (value) => value.replace(/\./g, abbreviationDot)
+    )
+    .replace(
+      /\b(?:Dr|Mr|Mrs|Ms|Prof|Sr|Jr)\.(?=\s+[A-Z])/g,
+      (value) => value.replace(".", abbreviationDot)
+    );
+
+  return protectedText
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.replaceAll(abbreviationDot, ".").trim())
+    .filter(Boolean);
 }
 
 function removeUnsupportedMeasuredClaims(sourceText: string, candidate: string) {
@@ -1604,13 +1741,193 @@ function recomposeArgumentAroundJudgment(
   return [opening, concession, closing].filter(Boolean).join("\n\n");
 }
 
+function getEnglishSurfaceQualityIssues(text: string): string[] {
+  const issues: string[] = [];
+  const sentences = splitCompleteEnglishSentences(text);
+  if (sentences.length < 6) return issues;
+
+  const lengths = sentences.map((sentence) =>
+    sentence.split(/\s+/).filter(Boolean).length
+  );
+  const longRatio = lengths.filter((length) => length > 20).length / lengths.length;
+  const shortCount = lengths.filter((length) => length <= 10).length;
+  const averageLength = lengths.reduce((sum, length) => sum + length, 0) / lengths.length;
+  const sentenceVariance =
+    lengths.reduce(
+      (sum, length) => sum + Math.pow(length - averageLength, 2),
+      0
+    ) / lengths.length;
+  const sentenceCv =
+    averageLength === 0 ? 0 : Math.sqrt(sentenceVariance) / averageLength;
+
+  if (longRatio >= 0.45) issues.push("long-sentence-dominance");
+  if (shortCount === 0 && averageLength >= 15) issues.push("no-rhythm-contrast");
+  if (averageLength >= 13 && sentenceCv < 0.28) {
+    issues.push("sentence-length-uniformity");
+  }
+
+  const formulaicScaffolds =
+    text.match(
+      /\b(?:one key reason is|the key factor is|depends primarily on|it is important to|add another layer of difficulty|several factors contribute|lifestyle choices also affect|as a result)\b/gi
+    ) ?? [];
+  if (formulaicScaffolds.length >= 2) {
+    issues.push("formulaic-expository-scaffolding");
+  }
+  if (/\bThis is because\b/i.test(text)) {
+    issues.push("synthetic-causal-split");
+  }
+  if (/(?:^|[.!?]\s+)Only a relatively small proportion of\b/i.test(text.trim())) {
+    issues.push("generic-quantifier-opening");
+  }
+  if (/\bBy contrast,\s+others\b/i.test(text)) {
+    issues.push("generic-contrast-scaffold");
+  }
+  if (/\bIt is (?:also )?important to note that\b/i.test(text)) {
+    issues.push("empty-importance-metadiscourse");
+  }
+  if (/(?:^|[.!?]\s+|\n+)In addition,\s*/i.test(text)) {
+    issues.push("empty-additive-transition");
+  }
+  if (
+    /(?:^|[.!?]\s+|\n+)So,\s+the\s+(?:healthiest|best|safest|most\s+\w+)\s+(?:approach|option|choice|way)\b/i.test(
+      text
+    )
+  ) {
+    issues.push("polished-health-recap");
+  }
+  if (
+    /\b\d{1,2}:\d{2}\s+[ap]\.m\.\s+(?:After|Before)\s+(?:sleeping|a full night(?:'s|\u2019s)? rest|getting|resting)\b/i.test(
+      text
+    )
+  ) {
+    issues.push("broken-time-clause");
+  }
+
+  const abstractImportanceLead =
+    /^(?:[^.!?]{2,90})\s+(?:holds great importance|is (?:extremely|very|highly) important|is of (?:great|considerable) importance)\./i.test(
+      text.trim()
+    );
+  if (abstractImportanceLead) {
+    issues.push("abstract-importance-opening");
+  }
+
+  const pronounLedOpeners = sentences.filter((sentence) =>
+    /^(?:It|This|That|They)\b/i.test(sentence)
+  ).length;
+  const repeatedMethodScaffold =
+    text.match(/\bIt does this\b/gi)?.length ?? 0;
+  if (repeatedMethodScaffold >= 2) {
+    issues.push("repeated-method-scaffold");
+  }
+  if (
+    pronounLedOpeners >= 5 ||
+    (sentences.length >= 8 && pronounLedOpeners / sentences.length >= 0.4)
+  ) {
+    issues.push("pronoun-opener-chain");
+  }
+
+  const denseEnumerationCount = sentences.filter(
+    (sentence) => (sentence.match(/,/g) ?? []).length >= 3
+  ).length;
+  if (denseEnumerationCount >= 3) {
+    issues.push("dense-enumeration-repetition");
+  }
+
+  if (
+    /(?:\u2014|-)and,?\s+for some\.\s+Some is\b/i.test(text)
+  ) {
+    issues.push("broken-clause-split");
+  }
+
+  const inflatedTerms =
+    text.match(/\b(?:uphold|minimize|lessen|frequently|multiply more quickly|utilize|facilitate)\b/gi) ?? [];
+  if (inflatedTerms.length >= 3) issues.push("inflated-wording");
+
+  const paragraphs = text.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
+  const paragraphSentenceCounts = paragraphs.map(
+    (paragraph) => splitCompleteEnglishSentences(paragraph).length
+  );
+  const hasUniformParagraphBlocks =
+    paragraphs.length === 2 &&
+    paragraphSentenceCounts.every((count) => count >= 4) &&
+    Math.abs(paragraphSentenceCounts[0] - paragraphSentenceCounts[1]) <= 1;
+  if (hasUniformParagraphBlocks) {
+    issues.push("paragraph-shape-uniformity");
+  }
+  if (
+    paragraphs.length >= 6 &&
+    paragraphSentenceCounts.every((count) => count <= 4)
+  ) {
+    issues.push("over-segmented-short-paragraphs");
+  }
+  const paragraphRange =
+    paragraphSentenceCounts.length > 0
+      ? Math.max(...paragraphSentenceCounts) -
+        Math.min(...paragraphSentenceCounts)
+      : 0;
+  if (
+    paragraphs.length >= 4 &&
+    paragraphs.length <= 6 &&
+    sentences.length >= 8 &&
+    paragraphSentenceCounts.every((count) => count >= 1 && count <= 4) &&
+    paragraphRange <= 3
+  ) {
+    issues.push("short-paragraph-staircase");
+  }
+
+  const lastParagraph = paragraphs[paragraphs.length - 1] ?? "";
+  if (
+    paragraphs.length >= 2 &&
+    splitCompleteEnglishSentences(lastParagraph).length === 1 &&
+    /^(?:The key|The goal|Ultimately|In conclusion|To conclude|Overall)\b/i.test(lastParagraph)
+  ) {
+    issues.push("standalone-summary-paragraph");
+  }
+  if (
+    /\bFor these reasons,/i.test(lastParagraph) ||
+    /\b(?:serves as|is) more than\b[^.!?]*\.\s+It becomes an investment in\b/i.test(
+      lastParagraph
+    )
+  ) {
+    issues.push("polished-recap-closing");
+  }
+
+  return issues;
+}
+
+// Structural style signals are useful for telemetry, but they are not evidence
+// that a faithful, readable rewrite is unsafe to return. Only malformed output
+// should force a fallback to an earlier candidate.
+function getBlockingEnglishSurfaceQualityIssues(issues: string[]): string[] {
+  const blocking = new Set([
+    "broken-time-clause",
+    "broken-clause-split",
+    "synthetic-causal-split",
+  ]);
+
+  return issues.filter((issue) => blocking.has(issue));
+}
+
 function buildSafeEnglishFallback(
   sourceText: string,
-  tone: HumanizerPromptConfig["postProcessTone"]
+  preferredCandidate: string,
+  tone: HumanizerPromptConfig["postProcessTone"],
+  userVoiceContext?: UserVoiceContext
 ) {
-  // REMOVED: finalHumanize was creating predictable fingerprint
-  // Just return the original source text cleaned up
-  const editedSource = cleanupEnglishSpacing(sourceText);
+  const cleanedCandidate = cleanupEnglishSpacing(preferredCandidate);
+  if (
+    cleanedCandidate.length >= 20 &&
+    getConversationalFidelityIssues(
+      sourceText,
+      cleanedCandidate,
+      false,
+      userVoiceContext
+    ).length === 0
+  ) {
+    return cleanedCandidate;
+  }
+
+  const editedSource = finalHumanize(sourceText, tone);
   return hasUnsupportedConversationalAdditions(sourceText, editedSource)
     ? sourceText.trim()
     : editedSource;
@@ -1620,12 +1937,14 @@ async function applyConversationalSecondPass({
   text,
   sourceText,
   tone,
+  userVoiceContext,
   apiKey,
   signal,
 }: {
   text: string;
   sourceText: string;
   tone: HumanizerPromptConfig["postProcessTone"];
+  userVoiceContext?: UserVoiceContext;
   apiKey: string;
   signal: AbortSignal;
 }): Promise<{ text: string; applied: boolean }> {
@@ -1634,6 +1953,7 @@ async function applyConversationalSecondPass({
   }
 
   const sourceWordCount = sourceText.split(/\s+/).filter(Boolean).length;
+  const secondPassSampling = getSecondPassSampling(tone);
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {
@@ -1645,23 +1965,23 @@ async function applyConversationalSecondPass({
     signal,
     body: JSON.stringify({
       model: SECOND_PASS_MODEL,
-      temperature: 0.45,
-      top_p: 0.88,
+      temperature: secondPassSampling.temperature,
+      top_p: secondPassSampling.topP,
       max_tokens: Math.max(900, Math.ceil(sourceWordCount * 2.2)),
-      frequency_penalty: 0,
-      presence_penalty: 0,
-      repetition_penalty: 1.02,
+      frequency_penalty: secondPassSampling.frequencyPenalty,
+      presence_penalty: secondPassSampling.presencePenalty,
+      repetition_penalty: secondPassSampling.repetitionPenalty,
       messages: [
         {
           role: "system",
-          content: buildConversationalSecondPassPrompt(tone, sourceText),
+          content: buildConversationalSecondPassPrompt(tone, sourceText, userVoiceContext),
         },
         {
           role: "user",
           content:
-            "SOURCE TEXT (the only authority for meaning and details):\n" +
+            "SOURCE TEXT (authority for the original claims):\n" +
             sourceText +
-            "\n\nPASS 1 DRAFT (use only as a wording option; discard any detail absent from the source):\n" +
+            "\n\nAUTHOR CONTEXT: use only the user-supplied context from the system instructions. Do not invent anything beyond the source and that context.\n\nPASS 1 DRAFT (use only as a wording option; discard any detail absent from the source or author context):\n" +
             text,
         },
       ],
@@ -1679,23 +1999,41 @@ async function applyConversationalSecondPass({
     return { text, applied: false };
   }
 
-  const cleaned = preserveResearchHedge(
-    sourceText,
-    cleanupEnglishSpacing(rewritten.trim())
+  const cleaned = finalHumanize(
+    preserveResearchHedge(
+      sourceText,
+      cleanupEnglishSpacing(rewritten.trim())
+    ),
+    tone
   );
   const outputWordCount = cleaned.split(/\s+/).filter(Boolean).length;
   const lengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
-  const fidelityIssues = getConversationalFidelityIssues(sourceText, cleaned, false);
+  const fidelityIssues = getConversationalFidelityIssues(
+    sourceText,
+    cleaned,
+    false,
+    userVoiceContext
+  );
+  const qualityIssues = getEnglishSurfaceQualityIssues(cleaned);
+  const blockingQualityIssues = getBlockingEnglishSurfaceQualityIssues(qualityIssues);
+  const sensitiveFidelityIssue =
+    tone === "english-sensitive" &&
+    (losesSensitiveAnchors(sourceText, cleaned) ||
+      addsUnsupportedSensitiveDetails(sourceText, cleaned));
 
   if (
     cleaned.length < 20 ||
     lengthRatio < 0.72 ||
     lengthRatio > 1.18 ||
-    fidelityIssues.length > 0
+    fidelityIssues.length > 0 ||
+    blockingQualityIssues.length > 0 ||
+    sensitiveFidelityIssue
   ) {
     console.warn("Faithful second pass rejected", {
       lengthRatio: Number(lengthRatio.toFixed(2)),
       fidelityIssues,
+      qualityIssues,
+      blockingQualityIssues,
     });
     return { text, applied: false };
   }
@@ -1753,7 +2091,7 @@ async function repairEnglishStyle({
         : "Regroup the prose according to its ideas; do not target equal paragraph or sentence lengths.";
   const voiceDirective =
     tone === "english-sensitive"
-      ? "Preserve the source point of view and do not add personal address, rhetorical questions, or casual filler."
+      ? "Preserve the source point of view and do not add personal address, rhetorical questions, or casual filler. Rebuild generic expository syntax: put an existing cause before its broad claim when natural, turn Although/Since/While openers into direct clauses, and avoid the frames Only a relatively small proportion, By contrast others, It is important to note, In addition, and Therefore. Never replace missing specificity with invented names, figures, quotations, institutions, dates, or places."
       : "Preserve the source point of view. Use contractions only when natural. Do not add I, we, you, rhetorical questions, anecdotes, or opinions unless the source already uses them.";
   const repairTaskDirective =
     usesSourceLedger      ? "Write a fresh revision from the SOURCE CLAIM LEDGER only. Do not reuse or expand the previous candidate."
@@ -1778,8 +2116,8 @@ async function repairEnglishStyle({
     signal,
     body: JSON.stringify({
       model: SECOND_PASS_MODEL,
-      temperature: usesSourceLedger ? 0.35 : 0.48,
-      top_p: 0.9,
+      temperature: usesSourceLedger ? 0.5 : 0.48,
+      top_p: usesSourceLedger ? 0.92 : 0.9,
       max_tokens: 1800,
       frequency_penalty: 0,
       presence_penalty: 0,
@@ -1870,6 +2208,7 @@ export async function POST(req: Request) {
       useValueHumanize?: unknown;
       usePythonHumanize?: unknown;
       useTwoPass?: unknown;
+      userVoiceContext?: unknown;
     };
     const { text } = body;
     if (typeof text !== "string" || !text.trim()) {
@@ -1878,6 +2217,8 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    const userVoiceContext = parseUserVoiceContext(body.userVoiceContext);
 
     // --- Credit check ---
     let creditContext: CreditRequestContext | null = null;
@@ -1930,8 +2271,7 @@ export async function POST(req: Request) {
       body.useTwoPass === false
         ? false
         : body.useTwoPass === true ||
-          (config.postProcessTone !== "english-sensitive" &&
-            config.postProcessTone !== "english-academic");
+          config.postProcessTone !== "english-academic";
 
     const controller = new AbortController();
     timeout = setTimeout(() => controller.abort(), HUMANIZE_TIMEOUT_MS);
@@ -1957,7 +2297,7 @@ export async function POST(req: Request) {
         messages: [
           {
             role: "system",
-            content: `${config.systemPrompt}\n\n${config.additionalInstruction}\n\n${FIRST_PASS_FIDELITY_CONTRACT}`,
+            content: buildFirstPassSystemPrompt(config, text, userVoiceContext),
           },
           {
             role: "user",
@@ -2002,13 +2342,15 @@ export async function POST(req: Request) {
     }
 
     // --- Sensitive fidelity repair ---
-    const sensitiveGuard = await repairSensitiveEnglishFidelity({
-      candidate: currentText,
-      sourceText: text,
-      tone: config.postProcessTone,
-      apiKey,
-      signal: controller.signal,
-    });
+    const sensitiveGuard = hasRealUserContext(userVoiceContext)
+      ? { text: currentText, applied: false }
+      : await repairSensitiveEnglishFidelity({
+          candidate: currentText,
+          sourceText: text,
+          tone: config.postProcessTone,
+          apiKey,
+          signal: controller.signal,
+        });
     currentText = sensitiveGuard.text;
 
     // --- PASS 2: source-faithful English rewrite ---
@@ -2019,46 +2361,77 @@ export async function POST(req: Request) {
       const firstPassIssues = getConversationalFidelityIssues(
         text,
         currentText,
-        false
+        false,
+        userVoiceContext
       );
-      const secondPassInput = firstPassIssues.length > 0 ? text.trim() : currentText;
+      const firstPassQualityIssues = getEnglishSurfaceQualityIssues(currentText);
+      const secondPassInput =
+        firstPassIssues.length > 0 || firstPassQualityIssues.length > 0
+          ? text.trim()
+          : currentText;
 
-      const faithfulPass = await applyConversationalSecondPass({
-        text: secondPassInput,
-        sourceText: text,
-        tone: config.postProcessTone,
-        apiKey,
-        signal: controller.signal,
-      });
+      const faithfulPass =
+        config.postProcessTone === "english-sensitive" &&
+        !hasRealUserContext(userVoiceContext)
+          ? await repairEnglishStyle({
+              candidate: secondPassInput,
+              sourceText: text,
+              tone: config.postProcessTone,
+              apiKey,
+              signal: controller.signal,
+            })
+          : await applyConversationalSecondPass({
+              text: secondPassInput,
+              sourceText: text,
+              tone: config.postProcessTone,
+              userVoiceContext,
+              apiKey,
+              signal: controller.signal,
+            });
 
       currentText = faithfulPass.text;
       secondPassApplied = faithfulPass.applied;
       secondPassModel = faithfulPass.applied ? SECOND_PASS_MODEL : null;
     }
 
-    // No random flaws, fake memories, forced anecdotes, or structural destruction.
-    currentText = cleanupEnglishSpacing(currentText);
+    // Keep final cleanup source-grounded; no fake memories, facts, or deliberate flaws.
+    const preFinalText = currentText;
+    currentText = config.postProcessTone.startsWith("english-")
+      ? finalHumanize(currentText, config.postProcessTone)
+      : cleanupEnglishSpacing(currentText);
 
     if (config.postProcessTone.startsWith("english-")) {
       const finalFidelityIssues = getConversationalFidelityIssues(
         text,
         currentText,
-        false
+        false,
+        userVoiceContext
       );
+      const finalQualityIssues = getEnglishSurfaceQualityIssues(currentText);
+      const blockingFinalQualityIssues =
+        getBlockingEnglishSurfaceQualityIssues(finalQualityIssues);
       const sourceWordCount = text.split(/\s+/).filter(Boolean).length;
       const outputWordCount = currentText.split(/\s+/).filter(Boolean).length;
       const finalLengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
 
       if (
         finalFidelityIssues.length > 0 ||
+        blockingFinalQualityIssues.length > 0 ||
         finalLengthRatio < 0.68 ||
         finalLengthRatio > 1.22
       ) {
         console.warn("Final English rewrite rejected; returning source-faithful fallback", {
           finalLengthRatio: Number(finalLengthRatio.toFixed(2)),
           finalFidelityIssues,
+          finalQualityIssues,
+          blockingFinalQualityIssues,
         });
-        currentText = buildSafeEnglishFallback(text, config.postProcessTone);
+        currentText = buildSafeEnglishFallback(
+          text,
+          preFinalText,
+          config.postProcessTone,
+          userVoiceContext
+        );
         secondPassApplied = false;
         secondPassModel = null;
       }
@@ -2123,6 +2496,9 @@ export async function POST(req: Request) {
       },
       sensitiveFidelity: {
         applied: sensitiveGuard.applied,
+      },
+      authorVoice: {
+        applied: hasRealUserContext(userVoiceContext),
       },
       secondPass: {
         applied: secondPassApplied,
