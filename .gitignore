@@ -1,1 +1,3 @@
-Nothing needs to be added to .gitignore since the changes only include TypeScript source files (.ts) which are source code and should not be ignored.
+```ts
+
+```

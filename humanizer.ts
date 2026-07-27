@@ -8509,3 +8509,366 @@ export function humanizeAcademicStructure(text: string, topic: string): string {
   
   return result;
 }
+
+// ============================================================
+// PARTICIPIAL PHRASE DESTROYER
+// ============================================================
+
+/**
+ * Mengubah kalimat pembuka yang menggunakan participial phrase menjadi kalimat sederhana.
+ * 
+ * ❌ AI: "Tourism is now one of the world's largest industries, delivering real economic gains..."
+ * ✅ Human: "These days, travelling has become so easy that a family can fly from London to Bangkok 
+ *            in under twelve hours and think nothing of it."
+ * 
+ * ❌ AI: "Technology has transformed the way people communicate, enabling instant messaging..."
+ * ✅ Human: "You can now talk to anyone, anywhere, at any time — it's that simple."
+ */
+export function destroyParticipialPhraseOpening(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 2) return text;
+
+  // Cari kalimat pertama yang mengandung participial phrase setelah koma
+  // Pola: "X, [verb]ing ..."
+  const participialPattern = /^([^,]+),\s+(\w+ing\s+[^.!?]+)/i;
+  const match = sentences[0].match(participialPattern);
+
+  if (match && Math.random() < 0.6) {
+    const [fullMatch, subjectPart, participialPart] = match;
+    
+    // Dapatkan topik dari subjectPart (kata benda utama)
+    const topicWords = subjectPart.split(/\s+/).filter(w => w.length > 3);
+    const topic = topicWords.length > 0 ? topicWords[0].toLowerCase() : 'this';
+
+    // Pilih opening alternatif berdasarkan topik
+    const openings = [
+      `You know what's interesting about ${topic}? It's that ${participialPart.replace(/^\w+ing\s*/, '').trim()}`,
+      `These days, ${topic} has become so common that ${participialPart.replace(/^\w+ing\s*/, '').trim()}`,
+      `Think about ${topic} for a second — ${participialPart.replace(/^\w+ing\s*/, '').trim()}`,
+      `I've always found ${topic} fascinating because ${participialPart.replace(/^\w+ing\s*/, '').trim()}`,
+    ];
+
+    sentences[0] = openings[Math.floor(Math.random() * openings.length)];
+    return sentences.join(' ');
+  }
+
+  return text;
+}
+
+// ============================================================
+// THESIS TEMPLATE DESTROYER
+// ============================================================
+
+/**
+ * Mengubah thesis template AI menjadi direct statement.
+ * 
+ * ❌ AI: "I partly agree that governments should add taxes on flights or stays, 
+ *          because such measures can help guard the planet, but only if done with care..."
+ * ✅ Human: "I think charging people more to fly or stay in hotels could help, 
+ *           but only if the money actually goes toward fixing the damage."
+ * 
+ * ❌ AI: "I largely agree that easy access to guns contributes significantly to the rise in shootings."
+ * ✅ Human: "Easy access to guns does play a major part in the growing number of shootings."
+ */
+export function destroyThesisTemplate(text: string): string {
+  const sentences = splitSentences(text);
+  let modified = false;
+
+  for (let i = 0; i < sentences.length && !modified; i++) {
+    const s = sentences[i];
+    
+    // Pola 1: "I partly agree that... because... but..."
+    const partialAgreePattern = /^(I\s+(?:partly|largely|strongly|fully)?\s*agree\s+that\s+)(.+?)(?:\s+because\s+|,\s+because\s+)(.+?)(?:\s+but\s+|,\s+but\s+)(.+)$/i;
+    const match1 = s.match(partialAgreePattern);
+    
+    if (match1) {
+      const [, , claim, reason, caveat] = match1;
+      const alternatives = [
+        `I think ${claim} could help, but only if ${caveat}`,
+        `${claim} makes sense, as long as ${caveat}`,
+        `${claim} — but ${caveat}`,
+        `${claim}, though ${caveat}`,
+      ];
+      sentences[i] = alternatives[Math.floor(Math.random() * alternatives.length)];
+      modified = true;
+      break;
+    }
+
+    // Pola 2: "I (largely/strongly) agree that X contributes to Y."
+    const simpleAgreePattern = /^I\s+(?:largely|strongly|fully|partly)?\s*agree\s+that\s+(.+?)(?:\s+contributes\s+to\s+|\s+is\s+)(.+)$/i;
+    const match2 = s.match(simpleAgreePattern);
+    
+    if (match2) {
+      const [, subject, impact] = match2;
+      const alternatives = [
+        `${subject} does play a major part in ${impact}`,
+        `${subject} is a key factor in ${impact}`,
+        `${subject} really does affect ${impact}`,
+      ];
+      sentences[i] = alternatives[Math.floor(Math.random() * alternatives.length)];
+      modified = true;
+      break;
+    }
+
+    // Pola 3: "I believe that X is important because Y."
+    const believePattern = /^I\s+believe\s+that\s+(.+?)\s+is\s+(important|crucial|essential|vital)\s+because\s+(.+)$/i;
+    const match3 = s.match(believePattern);
+    
+    if (match3) {
+      const [, subject, , reason] = match3;
+      const alternatives = [
+        `${subject} matters because ${reason}`,
+        `${subject} is a big deal — ${reason}`,
+        `${subject} makes a real difference because ${reason}`,
+      ];
+      sentences[i] = alternatives[Math.floor(Math.random() * alternatives.length)];
+      modified = true;
+      break;
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+// ============================================================
+// LIST-OF-THREE DESTROYER
+// ============================================================
+
+/**
+ * Mengubah daftar paralel 3 item menjadi narasi tidak simetris.
+ * 
+ * ❌ AI: "air pollution from flights, traffic jams in crowded spots, and dirty water..."
+ * ✅ Human: "planes burn fuel, buses clog up roads, and beaches get ruined by too many visitors"
+ */
+export function destroyListOfThree(text: string): string {
+  const sentences = splitSentences(text);
+  
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    
+    // Cari pola: "A, B, and C" (3 item)
+    const triplePattern = /\b(\w+(?:\s+\w+)*)\s*,\s*(\w+(?:\s+\w+)*)\s*,\s*(?:and|or)\s*(\w+(?:\s+\w+)*)\b/i;
+    const match = s.match(triplePattern);
+    
+    if (match && Math.random() < 0.5) {
+      const [, item1, item2, item3] = match;
+      
+      // Ubah menjadi narasi tidak simetris
+      const alternatives = [
+        `${item1}, and then there's ${item2} — not to mention ${item3}`,
+        `${item1} and ${item2} are bad enough, but ${item3} is really the kicker`,
+        `${item1} alone is a problem, plus ${item2}, and let's not forget ${item3}`,
+        `${item1}? Yes. ${item2}? Also yes. ${item3}? That's the real issue.`,
+      ];
+      
+      const replacement = alternatives[Math.floor(Math.random() * alternatives.length)];
+      sentences[i] = s.replace(match[0], replacement);
+      break;
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+// ============================================================
+// CONCLUSION PARAGRAPH DESTROYER
+// ============================================================
+
+/**
+ * Menghapus paragraf kesimpulan eksplisit dan mengganti dengan kalimat argumen biasa.
+ * 
+ * ❌ AI: "In conclusion, tourism impacts the environment significantly..."
+ * ✅ Human: Tidak ada paragraf kesimpulan — teks berakhir dengan kalimat argumen.
+ */
+export function destroyConclusionParagraph(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 2) return text;
+
+  const lastPara = paragraphs[paragraphs.length - 1];
+  
+  // Deteksi paragraf kesimpulan
+  const conclusionMarkers = /\b(?:In conclusion|To conclude|All in all|Ultimately|In summary|Finally|Therefore,|Thus,|Hence,)\b/i;
+  
+  if (conclusionMarkers.test(lastPara)) {
+    // Ambil kalimat-kalimat dari paragraf kesimpulan, filter yang bukan marker kesimpulan
+    const sentences = splitSentences(lastPara);
+    
+    // Filter kalimat yang bukan marker kesimpulan
+    const contentSentences = sentences.filter(s => 
+      !/\b(?:In conclusion|To conclude|All in all|Ultimately|In summary|Finally)\b/i.test(s)
+    );
+    
+    if (contentSentences.length > 0) {
+      // Ganti paragraf kesimpulan dengan kalimat argumen biasa
+      paragraphs[paragraphs.length - 1] = contentSentences.join(' ');
+    } else {
+      // Jika semua kalimat adalah marker, hapus paragraf terakhir
+      paragraphs.pop();
+    }
+  }
+
+  return paragraphs.join('\n\n');
+}
+
+// ============================================================
+// ABSTRACTION CONCRETIZER
+// ============================================================
+
+/**
+ * Mengubah pernyataan abstrak menjadi contoh konkret.
+ * 
+ * ❌ AI: "Higher taxes could discourage unnecessary travel and reduce environmental damage."
+ * ✅ Human: "If flights cost more, maybe people will think twice before flying to Paris for a weekend."
+ */
+export function concretizeAbstractions(text: string): string {
+  const sentences = splitSentences(text);
+  
+  // Pola abstrak yang sering muncul di AI
+  const abstractPatterns: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
+    [
+      /(Higher|Increased|Additional)\s+(taxes|fees?|charges?)\s+(could|may|might|can)\s+(discourage|reduce|limit|decrease)\s+([^.!?]+)/i,
+      (m) => {
+        const action = m[4].trim();
+        const examples = [
+          `If ${m[1].toLowerCase()} ${m[2]} go up, people might be less likely to ${action}`,
+          `People could think twice about ${action} if ${m[1].toLowerCase()} ${m[2]} are higher`,
+          `${action} might drop if ${m[1].toLowerCase()} ${m[2]} get more expensive`,
+        ];
+        return examples[Math.floor(Math.random() * examples.length)];
+      }
+    ],
+    [
+      /(This|These|Such)\s+(measures|policies|actions|steps)\s+(could|may|might|can)\s+(lead to|result in|cause)\s+([^.!?]+)/i,
+      (m) => {
+        const result = m[4].trim();
+        const examples = [
+          `What this could mean is ${result}`,
+          `The likely outcome? ${result}`,
+          `If this happens, ${result}`,
+        ];
+        return examples[Math.floor(Math.random() * examples.length)];
+      }
+    ],
+    [
+      /(Governments|Policymakers|Authorities)\s+(should|must|ought to|need to)\s+(consider|implement|introduce|adopt)\s+([^.!?]+)/i,
+      (m) => {
+        const action = m[3].trim();
+        const examples = [
+          `What ${m[1].toLowerCase()} could do is ${action}`,
+          `${m[1]} might want to think about ${action}`,
+          `${m[1]} could try ${action}`,
+        ];
+        return examples[Math.floor(Math.random() * examples.length)];
+      }
+    ],
+  ];
+
+  let modified = false;
+  for (let i = 0; i < sentences.length && !modified; i++) {
+    const s = sentences[i];
+    for (const [pattern, replacer] of abstractPatterns) {
+      const match = s.match(pattern);
+      if (match && Math.random() < 0.4) {
+        sentences[i] = replacer(match);
+        modified = true;
+        break;
+      }
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+// ============================================================
+// STRUCTURE FLATTENER (buat paragraf tidak seimbang)
+// ============================================================
+
+/**
+ * Memastikan paragraf memiliki panjang yang sangat berbeda.
+ * Mengikuti pola human: 1-2 kalimat, 4-6 kalimat, 1-2 kalimat, dll.
+ */
+export function flattenStructure(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+
+  // Hitung kalimat per paragraf
+  const sentenceCounts = paragraphs.map(p => splitSentences(p).length);
+  const avg = sentenceCounts.reduce((a, b) => a + b, 0) / sentenceCounts.length;
+  const variance = sentenceCounts.reduce((sum, count) => sum + Math.pow(count - avg, 2), 0) / sentenceCounts.length;
+
+  // Jika variance < 3 (terlalu seragam), ubah
+  if (variance < 3) {
+    // Buat satu paragraf sangat pendek (1-2 kalimat)
+    const shortIdx = Math.floor(Math.random() * paragraphs.length);
+    const shortSentences = splitSentences(paragraphs[shortIdx]);
+    if (shortSentences.length > 2) {
+      paragraphs[shortIdx] = shortSentences.slice(0, 1 + Math.floor(Math.random() * 1)).join(' ');
+    }
+
+    // Buat satu paragraf sangat panjang (4-6 kalimat)
+    let longIdx = (shortIdx + 1) % paragraphs.length;
+    const longSentences = splitSentences(paragraphs[longIdx]);
+    if (longSentences.length < 4 && longIdx + 1 < paragraphs.length) {
+      // Gabungkan dengan paragraf berikutnya
+      paragraphs[longIdx] = paragraphs[longIdx] + ' ' + paragraphs[longIdx + 1];
+      paragraphs.splice(longIdx + 1, 1);
+    }
+  }
+
+  return paragraphs.join('\n\n');
+}
+
+// ============================================================
+// CONTROVERSIAL OPINION INJECTOR (untuk general tones)
+// ============================================================
+
+/**
+ * Menambahkan opini yang sedikit kontroversial, spesifik, dan naive.
+ * 
+ * Contoh dari human baseline:
+ * "This is because male sexual rage, in particular, often results in deadly aggression."
+ * "... a man is twice as likely (if he discovers his wife having an affair) to kill her..."
+ */
+export function addControversialOpinion(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  // Hanya inject jika teks tidak terlalu panjang (> 100 kata)
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (wordCount > 300) return text;
+
+  const opinions = [
+    {
+      trigger: /\b(gun|firearm|weapon|shooting)\b/i,
+      statement: "This is because people often underestimate how easily anger can turn deadly when a gun is within reach."
+    },
+    {
+      trigger: /\b(tourist|travel|holiday|vacation)\b/i,
+      statement: "The truth is, most tourists don't care about the environment — they just want a good photo for Instagram."
+    },
+    {
+      trigger: /\b(school|education|student|teacher)\b/i,
+      statement: "Honestly, I think half the stuff they teach in schools is useless anyway."
+    },
+    {
+      trigger: /\b(technology|social media|phone|internet)\b/i,
+      statement: "People spend so much time online that they've forgotten how to have a real conversation."
+    },
+    {
+      trigger: /\b(health|exercise|diet|sport)\b/i,
+      statement: "Most people know they should exercise, but they just can't be bothered."
+    },
+  ];
+
+  let inserted = false;
+  for (const { trigger, statement } of opinions) {
+    if (!inserted && trigger.test(text) && Math.random() < 0.4) {
+      const pos = Math.floor(sentences.length * 0.4);
+      sentences.splice(pos, 0, statement);
+      inserted = true;
+      break;
+    }
+  }
+
+  return sentences.join(' ');
+}
