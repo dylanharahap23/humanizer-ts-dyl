@@ -28,15 +28,6 @@ import {
   normalizeHumanizerTone,
   cleanupEnglishSpacing,
   type HumanizerPromptConfig,
-  // NEW: Professor's 8 critical fixes for GPTZero
-  dropInformationLoss,
-  transformReasoningGraph,
-  injectRealFragments,
-  injectObsessionAcrossText,
-  injectClusteredHedging,
-  forceConversationalRegister,
-  injectTopicAnchors,
-  injectCognitiveUncertaintyFinal,
 } from "@/lib/humanizer";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -1163,7 +1154,7 @@ const SOURCE_GROUNDED_SECOND_PASS_PROMPT = [
   "- Open with a concrete source-supported cause, effect, or condition. Avoid broad topic openings and category-announcement sentences.",
   "- Change both clause boundaries and paragraph grouping where the source logic allows it. Do not make every paragraph the same size.",
   "- Use plain, register-appropriate English. Avoid empty transition labels, polished recap language, and a one-sentence summary ending.",
-  "- Preserve all material information. Do not add forced informality, filler, rhetorical questions, fragments, deliberate errors, or fake spontaneity.",
+  "- Preserve all material information. Do not add forced informality, filler, rhetorical questions, fragments, deliberate errors, or fake spontaneity.\n- Keep the rewrite close to the source length. Do not expand it with restatements or extra framing.",
   "",
   "Return only the rewritten English text.",
 ].join("\n");
@@ -1976,7 +1967,7 @@ async function applyConversationalSecondPass({
       model: SECOND_PASS_MODEL,
       temperature: secondPassSampling.temperature,
       top_p: secondPassSampling.topP,
-      max_tokens: Math.max(900, Math.ceil(sourceWordCount * 2.2)),
+      max_tokens: Math.max(420, Math.ceil(sourceWordCount * 1.5)),
       frequency_penalty: secondPassSampling.frequencyPenalty,
       presence_penalty: secondPassSampling.presencePenalty,
       repetition_penalty: secondPassSampling.repetitionPenalty,
@@ -2406,44 +2397,6 @@ export async function POST(req: Request) {
     // Keep final cleanup source-grounded; no fake memories, facts, or deliberate flaws.
     const preFinalText = currentText;
     
-    // ============================================================
-    // NEW: HUMANIZATION LAYERS (dari saran dosen - 8 Gap fixes)
-    // ============================================================
-    // Hanya terapkan untuk English general/casual/expository, bukan academic/sensitive
-    const applyHumanLayers = config.postProcessTone.startsWith('english-') &&
-                             !['english-academic', 'english-sensitive', 'english-policy'].includes(config.postProcessTone);
-
-    if (applyHumanLayers) {
-      // 1. Drop some coverage (lupa) – hanya jika teks cukup panjang
-      if (currentText.split(/\s+/).length > 120) {
-        currentText = dropInformationLoss(currentText);
-      }
-
-      // 2. Transform reasoning graph (acak struktur argumen)
-      currentText = transformReasoningGraph(currentText);
-
-      // 3. Inject real fragments (kalimat tidak lengkap)
-      currentText = injectRealFragments(currentText);
-
-      // 4. Inject obsession loop (ulangi 1 ide)
-      currentText = injectObsessionAcrossText(currentText);
-
-      // 5. Inject clustered hedging (keraguan tercluster)
-      currentText = injectClusteredHedging(currentText);
-
-      // 6. Force conversational register
-      currentText = forceConversationalRegister(currentText);
-
-      // 7. Inject topic-specific anchors
-      currentText = injectTopicAnchors(currentText);
-
-      // 8. Inject cognitive uncertainty
-      currentText = injectCognitiveUncertaintyFinal(currentText);
-
-      // 9. Cleanup spacing
-      currentText = cleanupEnglishSpacing(currentText);
-    }
-
     currentText = config.postProcessTone.startsWith("english-")
       ? finalHumanize(currentText, config.postProcessTone)
       : cleanupEnglishSpacing(currentText);
