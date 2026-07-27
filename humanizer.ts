@@ -9198,3 +9198,341 @@ export function destroyParallelLists(text: string): string {
   
   return sentences.join(' ');
 }
+
+// ============================================================
+// ACADEMIC-SPECIFIC HUMANIZATION FUNCTIONS
+// ============================================================
+
+/**
+ * Mengubah esai 4 paragraf (Intro-Body1-Body2-Conclusion)
+ * menjadi 5-7 paragraf dengan panjang bervariasi.
+ * Ini adalah kunci keberhasilan GENERAL-mu.
+ */
+export function destroyFourParagraphStructure(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4) return text;
+
+  // 1. Pecah paragraf body menjadi 2-3 bagian lebih kecil
+  const bodyIndices = paragraphs.slice(1, -1); // skip intro & conclusion
+  const newParagraphs: string[] = [];
+  
+  // Tambahkan intro (bisa 1-2 kalimat)
+  newParagraphs.push(paragraphs[0]);
+  
+  // Proses body: pecah menjadi paragraf kecil berdasarkan kalimat
+  for (const body of bodyIndices) {
+    const sentences = splitSentences(body);
+    if (sentences.length <= 2) {
+      newParagraphs.push(body);
+      continue;
+    }
+    
+    // Pecah body menjadi 2-3 paragraf
+    const chunkSize = Math.max(1, Math.floor(sentences.length / 3) + 1);
+    for (let i = 0; i < sentences.length; i += chunkSize) {
+      const chunk = sentences.slice(i, i + chunkSize).join(' ');
+      if (chunk.trim()) newParagraphs.push(chunk);
+    }
+  }
+  
+  // Tambahkan conclusion yang sudah di-destroy (tanpa "In conclusion")
+  const conclusion = paragraphs[paragraphs.length - 1];
+  const sentences = splitSentences(conclusion);
+  // Filter kalimat yang mengandung "In conclusion", "Therefore", "Thus"
+  const filtered = sentences.filter(s => 
+    !/\b(?:In conclusion|To conclude|Therefore|Thus|Hence)\b/i.test(s)
+  );
+  if (filtered.length > 0) {
+    newParagraphs.push(filtered.join(' '));
+  }
+  
+  // Pastikan minimal 5 paragraf
+  if (newParagraphs.length < 5) {
+    // Jika masih kurang, pecah paragraf terpanjang
+    const longestIdx = newParagraphs.reduce((max, p, i, arr) => 
+      p.split(/\s+/).length > arr[max].split(/\s+/).length ? i : max, 0
+    );
+    const longSentences = splitSentences(newParagraphs[longestIdx]);
+    if (longSentences.length > 3) {
+      const mid = Math.floor(longSentences.length / 2);
+      newParagraphs[longestIdx] = longSentences.slice(0, mid).join(' ');
+      newParagraphs.splice(longestIdx + 1, 0, longSentences.slice(mid).join(' '));
+    }
+  }
+  
+  return newParagraphs.join('\n\n');
+}
+
+/**
+ * Mengganti transisi template AI dengan varian natural.
+ * Langsung dari data human baseline.
+ */
+export function destroyTemplateTransitions(text: string): string {
+  const replacements: Array<[RegExp, string[]]> = [
+    [/\bFirstly,?\s*/gi, ['A fundamental reason for this is that ', 'One key reason is that ', 'To begin with, ']],
+    [/\bSecondly,?\s*/gi, ['In addition, ', 'Furthermore, ', 'Another point is that ']],
+    [/\bThirdly,?\s*/gi, ['Moreover, ', 'Additionally, ', 'Another factor is that ']],
+    [/\bIn conclusion,?\s*/gi, ['To sum up, ', 'All in all, ', 'Overall, ']],
+    [/\bTherefore,?\s*/gi, ['So, ', 'Thus, ', 'As a result, ']],
+    [/\bFurthermore,?\s*/gi, ['Also, ', 'Plus, ', 'What\'s more, ']],
+    [/\bMoreover,?\s*/gi, ['Also, ', 'On top of that, ']],
+    [/\bIn addition,?\s*/gi, ['Also, ', 'Plus, ', 'Another thing is ']],
+    [/\bOn the one hand,?\s*/gi, ['On one side, ', 'One view is that ']],
+    [/\bOn the other hand,?\s*/gi, ['But, ', 'However, ', 'Yet, ']],
+    [/\bAs a result,?\s*/gi, ['So, ', 'Because of this, ']],
+  ];
+  
+  let result = text;
+  for (const [pattern, alternatives] of replacements) {
+    if (pattern.test(result) && Math.random() < 0.7) {
+      const replacement = alternatives[Math.floor(Math.random() * alternatives.length)];
+      result = result.replace(pattern, replacement);
+    }
+  }
+  return result;
+}
+
+/**
+ * Menambahkan detail spesifik (negara, kota, angka) yang aman.
+ * Dari data human baseline: "in the UK", "Finland", "sixth-best"
+ */
+export function injectSpecificAnchorsAcademic(text: string): string {
+  const lower = text.toLowerCase();
+  let anchors: string[] = [];
+  
+  // Deteksi topik
+  if (/\b(education|reading|child|learn|play|school|teacher)\b/i.test(lower)) {
+    anchors = [
+      'For example, in the UK, many children are reluctant readers.',
+      'In Finland, education focuses on play and creativity.',
+      'Finland was ranked sixth-best in the world in reading.',
+      'The US has seen a rise in early childhood education programs.',
+      'In Japan, parents often start reading to children at a very young age.',
+    ];
+  } else if (/\b(city|urban|rural|countryside|migration)\b/i.test(lower)) {
+    anchors = [
+      'In the UK, urbanisation has accelerated over the past 50 years.',
+      'China\'s rapid urbanisation is a well-documented phenomenon.',
+      'In Brazil, rural-to-urban migration has created megacities.',
+      'India\'s cities face severe overcrowding and infrastructure strain.',
+    ];
+  } else if (/\b(women|gender|female|male|housewife)\b/i.test(lower)) {
+    anchors = [
+      'In Afghanistan, women\'s roles are heavily restricted.',
+      'In Scandinavia, gender equality is more advanced.',
+      'In Japan, traditional gender roles persist in many households.',
+    ];
+  } else {
+    anchors = [
+      'For instance, in the UK, this trend is particularly visible.',
+      'Take Germany, for example, where the situation is similar.',
+      'In Australia, research has shown similar patterns.',
+    ];
+  }
+  
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+  
+  // Sisipkan 1-2 anchors di posisi 30-70%
+  const result = [...sentences];
+  const anchorCount = Math.min(2, anchors.length);
+  for (let i = 0; i < anchorCount; i++) {
+    const pos = Math.floor(result.length * (0.3 + Math.random() * 0.4));
+    const anchor = anchors[Math.floor(Math.random() * anchors.length)];
+    // Jangan insert di awal atau akhir
+    if (pos > 0 && pos < result.length - 1) {
+      result.splice(pos, 0, anchor);
+    }
+  }
+  
+  return result.join(' ');
+}
+
+/**
+ * Menambahkan 1-2 paragraf yang hanya terdiri dari 1 kalimat pendek.
+ * Ini adalah fingerprint human paling kuat.
+ */
+export function injectOneSentenceParagraphs(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+  
+  // Cari paragraf yang tidak terlalu pendek untuk dijadikan 1 kalimat
+  const candidates = paragraphs.map((p, i) => ({ text: p, index: i, sentences: splitSentences(p).length }));
+  const longEnough = candidates.filter(c => c.sentences >= 3);
+  
+  if (longEnough.length < 2) return text;
+  
+  const oneSentencePool = [
+    'This is especially important.',
+    'That is the key point here.',
+    'It makes a real difference.',
+    'The evidence is compelling.',
+    'This is not always true.',
+    'There are exceptions, of course.',
+    'It depends on the situation.',
+    'That said, context matters.',
+  ];
+  
+  // Ambil 1-2 paragraf panjang dan jadikan 1 kalimat pendek
+  const count = Math.min(2, longEnough.length);
+  const shuffled = longEnough.sort(() => Math.random() - 0.5);
+  
+  for (let i = 0; i < count; i++) {
+    const target = shuffled[i];
+    const sentences = splitSentences(target.text);
+    // Ambil 1 kalimat terbaik dari paragraf itu
+    const best = sentences.sort((a, b) => a.length - b.length)[0] || oneSentencePool[Math.floor(Math.random() * oneSentencePool.length)];
+    paragraphs[target.index] = best;
+  }
+  
+  // Juga bisa insert 1 kalimat baru di antara paragraf
+  if (Math.random() < 0.3 && paragraphs.length > 2) {
+    const insertIdx = Math.floor(paragraphs.length * 0.6);
+    const extra = oneSentencePool[Math.floor(Math.random() * oneSentencePool.length)];
+    paragraphs.splice(insertIdx, 0, extra);
+  }
+  
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * Menambahkan 1-2 grammar imperfection minor.
+ * Contoh human baseline:
+ * - "place spend time" (double verb)
+ * - "there is no scientific research which suggests" (which/that mix)
+ * - comma splice: "...development, moreover, evidence suggests..."
+ */
+export function addNaturalGrammarFlaws(text: string): string {
+  let result = text;
+  const sentences = splitSentences(result);
+  if (sentences.length < 3) return result;
+  
+  // 1. Double verb (seperti "place spend time")
+  if (Math.random() < 0.25) {
+    const idx = Math.floor(Math.random() * sentences.length);
+    const words = sentences[idx].split(' ');
+    if (words.length > 4) {
+      const insertPos = Math.floor(words.length * 0.2) + 1;
+      words.splice(insertPos, 0, words[insertPos - 1]);
+      sentences[idx] = words.join(' ');
+    }
+  }
+  
+  // 2. Wrong relative pronoun (seperti "which" bukan "that")
+  if (Math.random() < 0.2) {
+    for (let i = 0; i < sentences.length; i++) {
+      if (/\bthat\s+is\b/.test(sentences[i]) && Math.random() < 0.3) {
+        sentences[i] = sentences[i].replace(/\bthat\s+is\b/, 'which is');
+        break;
+      }
+    }
+  }
+  
+  // 3. Comma splice + "moreover" (seperti human baseline)
+  if (Math.random() < 0.2) {
+    for (let i = 0; i < sentences.length; i++) {
+      const s = sentences[i];
+      const match = s.match(/^(.+?)\.\s+(Moreover|Furthermore|However)\s+(.+)$/i);
+      if (match) {
+        const [, first, transition, rest] = match;
+        sentences[i] = `${first}, ${transition.toLowerCase()}, ${rest}`;
+        break;
+      }
+    }
+  }
+  
+  // 4. Apostrophe error (seperti "its'" vs "it's")
+  if (Math.random() < 0.2) {
+    for (let i = 0; i < sentences.length; i++) {
+      if (/\b(its|it's)\b/.test(sentences[i]) && Math.random() < 0.3) {
+        sentences[i] = sentences[i].replace(/\b(its|it's)\b/, (match) => {
+          return match === 'its' ? "it's" : "its";
+        });
+        break;
+      }
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * Mengubah kalimat penutup "In conclusion... Therefore..."
+ * menjadi kalimat opinion biasa tanpa template.
+ */
+export function destroyConclusionTemplate(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 2) return text;
+  
+  // Cari kalimat terakhir yang mengandung "In conclusion" atau "Therefore"
+  for (let i = sentences.length - 1; i >= 0; i--) {
+    const s = sentences[i];
+    
+    // Pola: "In conclusion, X. Therefore, Y."
+    const conclusionPattern = /^In\s+conclusion,?\s*(.+?)(?:\.\s*Therefore,?\s*(.+))?$/i;
+    const match = s.match(conclusionPattern);
+    
+    if (match) {
+      const main = match[1];
+      const rest = match[2];
+      const alternatives = [
+        `${main}${rest ? '. ' + rest : ''}`,
+        `${main}${rest ? ', and ' + rest.toLowerCase() : ''}`,
+        `${main}. That\'s the key point.`,
+        `${main}${rest ? ' — and that matters.' : ''}`,
+        `The real issue is ${main.toLowerCase().replace(/^the\s+real\s+issue\s+is\s*/i, '')}.`,
+      ];
+      sentences[i] = alternatives[Math.floor(Math.random() * alternatives.length)];
+      break;
+    }
+    
+    // Pola: "Therefore, X."
+    const thereforePattern = /^Therefore,?\s*(.+)$/i;
+    const match2 = s.match(thereforePattern);
+    if (match2) {
+      const alternatives = [
+        `So, ${match2[1]}`,
+        `${match2[1]}. That seems clear.`,
+        `${match2[1]} — and that\'s important.`,
+      ];
+      sentences[i] = alternatives[Math.floor(Math.random() * alternatives.length)];
+      break;
+    }
+  }
+  
+  // Juga cari "In conclusion" di awal paragraf
+  const result = sentences.join(' ');
+  return result.replace(/^In\s+conclusion,?\s*/i, '');
+}
+
+/**
+ * Mencegah synonym overload dengan mengembalikan satu kata utama.
+ * AI: "children → youngsters → offspring → infants"
+ * Human: "youngsters → youngsters → youngsters"
+ */
+export function naturalRepetition(text: string): string {
+  const synonymGroups: Array<[RegExp, string[]]> = [
+    [/\b(?:children|youngsters|offspring|kids|infants|toddlers)\b/gi, ['children', 'youngsters', 'kids']],
+    [/\b(?:parents|mothers|fathers|caregivers|guardians)\b/gi, ['parents']],
+    [/\b(?:reading|books|literacy|stories)\b/gi, ['reading']],
+    [/\b(?:activities|play|games|fun)\b/gi, ['play']],
+  ];
+  
+  let result = text;
+  for (const [pattern, options] of synonymGroups) {
+    // Pilih 1 kata untuk digunakan secara konsisten
+    const chosen = options[Math.floor(Math.random() * options.length)];
+    // Ganti semua kecuali yang sudah chosen (75% chance)
+    if (pattern.test(result) && Math.random() < 0.5) {
+      result = result.replace(pattern, (match) => {
+        // Jangan ganti jika match sudah sama dengan chosen
+        if (match.toLowerCase() === chosen.toLowerCase()) return match;
+        // 60% chance diganti
+        if (Math.random() < 0.6) return chosen;
+        return match;
+      });
+    }
+  }
+  
+  return result;
+}

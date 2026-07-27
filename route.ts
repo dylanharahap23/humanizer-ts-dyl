@@ -66,6 +66,13 @@ import {
   addNaturalGrammarErrors,
   strengthenPersonalVoice,
   destroyParallelLists,
+  destroyFourParagraphStructure,
+  destroyTemplateTransitions,
+  injectSpecificAnchorsAcademic,
+  injectOneSentenceParagraphs,
+  addNaturalGrammarFlaws,
+  destroyConclusionTemplate,
+  naturalRepetition,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -3032,6 +3039,7 @@ export async function POST(req: Request) {
     // --- Tentukan tone yang diizinkan untuk humanisasi agresif ---
     const generalTones = ['english-general', 'english-argument', 'english-discursive', 'english-expository', 'english-reflective', 'casual'];
     const isGeneralTone = generalTones.includes(config.postProcessTone);
+    const isAcademicTone = config.postProcessTone === 'english-academic';
 
     // --- Terapkan humanisasi agresif (hanya untuk general tones) ---
     if (isGeneralTone) {
@@ -3164,6 +3172,49 @@ export async function POST(req: Request) {
         
         console.log('[HUMANIZE] After all layers:', currentText.slice(0, 200));
       }
+    }
+
+    // ============================================================
+    // ACADEMIC HUMANIZATION LAYERS (BERDASARKAN DATA HUMAN BASELINE)
+    // ============================================================
+    if (isAcademicTone) {
+      console.log('[HUMANIZE] Applying academic-specific humanization layers');
+      
+      // 1. Hancurkan 4 paragraf standar → 5-7 paragraf
+      currentText = destroyFourParagraphStructure(currentText);
+      console.log('[HUMANIZE] After destroyFourParagraphStructure');
+      
+      // 2. Hancurkan template transitions (Firstly, Secondly, In conclusion, Therefore)
+      currentText = destroyTemplateTransitions(currentText);
+      console.log('[HUMANIZE] After destroyTemplateTransitions');
+      
+      // 3. Hancurkan conclusion template
+      currentText = destroyConclusionTemplate(currentText);
+      console.log('[HUMANIZE] After destroyConclusionTemplate');
+      
+      // 4. Tambahkan paragraf 1-kalimat (2-3 kali)
+      currentText = injectOneSentenceParagraphs(currentText);
+      console.log('[HUMANIZE] After injectOneSentenceParagraphs');
+      
+      // 5. Tambahkan detail spesifik (negara, angka)
+      currentText = injectSpecificAnchorsAcademic(currentText);
+      console.log('[HUMANIZE] After injectSpecificAnchorsAcademic');
+      
+      // 6. Tambahkan grammar imperfection minor
+      currentText = addNaturalGrammarFlaws(currentText);
+      console.log('[HUMANIZE] After addNaturalGrammarFlaws');
+      
+      // 7. Biarkan repetisi natural (jangan ganti sinonim)
+      currentText = naturalRepetition(currentText);
+      console.log('[HUMANIZE] After naturalRepetition');
+      
+      // 8. Destroy opening template
+      currentText = destroyRestatingOpening(currentText);
+      console.log('[HUMANIZE] After destroyRestatingOpening (academic)');
+      
+      // 9. Destroy thesis template ("I strongly agree that...")
+      currentText = destroyThesisTemplateImproved(currentText);
+      console.log('[HUMANIZE] After destroyThesisTemplateImproved (academic)');
     }
 
     // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk general tones ---
