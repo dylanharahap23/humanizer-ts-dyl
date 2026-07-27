@@ -7534,3 +7534,217 @@ export function dropInformationLoss(text: string): string {
 
   return remaining.join(' ');
 }
+
+// ============================================================
+// ACADEMIC TEMPLATE DESTROYER - For IELTS/TOEFL Essays
+// ============================================================
+
+/**
+ * Menghancurkan struktur esai IELTS/TOEFL: "On one hand... On the other hand... In conclusion"
+ * Mengubah menjadi alur yang lebih natural: "Firstly... Actually... But... To be honest..."
+ * Tidak mengubah konten, hanya mengacak urutan paragraf dan mengganti marker.
+ */
+export function destroyAcademicTemplate(text: string): string {
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+
+  // 1. Cari kata pembuka yang khas dan ganti dengan varian yang lebih alami
+  // Gabungkan semua paragraph dulu untuk replace global
+  let result = paragraphs.join('\n\n');
+  
+  const replacements: Array<[RegExp, string]> = [
+    [/\bOn the one hand\b/gi, 'Firstly'],
+    [/\bOn the other hand\b/gi, 'But'],
+    [/\bIn addition\b/gi, 'Also'],
+    [/\bMoreover\b/gi, 'Plus'],
+    [/\bFurthermore\b/gi, 'What\'s more'],
+    [/\bIn conclusion\b/gi, 'All in all'],
+    [/\bTo conclude\b/gi, 'Anyway'],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    result = result.replace(pattern, replacement);
+  }
+
+  // 2. Sekarang split lagi untuk mengacak paragraf
+  const newParagraphs = result.split(/\n\s*\n/).filter(p => p.trim());
+  if (newParagraphs.length < 3) return result;
+  
+  const opening = newParagraphs[0];
+  const closing = newParagraphs[newParagraphs.length - 1];
+  const middle = newParagraphs.slice(1, -1);
+  // Acak middle
+  for (let i = middle.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [middle[i], middle[j]] = [middle[j], middle[i]];
+  }
+  // Sisipkan paragraf "keraguan" di tengah
+  const doubt = [
+    "Actually, I'm not entirely convinced that's always the case.",
+    "Then again, maybe it depends on the situation.",
+    "To be honest, I've seen exceptions to this.",
+  ];
+  const insertIdx = Math.floor(middle.length * 0.5);
+  middle.splice(insertIdx, 0, doubt[Math.floor(Math.random() * doubt.length)]);
+
+  // Gabungkan kembali: pembuka + middle + penutup
+  const finalParagraphs = [opening, ...middle, closing];
+  return finalParagraphs.join('\n\n');
+}
+
+// ============================================================
+// INJECT COGNITIVE NOISE FOR ACADEMIC
+// ============================================================
+
+/**
+ * Menambahkan elemen "noise" kognitif: fragment, self-correction, informal filler.
+ * Hanya untuk essay umum, bukan untuk sensitive/academic murni.
+ */
+export function injectCognitiveNoiseForAcademic(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  // 1. Sisipkan 1-2 fragment (kalimat tidak lengkap)
+  const fragments = [
+    'Well, not always.',
+    "Actually, that's debatable.",
+    'Or so they say.',
+    "At least that's what I've heard.",
+    'To be fair, though.',
+    "Honestly, I'm not sure.",
+  ];
+  const fragmentCount = 1 + Math.floor(Math.random() * 1); // 1 atau 2
+  for (let i = 0; i < fragmentCount; i++) {
+    const pos = Math.floor(Math.random() * (sentences.length - 2)) + 1;
+    sentences.splice(pos, 0, fragments[Math.floor(Math.random() * fragments.length)]);
+  }
+
+  // 2. Tambahkan self-correction di tengah kalimat panjang (comma splice/run-on)
+  for (let i = 0; i < sentences.length; i++) {
+    if (sentences[i].split(/\s+/).length > 20 && Math.random() < 0.25) {
+      const selfCorrections = [
+        ' — or rather, ',
+        ' — well, actually, ',
+        ' — I mean, ',
+      ];
+      const words = sentences[i].split(' ');
+      const mid = Math.floor(words.length / 2);
+      const correction = selfCorrections[Math.floor(Math.random() * selfCorrections.length)];
+      words.splice(mid, 0, correction.trim());
+      sentences[i] = words.join(' ');
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+// ============================================================
+// INJECT ACADEMIC ANCHORS
+// ============================================================
+
+/**
+ * Menambahkan 1-2 detail konkret yang relevan dengan topik.
+ * Menggunakan database kecil yang aman (tidak mengarang fakta).
+ */
+export function injectAcademicAnchors(text: string): string {
+  const lower = text.toLowerCase();
+  let anchors: string[] = [];
+
+  // Deteksi topik dan pilih anchors yang sesuai
+  if (/\b(sport|olympic|world cup|athletic)\b/i.test(lower)) {
+    anchors = [
+      'Take the 2012 London Olympics, for instance.',
+      'Consider the FIFA World Cup in Brazil 2014.',
+      'The Winter Olympics in Sochi, Russia, in 2014 is a good example.',
+      'The Commonwealth Games in Manchester 2002 showed how...',
+    ];
+  } else if (/\b(child|education|reading|play|learn)\b/i.test(lower)) {
+    anchors = [
+      'In Finland, for example, early education focuses on play.',
+      'Take the UK – many boys become reluctant readers.',
+      'My cousin in Birmingham told me...',
+      'A study from the University of Cambridge found...',
+    ];
+  } else if (/\b(ai|artificial|intelligence|chatgpt|openai)\b/i.test(lower)) {
+    anchors = [
+      "OpenAI's ChatGPT, which launched in 2022, ...",
+      "Google's DeepMind has invested heavily in...",
+      "Microsoft's partnership with OpenAI is a case in point.",
+    ];
+  } else {
+    anchors = [
+      'For example, in Japan, ...',
+      'Take Germany, where ...',
+      'My experience with ...',
+    ];
+  }
+
+  // Sisipkan 1-2 anchor di posisi acak
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  const result = [...sentences];
+  const anchorCount = Math.min(2, anchors.length);
+  for (let i = 0; i < anchorCount; i++) {
+    const pos = Math.floor(Math.random() * (result.length - 2)) + 1;
+    const anchor = anchors[Math.floor(Math.random() * anchors.length)];
+    result.splice(pos, 0, anchor);
+  }
+
+  return result.join(' ');
+}
+
+// ============================================================
+// BREAK PARALLELISM
+// ============================================================
+
+/**
+ * Mengubah daftar paralel (A, B, dan C) menjadi narasi tidak simetris.
+ * Contoh: "solve problems, think creatively, and work together" → 
+ *         "solve problems, they also think creatively, and working together is key."
+ */
+export function breakParallelism(text: string): string {
+  const sentences = splitSentences(text);
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    // Cari pola: "verb1, verb2, and verb3" (parallel verbs)
+    const match = s.match(/\b(\w+)\s+([^,]+),\s+([^,]+),\s+and\s+(\w+)\s+([^.!?]+)/i);
+    if (match && Math.random() < 0.3) {
+      const [full, verb1, part1, part2, verb3, part3] = match;
+      // Ubah menjadi bentuk tidak paralel
+      const restructured = `${verb1} ${part1.trim()}, and ${verb3} ${part3.trim()}`;
+      sentences[i] = s.replace(full, restructured);
+    }
+  }
+  return sentences.join(' ');
+}
+
+// ============================================================
+// INJECT PERSONAL STANCE
+// ============================================================
+
+/**
+ * Tambahkan "I think", "honestly", "weirdly" di posisi strategis (bukan di awal setiap kalimat).
+ */
+export function injectPersonalStance(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  const openers = [
+    'I honestly think that ',
+    'To be perfectly honest, ',
+    'Weirdly enough, ',
+    'In my view, ',
+    "I'd argue that ",
+    'It seems to me that ',
+  ];
+  const positions = [Math.floor(sentences.length * 0.3), Math.floor(sentences.length * 0.6)];
+  let result = [...sentences];
+  for (const pos of positions) {
+    if (pos < result.length && !/\b(I|my|me|we)\b/.test(result[pos])) {
+      const opener = openers[Math.floor(Math.random() * openers.length)];
+      result[pos] = opener + result[pos].charAt(0).toLowerCase() + result[pos].slice(1);
+    }
+  }
+  return result.join(' ');
+}

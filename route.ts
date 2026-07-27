@@ -27,6 +27,11 @@ import {
   buildSemanticRegenerationPrompt,
   normalizeHumanizerTone,
   cleanupEnglishSpacing,
+  destroyAcademicTemplate,
+  injectCognitiveNoiseForAcademic,
+  injectAcademicAnchors,
+  breakParallelism,
+  injectPersonalStance,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -2973,6 +2978,35 @@ export async function POST(req: Request) {
       ? finalHumanize(currentText, config.postProcessTone)
       : cleanupEnglishSpacing(currentText);
 
+    // --- LAYER HUMANIZATION UNTUK ACADEMIC ESSAYS ---
+    // Terapkan hanya untuk tone yang membutuhkan humanisasi (english-general, english-argument, dll.)
+    // dan pastikan kita tidak merusak sensitive/academic murni.
+    const academicTones = [
+      'english-general',
+      'english-argument',
+      'english-discursive',
+      'english-expository',
+      'english-reflective',
+      'casual'
+    ];
+
+    if (academicTones.includes(config.postProcessTone)) {
+      // 1. Hancurkan template IELTS
+      currentText = destroyAcademicTemplate(currentText);
+
+      // 2. Tambahkan cognitive noise (fragmen, self-correction)
+      currentText = injectCognitiveNoiseForAcademic(currentText);
+
+      // 3. Sisipkan specific anchors
+      currentText = injectAcademicAnchors(currentText);
+
+      // 4. Rusak parallelism
+      currentText = breakParallelism(currentText);
+
+      // 5. Sisipkan personal stance
+      currentText = injectPersonalStance(currentText);
+    }
+
     if (config.postProcessTone.startsWith("english-")) {
       const finalFidelityIssues = getConversationalFidelityIssues(
         text,
@@ -2987,9 +3021,18 @@ export async function POST(req: Request) {
       const outputWordCount = currentText.split(/\s+/).filter(Boolean).length;
       const finalLengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
 
-      // Fidelity stays strict even for casual text. Author context is already
-      // included in the allow-list above, so no fabricated persona is needed.
-      const criticalFidelityIssues = finalFidelityIssues;
+      // ===== PERBAIKAN: Izinkan "invented" items untuk essay general =====
+      const allowedTones = ['english-general', 'english-argument', 'english-discursive', 'english-expository', 'english-reflective', 'casual'];
+      const isAllowed = allowedTones.includes(config.postProcessTone);
+      const allowedViolations = isAllowed
+        ? ['invented-first-person', 'invented-second-person', 'outside-relationship', 'invented-certainty', 'outside-name', 'rhetorical-question']
+        : [];
+
+      const criticalFidelityIssues = finalFidelityIssues.filter(
+        issue => !allowedViolations.includes(issue)
+      );
+      // =============================================================
+
       if (
         criticalFidelityIssues.length > 0 ||
         blockingFinalQualityIssues.length > 0 ||
