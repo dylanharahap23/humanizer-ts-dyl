@@ -32,6 +32,12 @@ import {
   injectAcademicAnchors,
   breakParallelism,
   injectPersonalStance,
+  deformalizeVocabulary,
+  injectHumanIdioms,
+  injectRedundancy,
+  injectExtremeLengthVariation,
+  injectBoldOpinion,
+  injectAcademicAnchorsImproved,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -2981,7 +2987,7 @@ export async function POST(req: Request) {
     // --- LAYER HUMANIZATION UNTUK ACADEMIC ESSAYS ---
     // Terapkan hanya untuk tone yang membutuhkan humanisasi (english-general, english-argument, dll.)
     // dan pastikan kita tidak merusak sensitive/academic murni.
-    const academicTones = [
+    const generalTones = [
       'english-general',
       'english-argument',
       'english-discursive',
@@ -2990,20 +2996,35 @@ export async function POST(req: Request) {
       'casual'
     ];
 
-    if (academicTones.includes(config.postProcessTone)) {
-      // 1. Hancurkan template IELTS
+    if (generalTones.includes(config.postProcessTone)) {
+      // 1. Deformalize vocabulary (turunkan register)
+      currentText = deformalizeVocabulary(currentText);
+
+      // 2. Hancurkan template esai
       currentText = destroyAcademicTemplate(currentText);
 
-      // 2. Tambahkan cognitive noise (fragmen, self-correction)
+      // 3. Inject human idioms
+      currentText = injectHumanIdioms(currentText);
+
+      // 4. Inject redundansi
+      currentText = injectRedundancy(currentText);
+
+      // 5. Inject extreme length variation
+      currentText = injectExtremeLengthVariation(currentText);
+
+      // 6. Inject bold opinion
+      currentText = injectBoldOpinion(currentText);
+
+      // 7. Inject specific anchors (versi improved dengan lebih banyak topik)
+      currentText = injectAcademicAnchorsImproved(currentText);
+
+      // 8. Inject cognitive noise (fragmen, self-correction)
       currentText = injectCognitiveNoiseForAcademic(currentText);
 
-      // 3. Sisipkan specific anchors
-      currentText = injectAcademicAnchors(currentText);
-
-      // 4. Rusak parallelism
+      // 9. Break parallelism
       currentText = breakParallelism(currentText);
 
-      // 5. Sisipkan personal stance
+      // 10. Personal stance
       currentText = injectPersonalStance(currentText);
     }
 
@@ -3015,13 +3036,12 @@ export async function POST(req: Request) {
         userVoiceContext
       );
       const finalQualityIssues = getEnglishSurfaceQualityIssues(currentText);
-      const blockingFinalQualityIssues =
-        getBlockingEnglishSurfaceQualityIssues(finalQualityIssues);
+      const blockingFinalQualityIssues = getBlockingEnglishSurfaceQualityIssues(finalQualityIssues);
       const sourceWordCount = text.split(/\s+/).filter(Boolean).length;
       const outputWordCount = currentText.split(/\s+/).filter(Boolean).length;
       const finalLengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
 
-      // ===== PERBAIKAN: Izinkan "invented" items untuk essay general =====
+      // ========== PERBAIKAN: Izinkan tambahan untuk general tones ==========
       const allowedTones = ['english-general', 'english-argument', 'english-discursive', 'english-expository', 'english-reflective', 'casual'];
       const isAllowed = allowedTones.includes(config.postProcessTone);
       const allowedViolations = isAllowed
@@ -3031,7 +3051,7 @@ export async function POST(req: Request) {
       const criticalFidelityIssues = finalFidelityIssues.filter(
         issue => !allowedViolations.includes(issue)
       );
-      // =============================================================
+      // =====================================================================
 
       if (
         criticalFidelityIssues.length > 0 ||
