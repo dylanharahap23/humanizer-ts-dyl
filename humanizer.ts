@@ -4294,7 +4294,7 @@ export function applyRandomTangentMethod(text: string): string {
 export function finalHumanize(
   text: string,
   tone: HumanizerPostProcessTone = "casual",
-  _skipHeavyProcessing = false
+  skipHeavyProcessing = false
 ): string {
   if (
     tone === "indonesian-general" ||
@@ -4305,6 +4305,12 @@ export function finalHumanize(
   }
 
   if (!text || text.length < 40) return text.trim();
+
+  // Jika skipHeavyProcessing true (general tones), kita langsung jalankan cleanup spacing
+  // dan lewati addHumanTouches yang akan membersihkan noise kita.
+  if (skipHeavyProcessing) {
+    return cleanupEnglishSpacing(text);
+  }
 
   // English post-processing is deliberately surface-only. The model may vary
   // syntax and wording, but this stage never invents people, numbers, examples,
