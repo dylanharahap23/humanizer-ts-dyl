@@ -2460,15 +2460,33 @@ export async function POST(req: Request) {
       const outputWordCount = currentText.split(/\s+/).filter(Boolean).length;
       const finalLengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
 
+      // ========== PERBAIKAN ==========
+      // Kalau tone-nya casual/general, kita izinkan penambahan "I", "my cousin", "honestly"
+      // karena itu memang sengaja kita tambahin untuk humanisasi.
+      const isGeneralTone = config.postProcessTone === "english-general" || 
+                            config.postProcessTone === "casual" ||
+                            config.postProcessTone === "english-discursive" ||
+                            config.postProcessTone === "english-reflective" ||
+                            config.postProcessTone === "english-practical";
+      
+      const allowedViolations = isGeneralTone 
+        ? ['invented-first-person', 'invented-second-person', 'outside-relationship', 'invented-certainty', 'outside-name'] 
+        : [];
+      
+      const criticalFidelityIssues = finalFidelityIssues.filter(
+        issue => !allowedViolations.includes(issue)
+      );
+      // =================================
+
       if (
-        finalFidelityIssues.length > 0 ||
+        criticalFidelityIssues.length > 0 ||
         blockingFinalQualityIssues.length > 0 ||
         finalLengthRatio < 0.68 ||
         finalLengthRatio > 1.22
       ) {
         console.warn("Final English rewrite rejected; returning source-faithful fallback", {
           finalLengthRatio: Number(finalLengthRatio.toFixed(2)),
-          finalFidelityIssues,
+          criticalFidelityIssues,
           finalQualityIssues,
           blockingFinalQualityIssues,
         });

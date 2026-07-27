@@ -7126,7 +7126,8 @@ function detectRole(sentence: string): SentenceRole {
 
 export function transformReasoningGraph(text: string): string {
   const sentences = splitSentences(text);
-  if (sentences.length < 6) return text;
+  // Jangan diubah kalo kurang dari 8 kalimat
+  if (sentences.length < 8) return text;
 
   // Klasifikasikan peran setiap kalimat
   const roles = sentences.map(s => ({ text: s, role: detectRole(s) }));
@@ -7475,12 +7476,16 @@ export function injectCognitiveUncertaintyFinal(text: string): string {
 
 export function dropInformationLoss(text: string): string {
   const sentences = splitSentences(text);
-  if (sentences.length < 6) return text;
+  // Jangan hapus apapun kalo teks pendek (< 150 kata atau < 10 kalimat)
+  if (sentences.length < 10) return text;
+  
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (wordCount < 150) return text;
 
-  // Hapus 15-25% kalimat yang bukan pembuka/penutup
-  const lossRatio = 0.15 + Math.random() * 0.1;
+  // Turunkan dari 15-25% menjadi 5-10% aja
+  const lossRatio = 0.05 + Math.random() * 0.05;
   const removeCount = Math.floor(sentences.length * lossRatio);
-
+  
   // Jangan hapus 2 kalimat pertama dan 2 kalimat terakhir
   const candidates = sentences.slice(2, -2);
   if (candidates.length < 3) return text;
