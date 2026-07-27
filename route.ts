@@ -2984,29 +2984,17 @@ export async function POST(req: Request) {
     // Naturalness now comes from source-grounded recomposition, not random
     // fragments, fabricated specifics, changed certainty, or information loss.
     // Keep final cleanup source-grounded; no fake memories, facts, or deliberate flaws.
-    const preFinalText = currentText;
     
-    currentText = config.postProcessTone.startsWith("english-")
-      ? finalHumanize(currentText, config.postProcessTone)
-      : cleanupEnglishSpacing(currentText);
+    // --- Tentukan tone yang diizinkan untuk humanisasi agresif ---
+    const generalTones = ['english-general', 'english-argument', 'english-discursive', 'english-expository', 'english-reflective', 'casual'];
+    const isGeneralTone = generalTones.includes(config.postProcessTone);
 
-    // --- LAYER HUMANIZATION UNTUK ACADEMIC ESSAYS ---
-    // Terapkan hanya untuk tone yang membutuhkan humanisasi (english-general, english-argument, dll.)
-    // dan pastikan kita tidak merusak sensitive/academic murni.
-    const generalTones = [
-      'english-general',
-      'english-argument',
-      'english-discursive',
-      'english-expository',
-      'english-reflective',
-      'casual'
-    ];
-
-    if (generalTones.includes(config.postProcessTone)) {
+    // --- Terapkan humanisasi agresif (hanya untuk general tones) ---
+    if (isGeneralTone) {
       // 1. Deformalize vocabulary (turunkan register)
       currentText = deformalizeVocabulary(currentText);
 
-      // 2. Hancurkan template esai
+      // 2. Hancurkan template IELTS (ganti marker)
       currentText = destroyAcademicTemplate(currentText);
 
       // 3. Inject human idioms
@@ -3015,38 +3003,48 @@ export async function POST(req: Request) {
       // 4. Inject redundansi
       currentText = injectRedundancy(currentText);
 
-      // 5. Inject extreme length variation
+      // 5. Ganti kata-kata AI-signature dengan versi sehari-hari
+      currentText = deAISignatureWords(currentText);
+
+      // 6. Tambahkan natural imperfections (typo, redundancy, self-correction)
+      currentText = injectNaturalImperfections(currentText);
+
+      // 7. Ubah kontraksi
+      currentText = addContractions(currentText);
+
+      // 8. Perkuat opini pribadi
+      currentText = strengthenPersonalOpinion(currentText);
+
+      // 9. Inject extreme length variation
       currentText = injectExtremeLengthVariation(currentText);
 
-      // 6. Inject bold opinion
+      // 10. Inject bold opinion
       currentText = injectBoldOpinion(currentText);
 
-      // 7. Inject specific anchors (versi improved dengan lebih banyak topik)
+      // 11. Tambahkan kalimat outlier (sangat pendek & sangat panjang)
+      currentText = injectOutlierSentences(currentText);
+
+      // 12. Hancurkan keseimbangan paragraf
+      currentText = injectExtremeParagraphVariation(currentText);
+
+      // 13. Tambahkan specific anchors (versi improved dengan lebih banyak topik)
       currentText = injectAcademicAnchorsImproved(currentText);
 
-      // 8. Inject cognitive noise (fragmen, self-correction)
+      // 14. Tambahkan cognitive noise (fragmen, self-correction)
       currentText = injectCognitiveNoiseForAcademic(currentText);
 
-      // 9. Break parallelism
+      // 15. Rusak parallelism
       currentText = breakParallelism(currentText);
 
-      // 10. Personal stance
+      // 16. Sisipkan personal stance (sudah ada)
       currentText = injectPersonalStance(currentText);
-
-      // --- Tambahan dari saran dosen (6 fungsi baru) ---
-      // 11. Ganti kata AI-signature dengan versi sehari-hari
-      currentText = deAISignatureWords(currentText);
-      // 12. Tambahkan natural imperfections (typo, redundancy, self-correction)
-      currentText = injectNaturalImperfections(currentText);
-      // 13. Ubah formal ke kontraksi
-      currentText = addContractions(currentText);
-      // 14. Ubah opini lemah menjadi kuat
-      currentText = strengthenPersonalOpinion(currentText);
-      // 15. Tambahkan kalimat outlier (pendek & panjang ekstrem)
-      currentText = injectOutlierSentences(currentText);
-      // 16. Hancurkan keseimbangan paragraf
-      currentText = injectExtremeParagraphVariation(currentText);
     }
+
+    // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk general tones ---
+    const preFinalText = currentText;
+    currentText = config.postProcessTone.startsWith("english-")
+      ? finalHumanize(currentText, config.postProcessTone, isGeneralTone) // skipHeavyProcessing = isGeneralTone
+      : cleanupEnglishSpacing(currentText);
 
     if (config.postProcessTone.startsWith("english-")) {
       const finalFidelityIssues = getConversationalFidelityIssues(
@@ -3061,10 +3059,8 @@ export async function POST(req: Request) {
       const outputWordCount = currentText.split(/\s+/).filter(Boolean).length;
       const finalLengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
 
-      // ========== PERBAIKAN: Izinkan tambahan untuk general tones ==========
-      const allowedTones = ['english-general', 'english-argument', 'english-discursive', 'english-expository', 'english-reflective', 'casual'];
-      const isAllowed = allowedTones.includes(config.postProcessTone);
-      const allowedViolations = isAllowed
+      // ========== PERBAIKAN: Izinkan violations untuk general tones ==========
+      const allowedViolations = isGeneralTone
         ? ['invented-first-person', 'invented-second-person', 'outside-relationship', 'invented-certainty', 'outside-name', 'rhetorical-question']
         : [];
 
