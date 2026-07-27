@@ -7106,3 +7106,348 @@ export function antiEssayTransformation(text: string): string {
   
   return output.trim();
 }
+
+// ============================================================
+// NEW: MACRO REASONING GRAPH TRANSFORMATION (Gap 1)
+// ============================================================
+
+type SentenceRole = 'cause' | 'effect' | 'solution' | 'conclusion' | 'personal' | 'example' | 'other';
+
+function detectRole(sentence: string): SentenceRole {
+  const lower = sentence.toLowerCase();
+  if (/\b(because|since|due to|lead to|contribute|cause|factor|reason)\b/i.test(lower)) return 'cause';
+  if (/\b(as a result|consequently|therefore|thus|so|hence|lead to|result in)\b/i.test(lower)) return 'effect';
+  if (/\b(solution|way to|approach|method|strategy|should|need to|must)\b/i.test(lower)) return 'solution';
+  if (/\b(in conclusion|ultimately|in the end|finally|to sum up|overall|all in all)\b/i.test(lower)) return 'conclusion';
+  if (/\b(I|my|me|we|our|you|your|honestly|actually|I think|I believe)\b/i.test(lower)) return 'personal';
+  if (/\b(for example|for instance|such as|like|including|take|consider)\b/i.test(lower)) return 'example';
+  return 'other';
+}
+
+export function transformReasoningGraph(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 6) return text;
+
+  // Klasifikasikan peran setiap kalimat
+  const roles = sentences.map(s => ({ text: s, role: detectRole(s) }));
+
+  // Pisahkan berdasarkan peran
+  const causes = roles.filter(r => r.role === 'cause');
+  const effects = roles.filter(r => r.role === 'effect');
+  const solutions = roles.filter(r => r.role === 'solution');
+  const conclusions = roles.filter(r => r.role === 'conclusion');
+  const personals = roles.filter(r => r.role === 'personal');
+  const examples = roles.filter(r => r.role === 'example');
+  const others = roles.filter(r => r.role === 'other');
+
+  // Jika terlalu sedikit variasi, jangan ubah
+  if (causes.length + effects.length + conclusions.length < 3) return text;
+
+  // Susun ulang dengan pola: Effect → Personal → Cause → Example → Conclusion → Solution (diragukan)
+  const newOrder: string[] = [];
+
+  // 1. Mulai dengan efek (bukan sebab)
+  newOrder.push(...effects.map(r => r.text));
+
+  // 2. Sisipkan personal di 20-40%
+  const personalSlice = personals.slice(0, Math.max(1, Math.floor(personals.length * 0.6)));
+  newOrder.push(...personalSlice.map(r => r.text));
+
+  // 3. Kemudian sebab (kebalikan AI)
+  newOrder.push(...causes.map(r => r.text));
+
+  // 4. Contoh di tengah
+  newOrder.push(...examples.map(r => r.text));
+
+  // 5. Kesimpulan di 50-70% (bukan di akhir)
+  const concPos = Math.min(newOrder.length, Math.max(2, Math.floor(newOrder.length * 0.5)));
+  const concTexts = conclusions.map(r => r.text);
+  newOrder.splice(concPos, 0, ...concTexts);
+
+  // 6. Solusi di akhir (diragukan)
+  newOrder.push(...solutions.map(r => r.text));
+
+  // 7. Sisa lainnya
+  newOrder.push(...others.map(r => r.text));
+
+  // Bersihkan duplikat dan gabungkan
+  return newOrder.filter(s => s.trim()).join(' ');
+}
+
+// ============================================================
+// NEW: INJECT REAL FRAGMENTS (Gap 8)
+// ============================================================
+
+export function injectRealFragments(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  const fragments = ['Well.', 'No.', 'Yeah.', 'Right.', 'Hmm.', 'Okay.', 'Sure.', 'Anyway.', 'So.', 'But.', 'And.'];
+
+  // Sisipkan 2-3 fragments di posisi berbeda (tidak semua sekaligus)
+  const count = 2 + Math.floor(Math.random() * 2);
+  const positions = new Set<number>();
+  while (positions.size < count && positions.size < sentences.length - 1) {
+    positions.add(Math.floor(Math.random() * (sentences.length - 1)) + 1);
+  }
+
+  const result = [...sentences];
+  let offset = 0;
+  for (const pos of Array.from(positions).sort((a, b) => a - b)) {
+    const fragment = fragments[Math.floor(Math.random() * fragments.length)];
+    result.splice(pos + offset, 0, fragment);
+    offset++;
+  }
+
+  return result.join(' ');
+}
+
+// ============================================================
+// NEW: INJECT OBSESSION LOOP (Gap 4)
+// ============================================================
+
+export function injectObsessionAcrossText(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  // Ambil kata kunci dari kalimat yang mengandung "because", "since", "reason", dll.
+  const keySentences = sentences.filter(s => /\b(because|since|reason|factor|cause|lead to)\b/i.test(s));
+  if (keySentences.length === 0) return text;
+
+  // Pilih satu kalimat sebagai obsession
+  const obsessionSentence = keySentences[Math.floor(Math.random() * keySentences.length)];
+  // Ekstrak subjek utama (ambil 2-3 kata pertama yang bukan stopword)
+  const words = obsessionSentence.split(/\s+/);
+  const stopwords = new Set(['the', 'this', 'that', 'these', 'those', 'a', 'an', 'because', 'since', 'due', 'to', 'of', 'for']);
+  let topic = words.find(w => w.length > 3 && !stopwords.has(w.toLowerCase()));
+  if (!topic) topic = 'this';
+
+  const variations = [
+    `It always comes back to ${topic}, doesn't it?`,
+    `I keep thinking about ${topic}.`,
+    `Honestly, ${topic} is the real issue here.`,
+    `You can't really talk about this without mentioning ${topic}.`,
+    `That's why ${topic} matters so much.`,
+  ];
+
+  // Sisipkan 2-3 variasi di posisi berbeda
+  const result = [...sentences];
+  const insertPositions = [
+    Math.floor(result.length * 0.25),
+    Math.floor(result.length * 0.5),
+    Math.floor(result.length * 0.75),
+  ].filter(p => p > 0 && p < result.length);
+
+  let offset = 0;
+  for (let i = 0; i < Math.min(2, insertPositions.length); i++) {
+    const pos = insertPositions[i] + offset;
+    const variation = variations[Math.floor(Math.random() * variations.length)];
+    result.splice(pos, 0, variation);
+    offset++;
+  }
+
+  return result.join(' ');
+}
+
+// ============================================================
+// NEW: INJECT CLUSTERED HEDGING (Gap 6)
+// ============================================================
+
+export function injectClusteredHedging(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  // Pilih 1-2 kalimat sebagai cluster keraguan
+  const clusterCount = Math.min(2, Math.floor(sentences.length * 0.2) + 1);
+  const clusterIndices = new Set<number>();
+  while (clusterIndices.size < clusterCount) {
+    const idx = Math.floor(Math.random() * (sentences.length - 2)) + 1;
+    clusterIndices.add(idx);
+  }
+
+  const hedges = ['maybe', 'probably', 'I think', 'I guess', 'perhaps', 'might', 'could', 'possibly', 'it seems', 'likely'];
+
+  const result = [...sentences];
+  for (const idx of clusterIndices) {
+    let s = result[idx];
+    const numHedges = 2 + Math.floor(Math.random() * 3); // 2-4 hedging per kalimat
+    for (let i = 0; i < numHedges; i++) {
+      const hedge = hedges[Math.floor(Math.random() * hedges.length)];
+      const words = s.split(' ');
+      const pos = Math.min(words.length - 1, Math.max(1, Math.floor(Math.random() * (words.length - 2)) + 1));
+      words.splice(pos, 0, hedge);
+      s = words.join(' ');
+    }
+    result[idx] = s;
+  }
+
+  return result.join(' ');
+}
+
+// ============================================================
+// NEW: FORCE CONVERSATIONAL REGISTER (Gap 5)
+// ============================================================
+
+export function forceConversationalRegister(text: string): string {
+  const replacements: Array<[RegExp, string]> = [
+    [/\bfinancial strains\b/gi, 'money troubles'],
+    [/\braw materials\b/gi, 'supplies'],
+    [/\binflation compounds the problem\b/gi, 'inflation makes it worse'],
+    [/\bexternal disruptions\b/gi, 'things that go wrong'],
+    [/\breshapes consumer expectations\b/gi, 'changes what people expect'],
+    [/\bheightens competition\b/gi, 'makes it harder to stand out'],
+    [/\brapidly evolving economy\b/gi, "an economy that's changing fast"],
+    [/\bindustry-specific expertise\b/gi, 'experience in your field'],
+    [/\bspecialized skills\b/gi, 'specific skills'],
+    [/\bcontinuous skill development\b/gi, 'always learning new things'],
+    [/\benterprise software\b/gi, 'software for businesses'],
+    [/\bcloud APIs\b/gi, 'cloud services'],
+    [/\bstrategic partnerships\b/gi, 'partnerships'],
+    [/\brevenue streams\b/gi, 'ways to make money'],
+    [/\btechnological leadership\b/gi, 'staying ahead in tech'],
+    [/\bcapture a significant share\b/gi, 'get a big piece'],
+    [/\bexpanding global AI market\b/gi, 'growing AI market worldwide'],
+    [/\bstate-of-the-art\b/gi, 'cutting-edge'],
+    [/\bsubstantial resources\b/gi, 'a huge amount of resources'],
+    [/\bsignificant barriers to entry\b/gi, 'big obstacles for newcomers'],
+    [/\bnetwork effects\b/gi, 'a snowball effect'],
+    [/\bmonetize\b/gi, 'make money from'],
+    [/\bvaluation\b/gi, 'price tag'],
+    [/\binvestors anticipate\b/gi, 'investors think'],
+    [/\bfoundational technology\b/gi, 'basic technology'],
+    [/\benormous future economic value\b/gi, 'huge economic potential'],
+  ];
+
+  let result = text;
+  for (const [pattern, replacement] of replacements) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
+// ============================================================
+// NEW: INJECT TOPIC-SPECIFIC ANCHORS (Gap 7)
+// ============================================================
+
+export function injectTopicAnchors(text: string): string {
+  const lower = text.toLowerCase();
+  let anchors: string[] = [];
+
+  // Deteksi topik dan pilih anchors yang sesuai
+  if (/\b(ai|artificial intelligence|chatgpt|openai|llm|model|machine learning)\b/i.test(lower)) {
+    anchors = [
+      'I mean, just look at how much ChatGPT has improved in two years.',
+      'My colleague uses AI to write code and it saves him hours every week.',
+      'You can see it in how many companies are now integrating AI into their products.',
+      'I remember when GPT-3 came out and everyone was blown away.',
+    ];
+  } else if (/\b(inflation|cost of living|price|expensive|rent|grocery)\b/i.test(lower)) {
+    anchors = [
+      'my grocery bill has gone up by nearly 30%',
+      'the rent for my apartment increased by $200',
+      'I remember when a plate of nasi goreng cost 15,000 rupiah',
+      'my friend in Jakarta says his electricity bill doubled',
+    ];
+  } else if (/\b(job|career|employment|graduate|application|hire)\b/i.test(lower)) {
+    anchors = [
+      'I applied to 50 companies and only heard back from 3',
+      'my cousin graduated last year and still hasn\'t found a job',
+      'the company I work for just laid off 10% of the staff',
+      'my friend got rejected from 5 interviews before landing a role',
+    ];
+  } else {
+    anchors = [
+      'I know someone who went through exactly this.',
+      'It reminds me of a situation a friend of mine faced.',
+      'You can see it in everyday life if you pay attention.',
+    ];
+  }
+
+  // Sisipkan 1-2 anchors di posisi acak
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  const result = [...sentences];
+  const anchorCount = Math.min(2, anchors.length);
+  for (let i = 0; i < anchorCount; i++) {
+    const pos = Math.floor(Math.random() * (result.length - 1)) + 1;
+    const anchor = anchors[Math.floor(Math.random() * anchors.length)];
+    result.splice(pos, 0, anchor);
+  }
+
+  return result.join(' ');
+}
+
+// ============================================================
+// NEW: INJECT COGNITIVE UNCERTAINTY (Gap 2 & 3)
+// ============================================================
+
+export function injectCognitiveUncertaintyFinal(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  // 1. Ubah 1-2 kalimat afirmatif menjadi lebih ragu
+  const result = [...sentences];
+  const doubtMarkers = ['Actually, ', 'To be fair, ', 'I\'m not entirely sure, but ', 'Maybe it\'s just me, but ', 'Honestly, I think '];
+
+  for (let i = 0; i < result.length && i < 2; i++) {
+    const s = result[i];
+    if (!/\b(maybe|perhaps|probably|think|guess|seems)\b/i.test(s) && s.length > 20) {
+      const marker = doubtMarkers[Math.floor(Math.random() * doubtMarkers.length)];
+      result[i] = marker + s.charAt(0).toLowerCase() + s.slice(1);
+    }
+  }
+
+  // 2. Tambahkan 1 kalimat yang membatalkan argumen sebelumnya
+  if (result.length > 4) {
+    const counter = [
+      'Then again, I could be wrong about that.',
+      'But maybe that\'s just my experience.',
+      'Although, to be fair, it depends on the person.',
+      'Though some people would probably disagree.',
+    ];
+    const idx = Math.floor(result.length * 0.4) + 1;
+    result.splice(idx, 0, counter[Math.floor(Math.random() * counter.length)]);
+  }
+
+  // 3. Ubah 1 kalimat kesimpulan menjadi pertanyaan
+  for (let i = 0; i < result.length; i++) {
+    if (/\b(so|therefore|thus|in the end|ultimately)\b/i.test(result[i]) && !result[i].includes('?')) {
+      const q = ['... right?', ', I guess?', ', or am I wrong?'];
+      result[i] = result[i].replace(/[.!?]$/, '') + q[Math.floor(Math.random() * q.length)];
+      break;
+    }
+  }
+
+  return result.join(' ');
+}
+
+// ============================================================
+// NEW: DROP INFORMATION LOSS (Gap 3)
+// ============================================================
+
+export function dropInformationLoss(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 6) return text;
+
+  // Hapus 15-25% kalimat yang bukan pembuka/penutup
+  const lossRatio = 0.15 + Math.random() * 0.1;
+  const removeCount = Math.floor(sentences.length * lossRatio);
+
+  // Jangan hapus 2 kalimat pertama dan 2 kalimat terakhir
+  const candidates = sentences.slice(2, -2);
+  if (candidates.length < 3) return text;
+
+  const indicesToRemove = new Set<number>();
+  while (indicesToRemove.size < removeCount && indicesToRemove.size < candidates.length - 1) {
+    const idx = Math.floor(Math.random() * candidates.length);
+    indicesToRemove.add(idx);
+  }
+
+  const remaining = sentences.filter((_, i) => {
+    if (i < 2 || i >= sentences.length - 2) return true;
+    return !indicesToRemove.has(i - 2);
+  });
+
+  return remaining.join(' ');
+}

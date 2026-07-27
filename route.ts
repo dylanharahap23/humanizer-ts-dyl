@@ -28,6 +28,15 @@ import {
   normalizeHumanizerTone,
   cleanupEnglishSpacing,
   type HumanizerPromptConfig,
+  // NEW: Professor's 8 critical fixes for GPTZero
+  dropInformationLoss,
+  transformReasoningGraph,
+  injectRealFragments,
+  injectObsessionAcrossText,
+  injectClusteredHedging,
+  forceConversationalRegister,
+  injectTopicAnchors,
+  injectCognitiveUncertaintyFinal,
 } from "@/lib/humanizer";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -2396,6 +2405,45 @@ export async function POST(req: Request) {
 
     // Keep final cleanup source-grounded; no fake memories, facts, or deliberate flaws.
     const preFinalText = currentText;
+    
+    // ============================================================
+    // NEW: HUMANIZATION LAYERS (dari saran dosen - 8 Gap fixes)
+    // ============================================================
+    // Hanya terapkan untuk English general/casual/expository, bukan academic/sensitive
+    const applyHumanLayers = config.postProcessTone.startsWith('english-') &&
+                             !['english-academic', 'english-sensitive', 'english-policy'].includes(config.postProcessTone);
+
+    if (applyHumanLayers) {
+      // 1. Drop some coverage (lupa) – hanya jika teks cukup panjang
+      if (currentText.split(/\s+/).length > 120) {
+        currentText = dropInformationLoss(currentText);
+      }
+
+      // 2. Transform reasoning graph (acak struktur argumen)
+      currentText = transformReasoningGraph(currentText);
+
+      // 3. Inject real fragments (kalimat tidak lengkap)
+      currentText = injectRealFragments(currentText);
+
+      // 4. Inject obsession loop (ulangi 1 ide)
+      currentText = injectObsessionAcrossText(currentText);
+
+      // 5. Inject clustered hedging (keraguan tercluster)
+      currentText = injectClusteredHedging(currentText);
+
+      // 6. Force conversational register
+      currentText = forceConversationalRegister(currentText);
+
+      // 7. Inject topic-specific anchors
+      currentText = injectTopicAnchors(currentText);
+
+      // 8. Inject cognitive uncertainty
+      currentText = injectCognitiveUncertaintyFinal(currentText);
+
+      // 9. Cleanup spacing
+      currentText = cleanupEnglishSpacing(currentText);
+    }
+
     currentText = config.postProcessTone.startsWith("english-")
       ? finalHumanize(currentText, config.postProcessTone)
       : cleanupEnglishSpacing(currentText);
