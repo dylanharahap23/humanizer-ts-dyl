@@ -54,6 +54,39 @@ export type HumanizerPromptConfig = {
 };
 
 // ============================================================
+// HUMAN STYLE PROMPT BUILDER (Few-shot with 100% human text)
+// ============================================================
+
+const HUMAN_REFERENCE_TEXT = `Money is considered by many people to be one of the most important contributing factors towards happiness. In my opinion, it is possible for people to be happy even if they have little money and other aspects of life can play a more vital role in creating happiness than wealth alone.
+
+Although money allows people to afford luxuries and treats, which certainly do bring temporary enjoyment and satisfaction, a substantial number of people are happy without money. Firstly, money is no guarantee of happiness, particularly if disease or disaster feature largely in someone's life. Secondly, as long as people have the money to cover their necessities, doing without luxury items does not negatively affect the pleasures that a good life can bring.
+
+Another way people can gain satisfaction in their life is through their work rather than money. For instance, a doctor doing volunteer service overseas in underdeveloped countries may earn little or no money, but the reward of doing such work is profoundly rewarding. Not only that but it can be a long-term fulfilment that they carry with them through life in the form of rich memories and the knowledge of a life well-lived.
+
+Finally, another influencing factor of contentment in life is having supportive and loving people in one's life. While money may bring opportunities to enjoy pleasures, few people would enjoy them in isolation. Being surrounded by a loving and caring family is considered by many people to be the most valuable thing in life. This is one aspect of life that money certainly cannot buy.
+
+In conclusion, money is not essential for happiness, which can be found through job satisfaction as well as family. If more people strived in life towards true happiness rather than money, the world would be a better place.`;
+
+export function buildHumanStyleSystemPrompt(): string {
+  return `You are an expert editor who rewrites texts to match a specific human writing style. The following is a reference text that is known to be 100% human-written. Your task is to rewrite the user's input so that it matches the style, tone, vocabulary, sentence structure, and flow of this reference as closely as possible, while keeping the original meaning intact.
+
+REFERENCE TEXT (Human 100%):
+${HUMAN_REFERENCE_TEXT}
+
+STYLE GUIDE (extracted from reference):
+- Use longer sentences (20-30 words) with multiple clauses.
+- Start with a general statement (often passive voice: "X is considered by many...").
+- Place personal opinion ("In my opinion...") in the second sentence.
+- Use formal transitions: "Firstly, Secondly,", "Another way...", "Finally...", "In conclusion...".
+- Prefer vocabulary: "contributing factors", "vital role", "temporary enjoyment", "substantial number", "profoundly rewarding", "long-term fulfilment", "influencing factor".
+- Avoid contractions like "don't", "can't" – use full forms.
+- End with a conditional or idealistic statement.
+- Do not use overly short sentences (<10 words) unless they are part of a list.
+
+Rewrite the user's text exactly in this style. Preserve all key facts and arguments. Return only the rewritten text.`;
+}
+
+// ============================================================
 // 1. PROMPTS
 // ============================================================
 
@@ -1184,6 +1217,25 @@ export function getEnglishHumanizerConfig(
   sourceText: string,
   writingPurpose: EnglishWritingPurpose = "General"
 ): HumanizerPromptConfig {
+  // Deteksi jika teks adalah esai panjang (indikasi IELTS/TOEFL)
+  const wordCount = sourceText.split(/\s+/).filter(Boolean).length;
+  const isEssay = wordCount > 150 && /\b(?:essay|discuss|argue|believe|opinion)\b/i.test(sourceText);
+
+  if (isEssay && writingPurpose !== "Academic") {
+    // Untuk esai umum, gunakan prompt human style
+    return {
+      systemPrompt: buildHumanStyleSystemPrompt(),
+      temperature: 1.2,        // lebih tinggi untuk variasi
+      topP: 0.95,
+      maxTokens: 1600,
+      frequencyPenalty: 0.2,
+      presencePenalty: 0.1,
+      repetitionPenalty: 1.05,
+      additionalInstruction: "Match the reference style exactly. Return only the rewritten text.",
+      postProcessTone: "english-general",
+    };
+  }
+
   const profile = detectEnglishWritingProfile(sourceText, writingPurpose);
 
   if (profile === "consumer-explainer") {
