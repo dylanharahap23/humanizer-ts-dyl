@@ -4455,57 +4455,49 @@ export function finalHumanize(
   // LOGIC BARU DARI DOSEN: Pipeline lengkap dengan semua fungsi humanisasi
   let result = text.trim();
 
-  console.log('[HUMANIZE] Starting natural humanization...');
+  console.log('[HUMANIZE] Starting new humanization pipeline...');
 
-  // 1. HAPUS template transisi (On the one hand → hilangkan)
-  result = removeTemplateTransitions(result);
-  console.log('[HUMANIZE] After removeTemplateTransitions');
+  // 1. REWRITE SKELETON — Ubah struktur argumen (fungsi baru dari dosen)
+  result = rewriteArgumentSkeleton(result);
+  console.log('[HUMANIZE] After rewriteArgumentSkeleton');
 
-  // 2. SEBAR opini ke seluruh paragraf
-  result = disperseOpinion(result);
-  console.log('[HUMANIZE] After disperseOpinion');
+  // 2. SCATTER OPINION — Sebarkan opini di semua paragraf (fungsi baru dari dosen)
+  result = scatterOpinion(result);
+  console.log('[HUMANIZE] After scatterOpinion');
 
-  // 3. PERKUAT STANCE (bukan "partly agree")
-  result = strengthenStance(result);
-  console.log('[HUMANIZE] After strengthenStance');
+  // 3. INJECT PROPER NOUNS — Tambahkan nama spesifik (fungsi baru dari dosen)
+  result = injectSpecificProperNouns(result);
+  console.log('[HUMANIZE] After injectSpecificProperNouns');
 
-  // 4. TAMBAHKAN PROPER NOUNS
-  result = ensureProperNouns(result);
-  console.log('[HUMANIZE] After ensureProperNouns');
+  // 4. REPLACE TRANSITIONS — Kurangi formulaic transitions (fungsi baru dari dosen)
+  result = replaceTransitions(result);
+  console.log('[HUMANIZE] After replaceTransitions');
 
-  // 5. GANTI CONTOH GENERIK DENGAN SPESIFIK (grounded examples)
-  result = humanizeWithGroundedExamples(result);
-  console.log('[HUMANIZE] After humanizeWithGroundedExamples');
+  // 5. ADD LONG COMPLEX SENTENCES — 30+ kata (fungsi baru dari dosen)
+  result = addLongComplexSentences(result);
+  console.log('[HUMANIZE] After addLongComplexSentences');
 
-  // 6. TAMBAHKAN repetisi kata kunci
-  result = addRepetition(result);
-  console.log('[HUMANIZE] After addRepetition');
+  // 6. INCREASE BURSTINESS — Variasi ekstrem (fungsi baru dari dosen)
+  result = increaseBurstiness(result);
+  console.log('[HUMANIZE] After increaseBurstiness');
 
-  // 7. TAMBAHKAN comma splice (1-2)
-  result = addCommaSplice(result);
-  console.log('[HUMANIZE] After addCommaSplice');
+  // 7. ADD NATURAL GRAMMAR ERRORS — Comma splice, missing verb (fungsi baru dari dosen)
+  result = addNaturalGrammarErrors(result);
+  console.log('[HUMANIZE] After addNaturalGrammarErrors');
 
-  // 8. TAMBAHKAN kalimat panjang (30-40 kata)
-  result = addLongSentences(result);
-  console.log('[HUMANIZE] After addLongSentences');
+  // 8. ALLOW NATURAL REPETITION — Biarkan repetisi kata kunci (fungsi baru dari dosen)
+  result = allowNaturalRepetition(result);
+  console.log('[HUMANIZE] After allowNaturalRepetition');
 
-  // 9. TAMBAHKAN awkward phrasing (1-2)
-  result = addAwkwardPhrasing(result);
-  console.log('[HUMANIZE] After addAwkwardPhrasing');
-
-  // 10. TAMBAHKAN IDIOMS CONVERSATIONAL
+  // 9. TAMBAHKAN IDIOMS CONVERSATIONAL
   result = addNaturalIdioms(result);
   console.log('[HUMANIZE] After addNaturalIdioms');
 
-  // 11. TAMBAHKAN BURSTINESS (variasi panjang ekstrem)
-  result = addNaturalBurstiness(result);
-  console.log('[HUMANIZE] After addNaturalBurstiness');
-
-  // 12. TAMBAHKAN 1 TYPO NATURAL (hanya 1, bukan pattern)
+  // 10. TAMBAHKAN 1 TYPO NATURAL (hanya 1, bukan pattern)
   result = addNaturalImperfection(result);
   console.log('[HUMANIZE] After addNaturalImperfection');
 
-  // 13. HAPUS SISA THESIS STATEMENT
+  // 11. HAPUS SISA THESIS STATEMENT
   result = result.replace(/\bThis essay will (discuss|examine|explore|analyze)\b/gi, '');
 
   // FINAL CLEANUP
@@ -9206,7 +9198,7 @@ export function injectBurstiness(text: string): string {
 /**
  * Menambahkan kesalahan gramatikal natural seperti missing article, comma splice.
  */
-export function addNaturalGrammarErrors(text: string): string {
+export function addNaturalGrammarErrorsOld(text: string): string {
   let result = text;
   
   // 1. Missing article (seperti "Without such system")
@@ -11240,4 +11232,423 @@ export function removeTemplateTransitions(text: string): string {
   result = result.replace(/\s{2,}/g, ' ');
   result = result.replace(/(^|[.!?]\s+)([a-z])/g, (m, p, l) => p + l.toUpperCase());
   return result;
+}
+
+// ============================================================
+// NEW FUNCTIONS FROM DOSEN'S RECOMMENDATIONS (ADVANCED HUMANIZATION)
+// ============================================================
+
+/**
+ * REWRITE ARGUMENT SKELETON - Hancurkan template IELTS
+ * Mengubah struktur argumen dari template kaku menjadi lebih organik
+ */
+export function rewriteArgumentSkeleton(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 6) return text;
+
+  // Deteksi posisi template
+  let introEnd = 0;
+  let bodyStart = 0;
+  let bodyEnd = 0;
+  let conclusionStart = 0;
+
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    if (/\b(On the one hand|On the other hand)\b/i.test(s) && bodyStart === 0) {
+      bodyStart = i;
+    }
+    if (/\b(In conclusion|To conclude|To sum up)\b/i.test(s)) {
+      conclusionStart = i;
+      break;
+    }
+  }
+
+  if (bodyStart === 0 || conclusionStart === 0) return text;
+
+  // Ambil komponen
+  const intro = sentences.slice(0, bodyStart);
+  const body1 = sentences.slice(bodyStart, Math.floor((bodyStart + conclusionStart) / 2));
+  const body2 = sentences.slice(Math.floor((bodyStart + conclusionStart) / 2), conclusionStart);
+  const conclusion = sentences.slice(conclusionStart);
+
+  // Acak ulang: mulai dengan body2 (counter-argument) dulu, baru body1
+  const reordered = [
+    ...body2.slice(0, 2),      // 2 kalimat dari counter
+    ...intro.slice(0, 1),      // 1 kalimat intro
+    ...body1.slice(0, 2),      // 2 kalimat dari pro
+    ...body2.slice(2),         // sisa counter
+    ...body1.slice(2),         // sisa pro
+    ...conclusion.slice(0, 1), // 1 kalimat kesimpulan (tanpa label)
+  ];
+
+  // Gabungkan kembali, tanpa transisi formulaic
+  let result = reordered.join(' ');
+
+  // Hapus "On the one hand", "On the other hand", "Furthermore", "Moreover"
+  result = result.replace(/\bOn the one hand\b/gi, '');
+  result = result.replace(/\bOn the other hand\b/gi, '');
+  result = result.replace(/\bFurthermore\b/gi, '');
+  result = result.replace(/\bMoreover\b/gi, '');
+  result = result.replace(/\bIn conclusion\b/gi, '');
+  result = result.replace(/\bTo conclude\b/gi, '');
+
+  return result;
+}
+
+/**
+ * INJECT SPECIFIC PROPER NOUNS - Database grounding
+ * Menambahkan nama spesifik (negara, perusahaan, institusi) untuk grounding realitas
+ */
+function getGroundingDataAdvanced(topic: string): { properNouns: string[], examples: string[] } {
+  const db: Record<string, { properNouns: string[], examples: string[] }> = {
+    'economy': {
+      properNouns: ['IBM', 'China', 'Germany', 'Vietnam', 'Poland', 'the United States', 'Japan'],
+      examples: [
+        'IBM, for instance, invested hugely in China to establish manufacturing plants.',
+        'In Poland, 30 years after communism collapsed, average salaries tripled.',
+        'Vietnam\'s electronics sector gained hundreds of thousands of jobs.',
+        'Germany\'s automotive industry has attracted many multinational suppliers.',
+      ]
+    },
+    'environment': {
+      properNouns: ['Italy', 'the Amazon', 'China', 'the United States', 'the EU', 'California'],
+      examples: [
+        'Multinational mining companies seeking marble in the mountains of Italy have severely devastated the area.',
+        'Deforestation in the Amazon has accelerated under certain policies.',
+        'China\'s industrial expansion has led to significant air pollution in major cities.',
+      ]
+    },
+    'education': {
+      properNouns: ['Finland', 'the UK', 'Japan', 'Cambridge University', 'OECD', 'PISA'],
+      examples: [
+        'In Finland, early years education focuses on play and creativity.',
+        'The UK\'s reading scores have declined in recent PISA rankings.',
+        'Japan\'s approach to early literacy emphasizes parental involvement.',
+      ]
+    },
+    'politics': {
+      properNouns: ['Milan', 'London', 'the SUN', 'Westminster', 'Boris Johnson', 'Donald Trump'],
+      examples: [
+        'The Mayor of London was criticized after details of his vacation spending were revealed in the SUN.',
+        'Donald Trump cut funds for jobless migrants during his presidency.',
+        'A politician from Milan gained popularity after photos of him playing football with school children were published.',
+      ]
+    },
+    'health': {
+      properNouns: ['India', 'the WHO', 'the UK', 'Finland', 'Japan'],
+      examples: [
+        'In certain religious groups in India, strict vegetarian diets can lead to deficiencies.',
+        'The WHO recommends at least 150 minutes of exercise per week.',
+        'Finland\'s healthcare system is often cited as a model for preventive care.',
+      ]
+    }
+  };
+
+  return db[topic] || db['economy'];
+}
+
+export function injectSpecificProperNouns(text: string): string {
+  const sentences = splitSentences(text);
+  
+  // Deteksi topik dari teks
+  const lower = text.toLowerCase();
+  let detected = 'economy';
+  if (/\b(environment|pollution|climate|green|renewable)\b/i.test(lower)) detected = 'environment';
+  else if (/\b(education|reading|school|learn|child)\b/i.test(lower)) detected = 'education';
+  else if (/\b(politic|government|election|minister|parliament)\b/i.test(lower)) detected = 'politics';
+  else if (/\b(health|diet|exercise|medical|disease|doctor)\b/i.test(lower)) detected = 'health';
+  
+  const data = getGroundingDataAdvanced(detected);
+
+  // Cari kalimat yang mengandung "for example" atau "for instance"
+  let exampleIdx = -1;
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\b(for example|for instance|such as)\b/i.test(sentences[i])) {
+      exampleIdx = i;
+      break;
+    }
+  }
+
+  if (exampleIdx !== -1) {
+    const example = data.examples[Math.floor(Math.random() * data.examples.length)];
+    sentences[exampleIdx] = example;
+  } else if (sentences.length > 2) {
+    // Sisipkan contoh di posisi 20-40%
+    const pos = Math.floor(sentences.length * (0.2 + Math.random() * 0.2));
+    const example = data.examples[Math.floor(Math.random() * data.examples.length)];
+    sentences.splice(pos, 0, example);
+  }
+
+  // Tambahkan 1-2 proper nouns di kalimat lain secara natural
+  const nouns = data.properNouns;
+  for (let i = 0; i < sentences.length && i < 3; i++) {
+    if (/\b(countries|nations|states|people|individuals)\b/i.test(sentences[i]) && Math.random() < 0.3) {
+      const noun = nouns[Math.floor(Math.random() * nouns.length)];
+      sentences[i] = sentences[i].replace(/\b(countries|nations)\b/i, noun);
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+/**
+ * ADD NATURAL GRAMMAR ERRORS - Comma splice, missing verb, etc.
+ * Menambahkan imperfection alami seperti tulisan manusia
+ */
+export function addNaturalGrammarErrors(text: string): string {
+  let result = text;
+  const sentences = splitSentences(result);
+
+  // 1. Comma splice: gabungkan 2 independent clauses dengan koma (bukan titik atau conjunction)
+  for (let i = 0; i < sentences.length - 1; i++) {
+    if (Math.random() < 0.15 && sentences[i].length > 20 && sentences[i + 1].length > 15) {
+      const s1 = sentences[i].replace(/[.!?]$/, '');
+      const s2 = sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
+      sentences[i] = s1 + ', ' + s2;
+      sentences.splice(i + 1, 1);
+      break;
+    }
+  }
+
+  // 2. Missing verb (seperti "they enough money" → harusnya "they have enough money")
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\b(they|we|you)\s+enough\b/i.test(sentences[i]) && Math.random() < 0.3) {
+      sentences[i] = sentences[i].replace(/\b(they|we|you)\s+enough\b/i, (match) => {
+        const pronouns: Record<string, string> = { they: 'have', we: 'have', you: 'have' };
+        const pronoun = match.split(' ')[0].toLowerCase();
+        return `${pronoun} ${pronouns[pronoun] || 'have'} enough`;
+      });
+    }
+  }
+
+  // 3. Subject-verb agreement error
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\b(companies|corporations|firms|multinationals)\s+(is|has)\b/i.test(sentences[i]) && Math.random() < 0.2) {
+      sentences[i] = sentences[i].replace(/\b(companies|corporations|firms|multinationals)\s+(is|has)\b/i, (match) => {
+        const subject = match.split(' ')[0];
+        return `${subject} are`; // atau "have"
+      });
+    }
+  }
+
+  // 4. Missing article (seperti "large number of" → "a large number of")
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\b(large|significant|substantial)\s+number\b/i.test(sentences[i]) && Math.random() < 0.2) {
+      sentences[i] = sentences[i].replace(/\b(large|significant|substantial)\s+number\b/i, 'a $1 number');
+    }
+  }
+
+  // 5. Awkward phrasing (collocation tidak natural)
+  const awkwardMap: Array<[RegExp, string]> = [
+    [/\bthe nature and the environment\b/gi, 'the nature and environment'],
+    [/\bmaking profit precedence\b/gi, 'making profit take precedence'],
+    [/\bthe multinational type of companies\b/gi, 'multinational companies'],
+  ];
+  for (const [pattern, replacement] of awkwardMap) {
+    if (pattern.test(result) && Math.random() < 0.4) {
+      result = result.replace(pattern, replacement);
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+/**
+ * ALLOW NATURAL REPETITION - Jangan ganti sinonim
+ * Membiarkan repetisi kata kunci seperti manusia menulis
+ */
+export function allowNaturalRepetition(text: string): string {
+  // Deteksi kata kunci (topic noun)
+  const words = text.toLowerCase().match(/[a-z]{4,}/g) || [];
+  const freq: Record<string, number> = {};
+  for (const w of words) {
+    if (!['that', 'this', 'these', 'those', 'with', 'from', 'have', 'were'].includes(w)) {
+      freq[w] = (freq[w] || 0) + 1;
+    }
+  }
+
+  // Cari kata paling sering
+  let topWord = '';
+  let topFreq = 0;
+  for (const [word, count] of Object.entries(freq)) {
+    if (count > topFreq) { topFreq = count; topWord = word; }
+  }
+
+  if (!topWord || topFreq < 2) return text;
+
+  // Pastikan kata ini diulang setidaknya 3 kali
+  // Cari sinonim yang sering dipakai AI dan ganti dengan topWord
+  const synonymGroups: Record<string, string[]> = {
+    'companies': ['firms', 'corporations', 'multinationals', 'enterprises', 'organizations'],
+    'growth': ['development', 'expansion', 'progress', 'advancement'],
+    'benefits': ['advantages', 'gains', 'rewards', 'positive effects'],
+    'environment': ['nature', 'ecosystem', 'planet', 'surroundings'],
+    'economy': ['market', 'industry', 'commerce', 'trade'],
+  };
+
+  let result = text;
+  for (const [key, synonyms] of Object.entries(synonymGroups)) {
+    if (key === topWord) {
+      for (const syn of synonyms) {
+        if (Math.random() < 0.3) {
+          result = result.replace(new RegExp(`\\b${syn}\\b`, 'gi'), key);
+        }
+      }
+      break;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * INCREASE BURSTINESS - Variasi panjang kalimat ekstrem
+ * Menciptakan kalimat sangat pendek (5-7 kata) dan sangat panjang (35+ kata)
+ */
+export function increaseBurstiness(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  let result = [...sentences];
+
+  // 1. Tambahkan 1 kalimat sangat pendek (3-7 kata)
+  if (Math.random() < 0.6) {
+    const shorts = [
+      'That is the key.',
+      'It makes sense.',
+      'This matters.',
+      'Not always, though.',
+      'It depends.',
+      'That said.',
+      'Fair enough.',
+    ];
+    const pos = Math.floor(result.length * (0.2 + Math.random() * 0.3));
+    result.splice(pos, 0, shorts[Math.floor(Math.random() * shorts.length)]);
+  }
+
+  // 2. Cari 1 kalimat untuk diperpanjang >30 kata
+  let longIdx = -1;
+  for (let i = 0; i < result.length; i++) {
+    if (result[i].split(/\s+/).length > 25) {
+      longIdx = i;
+      break;
+    }
+  }
+
+  if (longIdx === -1 && result.length > 3) {
+    // Gabungkan 2 kalimat menjadi 1 panjang
+    const idx = Math.floor(result.length * (0.3 + Math.random() * 0.3));
+    if (idx < result.length - 1) {
+      const s1 = result[idx].replace(/[.!?]$/, '');
+      const s2 = result[idx + 1].charAt(0).toLowerCase() + result[idx + 1].slice(1);
+      result[idx] = s1 + ', and ' + s2;
+      result.splice(idx + 1, 1);
+    }
+  }
+
+  // 3. Pastikan ada 1 kalimat >30 kata
+  let hasLong = result.some(s => s.split(/\s+/).length > 30);
+  if (!hasLong && result.length > 2) {
+    const idx = Math.floor(result.length * 0.5);
+    const s1 = result[idx];
+    const s2 = result[idx + 1] || '';
+    if (s2) {
+      const combined = s1.replace(/[.!?]$/, '') + ', and ' + s2.charAt(0).toLowerCase() + s2.slice(1);
+      result[idx] = combined;
+      result.splice(idx + 1, 1);
+    }
+  }
+
+  return result.join(' ');
+}
+
+/**
+ * SCATTER OPINION - Sebarkan opini di semua paragraf, bukan blok terpisah
+ */
+export function scatterOpinion(text: string): string {
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 2) return text;
+
+  const opinionPhrases = [
+    'In my view, ',
+    'I think that ',
+    'I would argue that ',
+    'From my perspective, ',
+    'I am convinced that ',
+  ];
+
+  // Pastikan setiap paragraf (kecuali mungkin yang terakhir) punya opini
+  for (let i = 0; i < paragraphs.length; i++) {
+    const p = paragraphs[i];
+    // Cek apakah sudah ada "I" atau "In my opinion"
+    if (!/\b(I|me|my|In my opinion|In my view|I think|I believe)\b/i.test(p)) {
+      // Sisipkan opini di kalimat pertama atau kedua
+      const sentences = splitSentences(p);
+      if (sentences.length > 0) {
+        const phrase = opinionPhrases[Math.floor(Math.random() * opinionPhrases.length)];
+        // Sisipkan di awal paragraf, atau di kalimat kedua
+        if (Math.random() < 0.4 && sentences.length > 1) {
+          sentences[1] = phrase + sentences[1].charAt(0).toLowerCase() + sentences[1].slice(1);
+        } else {
+          sentences[0] = phrase + sentences[0].charAt(0).toLowerCase() + sentences[0].slice(1);
+        }
+        paragraphs[i] = sentences.join(' ');
+      }
+    }
+  }
+
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * REPLACE TRANSITIONS - Kurangi "Furthermore", "In conclusion"
+ * Ganti dengan transisi yang lebih natural dan conversational
+ */
+export function replaceTransitions(text: string): string {
+  const transitionMap: Array<[RegExp, string[]]> = [
+    [/\bFurthermore\b/gi, ['Also', 'And', 'Plus', 'Another thing is', 'What\'s more']],
+    [/\bMoreover\b/gi, ['Also', 'On top of that', 'Another point is']],
+    [/\bIn addition\b/gi, ['Also', 'Another thing', 'Not only that']],
+    [/\bConsequently\b/gi, ['So', 'Because of this', 'This means']],
+    [/\bTherefore\b/gi, ['So', 'That\'s why', 'For this reason']],
+    [/\bAs a result\b/gi, ['So', 'Because of this', 'This means']],
+    [/\bIn conclusion\b/gi, ['All in all', 'To sum up', 'In the end', 'Overall']],
+    [/\bOn the other hand\b/gi, ['But', 'Yet', 'Still', 'However']],
+    [/\bOn the one hand\b/gi, ['One way', 'One reason is', 'First']],
+  ];
+
+  let result = text;
+  for (const [pattern, replacements] of transitionMap) {
+    if (pattern.test(result) && Math.random() < 0.4) {
+      const replacement = replacements[Math.floor(Math.random() * replacements.length)];
+      result = result.replace(pattern, replacement);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * ADD LONG COMPLEX SENTENCES - 30+ kata dengan comma splice
+ * Memastikan ada kalimat kompleks panjang seperti tulisan manusia
+ */
+export function addLongComplexSentences(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  // Cek apakah sudah ada kalimat >30 kata
+  const hasLong = sentences.some(s => s.split(/\s+/).length > 30);
+  if (hasLong) return text;
+
+  // Ambil 3 kalimat berurutan, gabungkan menjadi 1 panjang dengan comma splice
+  const idx = Math.floor(Math.random() * (sentences.length - 3));
+  const s1 = sentences[idx].replace(/[.!?]$/, '');
+  const s2 = sentences[idx + 1].replace(/[.!?]$/, '');
+  const s3 = sentences[idx + 2];
+
+  // Gabungkan dengan comma splice
+  const combined = s1 + ', ' + s2.charAt(0).toLowerCase() + s2.slice(1) + ', and ' + s3.charAt(0).toLowerCase() + s3.slice(1);
+  sentences.splice(idx, 3, combined);
+
+  return sentences.join(' ');
 }
