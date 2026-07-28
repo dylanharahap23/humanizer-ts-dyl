@@ -4452,26 +4452,44 @@ export function finalHumanize(
     return cleanupEnglishSpacing(text);
   }
 
-  // LOGIC BARU DARI DOSEN: Hanya 3 fungsi utama, HAPUS semua noise insertion
+  // LOGIC BARU DARI DOSEN: Pipeline lengkap dengan 6 fungsi utama
   let result = text.trim();
 
-  // 1. PERKUAT OPINI (bukan destroy structure - template IELTS boleh tetap ada)
-  result = strengthenOpinion(result);
-  console.log("[HUMANIZE] After strengthenOpinion");
+  console.log('[HUMANIZE] Starting humanization pipeline...');
 
-  // 2. GANTI CONTOH GENERIK DENGAN SPESIFIK (proper nouns: Milan, Mayor of London, the SUN)
-  result = concretizeExamples(result);
-  console.log("[HUMANIZE] After concretizeExamples");
+  // 1. PERKUAT STANCE (bukan "partly agree")
+  result = strengthenStance(result);
+  console.log('[HUMANIZE] After strengthenStance');
 
-  // 3. TAMBAHKAN 1 TYPO NATURAL (bukan error pattern)
+  // 2. TAMBAHKAN PROPER NOUNS
+  result = ensureProperNouns(result);
+  console.log('[HUMANIZE] After ensureProperNouns');
+
+  // 3. GANTI CONTOH GENERIK DENGAN SPESIFIK (grounded examples)
+  result = humanizeWithGroundedExamples(result);
+  console.log('[HUMANIZE] After humanizeWithGroundedExamples');
+
+  // 4. TAMBAHKAN IDIOMS CONVERSATIONAL
+  result = addNaturalIdioms(result);
+  console.log('[HUMANIZE] After addNaturalIdioms');
+
+  // 5. TAMBAHKAN BURSTINESS (variasi panjang ekstrem)
+  result = addNaturalBurstiness(result);
+  console.log('[HUMANIZE] After addNaturalBurstiness');
+
+  // 6. TAMBAHKAN 1 TYPO NATURAL (hanya 1, bukan pattern)
   result = addNaturalImperfection(result);
-  console.log("[HUMANIZE] After addNaturalImperfection");
+  console.log('[HUMANIZE] After addNaturalImperfection');
 
-  // Final cleanup
+  // 7. HAPUS SISA THESIS STATEMENT
+  result = result.replace(/\bThis essay will (discuss|examine|explore|analyze)\b/gi, '');
+
+  // FINAL CLEANUP
   result = cleanupEnglishSpacing(result);
-  result = result.replace(/\s{2,}/g, " ");
+  result = result.replace(/\s{2,}/g, ' ');
   result = result.replace(/(^|[.!?]\s+)([a-z])/g, (match, prefix, letter) => prefix + letter.toUpperCase());
 
+  console.log('[HUMANIZE] Humanization complete');
   return result;
 }
 
@@ -10793,6 +10811,242 @@ export function ensureBurstiness(text: string): string {
     const s2 = sentences[idx + 1].charAt(0).toLowerCase() + sentences[idx + 1].slice(1);
     sentences[idx] = s1 + ', and ' + s2;
     sentences.splice(idx + 1, 1);
+  }
+  
+  return sentences.join(' ');
+}
+
+// ============================================================
+// NEW FUNCTIONS FROM LECTURER'S ANALYSIS
+// ============================================================
+
+/**
+ * Get grounding data based on topic (proper nouns, numbers, events)
+ */
+function getGroundingData(text: string): { properNouns: string[], numbers: string[], events: string[] } {
+  const lower = text.toLowerCase();
+  
+  // Detect topic
+  let topic = 'economy';
+  if (/\b(politic|government|election|minister|mayor|parliament|privacy|surveillance)\b/i.test(lower)) {
+    topic = 'politics';
+  } else if (/\b(education|reading|child|learn|play|school|teacher|university)\b/i.test(lower)) {
+    topic = 'education';
+  } else if (/\b(happiness|money|wealth|income|adult|teenager|adolescence|responsibility)\b/i.test(lower)) {
+    topic = 'happiness';
+  } else if (/\b(sport|exercise|physical|fitness|health)\b/i.test(lower)) {
+    topic = 'sport';
+  } else if (/\b(environment|pollution|climate|recycling|waste)\b/i.test(lower)) {
+    topic = 'environment';
+  }
+  
+  const groundingDB: Record<string, { properNouns: string[], numbers: string[], events: string[] }> = {
+    'economy': {
+      properNouns: ['Poland', 'Donald Trump', 'USA', 'China', 'Germany', 'Vietnam'],
+      numbers: ['30 years', 'tripled', '60% to 15%', '10%', '1990s'],
+      events: ['communism collapsed', 'Doi Moi reforms', '2008 financial crisis']
+    },
+    'education': {
+      properNouns: ['Finland', 'UK', 'Japan', 'Cambridge University', 'OECD'],
+      numbers: ['sixth-best', '15%', '50,000', '2000s'],
+      events: ['PISA rankings', 'early years education']
+    },
+    'politics': {
+      properNouns: ['Milan', 'the SUN', 'Mayor of London', 'Westminster', 'Boris Johnson'],
+      numbers: ['2019', '10,000', '£50,000'],
+      events: ['Partygate scandal', 'MPs expenses scandal']
+    },
+    'happiness': {
+      properNouns: ['Spain', 'Europe', 'Finland', 'World Happiness Report'],
+      numbers: ['35-year-old', '10 years', '6 hours'],
+      events: ['summer vacation', 'weekend trips']
+    },
+    'sport': {
+      properNouns: ['Australia', 'Olympics', 'FIFA', 'Premier League'],
+      numbers: ['16 years', '80%', '2020'],
+      events: ['school sports programs', 'world cup']
+    },
+    'environment': {
+      properNouns: ['Germany', 'Copenhagen', 'Norway', 'European Union'],
+      numbers: ['2025', '80%', 'six categories'],
+      events: ['carbon-neutral goal', 'electric car adoption']
+    }
+  };
+  
+  return groundingDB[topic] || groundingDB['economy'];
+}
+
+/**
+ * Replace generic examples with specific grounded ones (proper nouns, numbers, events)
+ */
+export function humanizeWithGroundedExamples(text: string): string {
+  const sentences = splitSentences(text);
+  const grounding = getGroundingData(text);
+  
+  // Find sentences with "for example" or "for instance"
+  let exampleIndex = -1;
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\b(for example|for instance|such as)\b/i.test(sentences[i])) {
+      exampleIndex = i;
+      break;
+    }
+  }
+  
+  if (exampleIndex !== -1) {
+    // Pick random grounding data
+    const properNoun = grounding.properNouns[Math.floor(Math.random() * grounding.properNouns.length)];
+    const number = grounding.numbers[Math.floor(Math.random() * grounding.numbers.length)];
+    const event = grounding.events[Math.floor(Math.random() * grounding.events.length)];
+    
+    // Build specific example
+    const specificExample = `For example, in ${properNoun}, ${number} after ${event}, studies show that...`;
+    sentences[exampleIndex] = specificExample;
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * Strengthen stance: change "partly agree" to strong opinions
+ */
+export function strengthenStance(text: string): string {
+  let result = text;
+  
+  // Detect stance
+  const hasPartlyAgree = /\b(partly|somewhat|to some extent)\s+(agree|believe)\b/i.test(result);
+  const hasIThink = /\bI\s+(think|believe|feel)\s+that\b/i.test(result);
+  
+  if (hasPartlyAgree) {
+    // Replace with strong stance
+    const strongStances = [
+      'I am firmly convinced that',
+      'I strongly believe that',
+      'I have no doubt that',
+      'This is simply true:',
+      'I stand with the view that',
+    ];
+    const replacement = strongStances[Math.floor(Math.random() * strongStances.length)];
+    result = result.replace(/\b(partly|somewhat|to some extent)\s+(agree|believe)\b/i, replacement);
+  }
+  
+  // If has "I think", strengthen it
+  if (hasIThink && !hasPartlyAgree) {
+    const strong = ['I am convinced', 'I strongly believe', 'I have no doubt'];
+    result = result.replace(/\bI\s+(think|believe|feel)\s+that\b/i, 
+      strong[Math.floor(Math.random() * strong.length)] + ' that');
+  }
+  
+  return result;
+}
+
+/**
+ * Add natural burstiness: extreme variation in sentence length
+ */
+export function addNaturalBurstiness(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+  
+  // Find middle position (30-50%)
+  const midIdx = Math.floor(sentences.length * 0.3 + Math.random() * 0.2);
+  
+  // 1. Add one very short sentence (5-8 words)
+  const shorts = [
+    'That is the key.',
+    'It makes sense.',
+    'This is what matters.',
+    'Not always, though.',
+    'It depends.',
+  ];
+  sentences.splice(midIdx, 0, shorts[Math.floor(Math.random() * shorts.length)]);
+  
+  // 2. Find one long sentence (>30 words), merge with next
+  for (let i = 0; i < sentences.length; i++) {
+    if (sentences[i].split(/\s+/).length > 30) {
+      // Merge with next sentence
+      if (i < sentences.length - 1) {
+        const next = sentences[i + 1];
+        sentences[i] = sentences[i].replace(/[.!?]$/, '') + ', and ' + next.charAt(0).toLowerCase() + next.slice(1);
+        sentences.splice(i + 1, 1);
+      }
+      break;
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * Add natural idioms: conversational phrases
+ */
+export function addNaturalIdioms(text: string): string {
+  const idioms = [
+    { pattern: /\bin conclusion\b/i, replacement: ['At the end of the day', 'All things considered', 'When you think about it'] },
+    { pattern: /\bin addition\b/i, replacement: ['Not only that', 'Another thing is', 'What\'s more'] },
+    { pattern: /\bhowever\b/i, replacement: ['But', 'That said', 'Mind you'] },
+    { pattern: /\btherefore\b/i, replacement: ['So', 'That\'s why', 'Because of this'] },
+  ];
+  
+  let result = text;
+  for (const { pattern, replacement } of idioms) {
+    if (pattern.test(result) && Math.random() < 0.4) {
+      const repl = replacement[Math.floor(Math.random() * replacement.length)];
+      result = result.replace(pattern, repl);
+    }
+  }
+  
+  // Add one idiom at the beginning if none exists
+  if (!/\b(actually|honestly|to be fair|at the end|all things considered)\b/i.test(text)) {
+    const openers = ['To be fair, ', 'Honestly, ', 'Actually, ', 'The thing is, '];
+    const sentences = splitSentences(result);
+    if (sentences.length > 0) {
+      sentences[0] = openers[Math.floor(Math.random() * openers.length)] + sentences[0].charAt(0).toLowerCase() + sentences[0].slice(1);
+      result = sentences.join(' ');
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Ensure proper nouns are added naturally
+ */
+export function ensureProperNouns(text: string): string {
+  const lower = text.toLowerCase();
+  const sentences = splitSentences(text);
+  
+  // Detect topic
+  let topic = 'economy';
+  if (/\b(politic|government|election|minister|mayor|parliament|privacy|surveillance)\b/i.test(lower)) {
+    topic = 'politics';
+  } else if (/\b(education|reading|child|learn|play|school|teacher|university)\b/i.test(lower)) {
+    topic = 'education';
+  } else if (/\b(happiness|money|wealth|income|adult|teenager|adolescence|responsibility)\b/i.test(lower)) {
+    topic = 'happiness';
+  } else if (/\b(sport|exercise|physical|fitness|health)\b/i.test(lower)) {
+    topic = 'sport';
+  } else if (/\b(environment|pollution|climate|recycling|waste)\b/i.test(lower)) {
+    topic = 'environment';
+  }
+  
+  const properNouns: Record<string, string[]> = {
+    'economy': ['Poland', 'Germany', 'Vietnam', 'China', 'Donald Trump', 'USA', 'European Union'],
+    'education': ['Finland', 'UK', 'Japan', 'Cambridge', 'OECD', 'PISA'],
+    'politics': ['Milan', 'London', 'Westminster', 'Boris Johnson', 'the SUN', 'Parliament'],
+    'happiness': ['Spain', 'Finland', 'World Happiness Report', 'Europe'],
+    'sport': ['Australia', 'Olympics', 'FIFA', 'Premier League'],
+    'environment': ['Germany', 'Copenhagen', 'Norway', 'European Union'],
+  };
+  
+  const nouns = properNouns[topic] || properNouns['economy'];
+  
+  // Find sentence with "example" or "instance"
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\b(for example|for instance)\b/i.test(sentences[i])) {
+      const noun = nouns[Math.floor(Math.random() * nouns.length)];
+      // Insert proper noun after "for example"
+      sentences[i] = sentences[i].replace(/\b(for example|for instance)\b/i, `$1, in ${noun},`);
+      break;
+    }
   }
   
   return sentences.join(' ');
