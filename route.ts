@@ -2385,11 +2385,16 @@ function buildSafeEnglishFallback(
 ) {
   const cleanedCandidate = cleanupEnglishSpacing(preferredCandidate);
   
-  // Untuk general tones, langsung return preferredCandidate tanpa validasi ketat
-  const generalTones = ['english-general', 'english-argument', 'english-discursive', 'english-expository', 'english-reflective', 'casual'];
-  if (generalTones.includes(tone)) {
+  // ===== PERBAIKAN: Untuk academic/general tones, langsung return hasil =====
+  const allowedTones = [
+    'english-general', 'english-academic', 'english-argument',
+    'english-discursive', 'english-expository', 'english-reflective',
+    'casual', 'ielts'
+  ];
+  if (allowedTones.includes(tone)) {
     return cleanedCandidate;
   }
+  // ============================================================
 
   if (
     cleanedCandidate.length >= 20 &&
@@ -3038,8 +3043,9 @@ export async function POST(req: Request) {
     
     // --- Tentukan tone yang diizinkan untuk humanisasi agresif ---
     const generalTones = ['english-general', 'english-argument', 'english-discursive', 'english-expository', 'english-reflective', 'casual'];
+    const academicTones = ['english-academic', 'ielts'];
     const isGeneralTone = generalTones.includes(config.postProcessTone);
-    const isAcademicTone = config.postProcessTone === 'english-academic';
+    const isAcademicTone = academicTones.includes(config.postProcessTone);
 
     // --- Terapkan humanisasi agresif (hanya untuk general tones) ---
     if (isGeneralTone) {
@@ -3236,20 +3242,31 @@ export async function POST(req: Request) {
       const outputWordCount = currentText.split(/\s+/).filter(Boolean).length;
       const finalLengthRatio = sourceWordCount === 0 ? 1 : outputWordCount / sourceWordCount;
 
-      // ========== PERBAIKAN: Izinkan violations untuk general tones ==========
-      const allowedViolations = isGeneralTone
-        ? [
-            'invented-first-person',
-            'invented-second-person',
-            'outside-relationship',
-            'invented-certainty',
-            'outside-name',
-            'rhetorical-question',
-            'invented-emphasis',
-            'promotional-framing',
-            'excessive-filler'
-          ]
-        : [];
+      // ========== PERBAIKAN: Izinkan violations untuk general & academic tones ==========
+      let allowedViolations: string[] = [];
+
+      if (isGeneralTone) {
+        allowedViolations = [
+          'invented-first-person',
+          'invented-second-person',
+          'outside-relationship',
+          'invented-certainty',
+          'outside-name',
+          'rhetorical-question',
+          'invented-emphasis',
+          'promotional-framing',
+          'excessive-filler',
+          'invented-research-attribution', // TAMBAHKAN!
+        ];
+      } else if (isAcademicTone) {
+        allowedViolations = [
+          'invented-first-person',        // "I argue that"
+          'invented-certainty',           // "clearly unfounded", "undeniable"
+          'outside-name',                 // "Child Safety Institute", "Cambridge"
+          'rhetorical-question',          // kadang di intro
+          'invented-research-attribution', // "research shows", "found that" → kita sengaja tambah!
+        ];
+      }
 
       const criticalFidelityIssues = finalFidelityIssues.filter(
         issue => !allowedViolations.includes(issue)
