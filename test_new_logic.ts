@@ -1,9 +1,30 @@
-import { ultimateHumanChaos } from './humanizer';
+import { destroyIeltsTemplate, strengthenOpinion, concretizeExamples, addNaturalImperfection } from './humanizer';
 
-const testText = `Toilet paper is commonly used in Western countries for personal hygiene after using the bathroom. Many people find it convenient and easy to use. However, some argue that bidets are more hygienic and environmentally friendly. The choice between toilet paper and water really depends on cultural preferences and personal habits. Both methods have their advantages and disadvantages. In India, water is traditionally preferred for cleaning. Some hotels in tourist areas provide both options for guests.`;
+const testText = `On the one hand, politicians should have privacy. For example, they need time with family. On the other hand, public accountability matters. I partly agree that both sides have merit. In conclusion, we must balance privacy and transparency.`;
 
-console.log("=== ORIGINAL TEXT ===");
+console.log('=== ORIGINAL TEXT ===');
 console.log(testText);
-console.log("\n\n=== AFTER ULTIMATE HUMAN CHAOS (6 DIMENSIONS) ===");
-const result = ultimateHumanChaos(testText, testText);
+console.log('\n');
+
+let result = testText;
+
+// Test strengthenOpinion FIRST (before destroyIeltsTemplate according to new logic)
+result = strengthenOpinion(result);
+console.log('=== AFTER strengthenOpinion ===');
 console.log(result);
+console.log('\n');
+
+// Test concretizeExamples
+result = concretizeExamples(result);
+console.log('=== AFTER concretizeExamples ===');
+console.log(result);
+console.log('\n');
+
+// Test addNaturalImperfection
+result = addNaturalImperfection(result);
+console.log('=== AFTER addNaturalImperfection ===');
+console.log(result);
+console.log('\n');
+
+// Note: destroyIeltsTemplate is now OPTIONAL per dosen's new logic
+// "Template IELTS BUKAN masalah - biarkan tetap ada"

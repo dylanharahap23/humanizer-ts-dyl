@@ -1771,7 +1771,7 @@ function boostVocabularyEntropy(text: string): string {
   
   for (const [word, alternatives] of Object.entries(lowFrequencyMap)) {
     if (changes >= maxChanges) break;
-    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    const regex = new RegExp(`\b${word}\b`, 'gi');
     if (regex.test(result) && Math.random() < 0.6) {  // Dinaikkan dari 0.4 ke 0.6
       const replacement = alternatives[Math.floor(Math.random() * alternatives.length)];
       result = result.replace(regex, replacement);
@@ -2854,7 +2854,7 @@ function casualizeTransitions(text: string): string {
   };
   let result = text;
   for (const [formal, casual] of Object.entries(map)) {
-    result = result.replace(new RegExp(`\\b${formal}\\b`, "gi"), casual);
+    result = result.replace(new RegExp(`\b${formal}\b`, "gi"), casual);
   }
   return result;
 }
@@ -4448,26 +4448,28 @@ export function finalHumanize(
   if (!text || text.length < 40) return text.trim();
 
   // Jika skipHeavyProcessing true (general tones), kita langsung jalankan cleanup spacing
-  // dan lewati addHumanTouches yang akan membersihkan noise kita.
   if (skipHeavyProcessing) {
     return cleanupEnglishSpacing(text);
   }
 
-  // English post-processing is deliberately surface-only. The model may vary
-  // syntax and wording, but this stage never invents people, numbers, examples,
-  // professions, opinions, or personal experience.
-  let result = addHumanTouches(text, tone);
+  // LOGIC BARU DARI DOSEN: Hanya 3 fungsi utama, HAPUS semua noise insertion
+  let result = text.trim();
 
-  // TERAPKAN DEEP STRUCTURE HUMANIZATION PIPELINE (NEW DONSEN LOGIC)
-  result = destroyIeltsTemplate(result);
+  // 1. PERKUAT OPINI (bukan destroy structure - template IELTS boleh tetap ada)
   result = strengthenOpinion(result);
-  result = concretizeExamples(result);
-  result = addNaturalImperfection(result);
-  result = ensureBurstiness(result);
+  console.log("[HUMANIZE] After strengthenOpinion");
 
-  // Final cleanup (JANGAN perbaiki grammar error yang disengaja)
+  // 2. GANTI CONTOH GENERIK DENGAN SPESIFIK (proper nouns: Milan, Mayor of London, the SUN)
+  result = concretizeExamples(result);
+  console.log("[HUMANIZE] After concretizeExamples");
+
+  // 3. TAMBAHKAN 1 TYPO NATURAL (bukan error pattern)
+  result = addNaturalImperfection(result);
+  console.log("[HUMANIZE] After addNaturalImperfection");
+
+  // Final cleanup
   result = cleanupEnglishSpacing(result);
-  result = result.replace(/\s{2,}/g, ' ');
+  result = result.replace(/\s{2,}/g, " ");
   result = result.replace(/(^|[.!?]\s+)([a-z])/g, (match, prefix, letter) => prefix + letter.toUpperCase());
 
   return result;
@@ -9849,7 +9851,7 @@ export function forceNaturalRepetition(text: string): string {
     if (group.includes(topWord)) {
       for (const syn of group) {
         if (syn !== topWord && Math.random() < 0.4) {
-          result = result.replace(new RegExp(`\\b${syn}\\b`, 'gi'), topWord);
+          result = result.replace(new RegExp(`\b${syn}\b`, 'gi'), topWord);
         }
       }
       break;
@@ -9948,10 +9950,10 @@ export function injectPoliticalBias(text: string): string {
  */
 export function injectEmphaticPhrasing(text: string): string {
   const emphaticPhrases: [string, string][] = [
-    ['\\bnever\\b', 'not in the least'],
-    ['\\bnot\\b', 'not in any way'],
-    ['\\bclearly\\b', 'as clear as day'],
-    ['\\bobvious\\b', 'staring us in the face'],
+    ['\bnever\b', 'not in the least'],
+    ['\bnot\b', 'not in any way'],
+    ['\bclearly\b', 'as clear as day'],
+    ['\bobvious\b', 'staring us in the face'],
   ];
 
   let result = text;
@@ -10657,57 +10659,70 @@ export function strengthenOpinion(text: string): string {
 
 /**
  * Ganti contoh generik dengan spesifik (proper nouns, angka, detail temporal)
+ * LOGIC BARU DARI DOSEN: Gunakan proper nouns spesifik seperti Milan, Mayor of London, the SUN
  */
 export function concretizeExamples(text: string, topic?: string): string {
   const sentences = splitSentences(text);
   
-  // Deteksi topik
+  // Deteksi topik dari teks
   const lower = text.toLowerCase();
   let examples: string[] = [];
   
-  if (/\b(teenager|adolescence|youth|young people)\b/i.test(lower)) {
+  if (/\b(politic|government|election|minister|mayor|parliament|privacy|surveillance)\b/i.test(lower)) {
     examples = [
-      'For example, a 17-year-old can spend every weekend at the beach with friends, without worrying about rent or bills.',
-      'Take a typical university student—they have time to hang out, join clubs, and explore hobbies.',
-      'In many countries, teenagers have their own party places that open during week days.',
-      'For instance, my cousin spent his teenage years playing in a band and traveling to local gigs.',
+      'For example, when details of the lavish spending of the Mayor of London were revealed in the SUN, it prompted questions from many sections of society.',
+      'Take the case of a famous politician from Milan, who gained popularity after photos of him playing football with local school children were published.',
+      'In the UK, the Partygate scandal exposed how private behavior can affect public trust.',
+      'For instance, the MP expenses scandal in 2009 showed why transparency matters.',
     ];
-  } else if (/\b(adult|adulthood|grown-up|responsibility)\b/i.test(lower)) {
+  } else if (/\b(education|reading|child|learn|play|school|teacher|university)\b/i.test(lower)) {
     examples = [
-      'For example, a 35-year-old man can always travel to Spain during summer time.',
-      'Take a 40-year-old professional who has built a career and can afford to take a month off.',
-      'In many countries, adults in their thirties have the financial means to buy a house or start a business.',
-    ];
-  } else if (/\b(education|learning|school|reading|children)\b/i.test(lower)) {
-    examples = [
-      'For example, in the UK, many boys become reluctant readers if they are forced to read.',
-      'Take Finland, where early years education focuses on play and creativity.',
+      'In Finland, early years education focuses on play and creativity.',
+      'For example, in the UK, many boys become reluctant readers when forced to read.',
       'In Japan, parents often start reading to children at a very young age.',
+      'Take the case of Finland, which ranked sixth-best in reading worldwide.',
+    ];
+  } else if (/\b(happiness|money|wealth|income|adult|teenager|adolescence|responsibility)\b/i.test(lower)) {
+    examples = [
+      'For example, a 35-year-old man can travel to Spain during summer and create unforgettable moments.',
+      'Take a teenager who spends weekends at the beach with friends, without worrying about rent.',
+      'In many countries, adults in their thirties have the financial means to buy a house.',
+    ];
+  } else if (/\b(sport|exercise|physical|fitness|health)\b/i.test(lower)) {
+    examples = [
+      'For example, to play almost any sport one has to invest in the appropriate equipment, ranging from shorts, t-shirts to rackets and balls.',
+      'In Australia, school sports programs are mandatory from age 6 to 16.',
+      'Take the case of swimming, which requires pools, lanes, and trained instructors.',
+    ];
+  } else if (/\b(environment|pollution|climate|recycling|waste)\b/i.test(lower)) {
+    examples = [
+      'In Germany, households separate waste into six different categories.',
+      'For example, Copenhagen aims to become carbon-neutral by 2025.',
+      'Take Norway, where electric cars now make up over 80% of new sales.',
     ];
   } else {
     examples = [
-      'For example, in many countries, this trend is visible.',
-      'Take Germany, where the situation is similar.',
-      'In Australia, research has shown similar patterns.',
+      'For example, in the UK, this trend is clearly visible.',
+      'Take Australia, where research has shown similar patterns.',
+      'In Canada, the situation follows a comparable trajectory.',
     ];
   }
   
   // Cari kalimat yang mengandung "for example" atau "for instance"
   let replaced = false;
   for (let i = 0; i < sentences.length; i++) {
-    if (/\b(for example|for instance|such as)\b/i.test(sentences[i]) && !replaced) {
+    if (/\b(for example|for instance)\b/i.test(sentences[i]) && !replaced) {
       const example = examples[Math.floor(Math.random() * examples.length)];
-      // Ganti seluruh kalimat dengan contoh spesifik
       sentences[i] = example;
       replaced = true;
       break;
     }
   }
   
-  // Jika tidak ada "for example", sisipkan di kalimat kedua
-  if (!replaced && sentences.length > 1) {
+  // Jika tidak ada "for example", sisipkan di kalimat kedua/ketiga
+  if (!replaced && sentences.length > 2) {
     const example = examples[Math.floor(Math.random() * examples.length)];
-    sentences.splice(1, 0, example);
+    sentences.splice(2, 0, example);
   }
   
   return sentences.join(' ');
@@ -10715,53 +10730,29 @@ export function concretizeExamples(text: string, topic?: string): string {
 
 /**
  * Tambahkan imperfection natural (typo alami, grammar error minor)
+ * LOGIC BARU DARI DOSEN: Hanya 1 typo natural, tidak merusak makna
  */
 export function addNaturalImperfection(text: string): string {
   let result = text;
-  const sentences = splitSentences(result);
-  
-  // 1. Tambahkan 1-2 typo alami (bukan di semua kalimat)
+
+  // HANYA 1 TYPO NATURAL (bukan pattern yang sama berulang)
   const typos: Array<[RegExp, string]> = [
-    [/\bresponsibilities\b/gi, 'responsibilties'],
-    [/\bfriends\b/gi, 'firends'],
-    [/\btheir\b/gi, 'thier'],
-    [/\bdefinitely\b/gi, 'definately'],
-    [/\bseparate\b/gi, 'seperate'],
-    [/\boccurred\b/gi, 'occured'],
-    [/\bbeginning\b/gi, 'begining'],
-    [/\bgovernment\b/gi, 'goverment'],
+    [/\bnewspapers\b/g, "newspaper"],   // typo natural (singular/plural)
+    [/\bresponsibilities\b/g, "responsibilties"],
+    [/\bfriends\b/g, "firends"],
+    [/\btheir\b/g, "thier"],
+    [/\bdefinitely\b/g, "definately"],
   ];
-  
-  // Pilih 1-2 typo
+
+  // Pilih HANYA 1 typo secara random
   const shuffled = typos.sort(() => Math.random() - 0.5);
-  let typoCount = 0;
   for (const [pattern, replacement] of shuffled) {
-    if (typoCount >= 2) break;
-    if (pattern.test(result) && Math.random() < 0.4) {
+    if (pattern.test(result)) {
       result = result.replace(pattern, replacement);
-      typoCount++;
+      break; // HANYA 1 TYPO
     }
   }
-  
-  // 2. Tambahkan 1 grammar error minor (missing "have" atau "to")
-  if (Math.random() < 0.3) {
-    result = result.replace(/\bthey\s+enough\b/i, 'they enough'); // missing "have"
-    result = result.replace(/\bneed\s+the\s+time\b/i, 'need the time'); // biarkan
-  }
-  
-  // 3. Tambahkan 1 kalimat pendek natural (5-8 kata) di posisi tengah
-  if (sentences.length > 3 && Math.random() < 0.4) {
-    const shorts = [
-      'That is the key.',
-      'It makes sense.',
-      'This is what matters.',
-      'Not always, though.',
-    ];
-    const pos = Math.floor(sentences.length * 0.5);
-    sentences.splice(pos, 0, shorts[Math.floor(Math.random() * shorts.length)]);
-    result = sentences.join(' ');
-  }
-  
+
   return result;
 }
 
