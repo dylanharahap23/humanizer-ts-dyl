@@ -3220,12 +3220,16 @@ export async function POST(req: Request) {
       // - destroyFourParagraphStructure, destroyTemplateTransitions, destroyConclusionTemplate
       // - forceMultiParagraph, forceExtremeBurstinessAcademic
       // Template IELTS BUKAN masalah - biarkan tetap ada
+      
+      // Untuk academic tone, skipHeavyProcessing = true agar finalHumanize hanya jalankan 4 fungsi inti
     }
 
-    // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk general tones ---
+    // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk academic tones ---
     const preFinalText = currentText;
+    // PERBAIKAN: skipHeavyProcessing = true untuk academic, false untuk general
+    const shouldSkipHeavyProcessing = isAcademicTone || config.postProcessTone === 'english-sensitive';
     currentText = config.postProcessTone.startsWith("english-")
-      ? finalHumanize(currentText, config.postProcessTone, isGeneralTone) // skipHeavyProcessing = isGeneralTone
+      ? finalHumanize(currentText, config.postProcessTone, shouldSkipHeavyProcessing)
       : cleanupEnglishSpacing(currentText);
 
     if (config.postProcessTone.startsWith("english-")) {
