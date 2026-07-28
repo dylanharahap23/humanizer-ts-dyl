@@ -73,6 +73,17 @@ import {
   addNaturalGrammarFlaws,
   destroyConclusionTemplate,
   naturalRepetition,
+  // Human Noise Injection Pipeline (10 fungsi baru)
+  injectFragmentParagraph,
+  injectIncompleteEnding,
+  injectNaturalGrammarErrors,
+  injectPompousPhrasing,
+  injectRelevantTangent,
+  forceNaturalRepetition,
+  injectStandaloneListFragment,
+  injectBritishSpelling,
+  injectPoliticalBias,
+  injectEmphaticPhrasing,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -3221,6 +3232,47 @@ export async function POST(req: Request) {
       // 9. Destroy thesis template ("I strongly agree that...")
       currentText = destroyThesisTemplateImproved(currentText);
       console.log('[HUMANIZE] After destroyThesisTemplateImproved (academic)');
+      
+      // ===== FINAL HUMAN NOISE PIPELINE =====
+      // 10. Fragment sebagai paragraf
+      currentText = injectFragmentParagraph(currentText);
+      console.log('[HUMANIZE] After injectFragmentParagraph');
+      
+      // 11. Incomplete ending
+      currentText = injectIncompleteEnding(currentText);
+      console.log('[HUMANIZE] After injectIncompleteEnding');
+      
+      // 12. Natural grammar errors
+      currentText = injectNaturalGrammarErrors(currentText);
+      console.log('[HUMANIZE] After injectNaturalGrammarErrors');
+      
+      // 13. Pompous phrasing
+      currentText = injectPompousPhrasing(currentText);
+      console.log('[HUMANIZE] After injectPompousPhrasing');
+      
+      // 14. Relevant tangent (on-topic)
+      currentText = injectRelevantTangent(currentText);
+      console.log('[HUMANIZE] After injectRelevantTangent');
+      
+      // 15. Force natural repetition
+      currentText = forceNaturalRepetition(currentText);
+      console.log('[HUMANIZE] After forceNaturalRepetition');
+      
+      // 16. Standalone list fragment
+      currentText = injectStandaloneListFragment(currentText);
+      console.log('[HUMANIZE] After injectStandaloneListFragment');
+      
+      // 17. British spelling inconsistency
+      currentText = injectBritishSpelling(currentText);
+      console.log('[HUMANIZE] After injectBritishSpelling');
+      
+      // 18. Political bias
+      currentText = injectPoliticalBias(currentText);
+      console.log('[HUMANIZE] After injectPoliticalBias');
+      
+      // 19. Emphatic phrasing
+      currentText = injectEmphaticPhrasing(currentText);
+      console.log('[HUMANIZE] After injectEmphaticPhrasing');
     }
 
     // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk general tones ---

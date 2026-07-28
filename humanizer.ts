@@ -9536,3 +9536,365 @@ export function naturalRepetition(text: string): string {
   
   return result;
 }
+
+// ============================================================
+// HUMAN NOISE INJECTION PIPELINE (10 Fungsi Baru)
+// Berdasarkan data human baseline yang lolos deteksi
+// ============================================================
+
+/**
+ * Helper: split text into sentences (simple version) - untuk Human Noise Pipeline
+ */
+function splitSentencesForHumanNoise(text: string): string[] {
+  return text.match(/[^.!?]+[.!?]+/g) || [text];
+}
+
+/**
+ * Logic 1: Fragment as Paragraph
+ * Mengubah 1 paragraf yang panjang menjadi fragment (list tanpa verb).
+ * Ini adalah fingerprint human yang paling kuat: AI tidak pernah generate fragment sebagai paragraf.
+ */
+export function injectFragmentParagraph(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+
+  // Cari paragraf yang mengandung list abstrak (misal "responsibility, patience, empathy")
+  for (let i = 0; i < paragraphs.length; i++) {
+    const p = paragraphs[i];
+    // Deteksi list-of-3 abstrak
+    const listMatch = p.match(/\b(\w+),\s+(\w+),\s+and\s+(\w+)\b/);
+    if (listMatch && Math.random() < 0.3) {
+      const [full, item1, item2, item3] = listMatch;
+      // Ubah menjadi fragment: cuma list tanpa verb
+      const fragment = `${item1}, ${item2}, and ${item3} — that's the real value.`;
+      paragraphs[i] = fragment;
+      break;
+    }
+  }
+
+  // Jika tidak ada list, insert fragment baru
+  const fragmentPool = [
+    'feeding, grooming, administering medicine, etc).',
+    'cats, dogs, fish, rodents and rabbits — that\'s what most families have.',
+    'part-time, online, flexible hours — those are the real options.',
+  ];
+  if (Math.random() < 0.4 && paragraphs.length > 2) {
+    const insertIdx = Math.floor(paragraphs.length * 0.6);
+    const fragment = fragmentPool[Math.floor(Math.random() * fragmentPool.length)];
+    paragraphs.splice(insertIdx, 0, fragment);
+  }
+
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * Logic 2: Incomplete Ending
+ * Memotong kalimat terakhir di tengah-tengah (tanpa menyelesaikan).
+ * Ini adalah fingerprint human yang paling kuat: AI selalu generate kalimat lengkap.
+ */
+export function injectIncompleteEnding(text: string): string {
+  const sentences = splitSentencesForHumanNoise(text);
+  if (sentences.length < 2) return text;
+
+  // Ambil kalimat terakhir
+  const last = sentences[sentences.length - 1];
+  // Potong di 60-80% panjang kalimat
+  const cutPoint = Math.floor(last.length * (0.6 + Math.random() * 0.2));
+  // Cari titik potong yang natural: setelah koma, atau setelah kata ke-5
+  let cut = cutPoint;
+  for (let i = cutPoint; i < last.length; i++) {
+    if (last[i] === ' ' && last[i-1] === ',') { cut = i; break; }
+  }
+  // Ambil 3-5 kata terakhir untuk dijadikan "incomplete"
+  const words = last.slice(0, cut).split(' ');
+  const lastFew = words.slice(-3).join(' ');
+  const incomplete = last.slice(0, cut - lastFew.length) + lastFew;
+
+  sentences[sentences.length - 1] = incomplete;
+  return sentences.join(' ');
+}
+
+/**
+ * Logic 3: Natural Grammar Errors (Bukan Typo Random)
+ * Menambahkan grammar errors yang NATURAL (bukan typo random).
+ * Ini berdasarkan data human baseline yang lolos.
+ */
+export function injectNaturalGrammarErrors(text: string): string {
+  let result = text;
+
+  // 1. Missing hyphen (seperti "part time" → biarkan tanpa hyphen)
+  if (Math.random() < 0.25) {
+    const pairs: [RegExp, string][] = [
+      [/\bpart time\b/gi, 'part time'],
+      [/\bfull time\b/gi, 'full time'],
+      [/\bwell being\b/gi, 'well being'],
+      [/\bpet related\b/gi, 'pet related'],
+    ];
+    for (const [pattern] of pairs) {
+      if (pattern.test(result) && Math.random() < 0.5) {
+        // Biarkan tanpa hyphen (error natural)
+        break;
+      }
+    }
+  }
+
+  // 2. Missing comma after "For example" (seperti "For example The")
+  if (Math.random() < 0.2) {
+    result = result.replace(/\bFor example\s+([A-Z])/g, (match, letter) => {
+      return `For example ${letter}`; // Missing comma
+    });
+  }
+
+  // 3. Redundant phrase (seperti "financial income" → biarkan redundant)
+  if (Math.random() < 0.2) {
+    const redundants: [RegExp, string][] = [
+      [/\bfinancial income\b/gi, 'income'],
+      [/\bpersonal opinion\b/gi, 'opinion'],
+      [/\badvance planning\b/gi, 'planning'],
+    ];
+    for (const [pattern] of redundants) {
+      if (pattern.test(result) && Math.random() < 0.4) {
+        // Biarkan redundant (error natural)
+        break;
+      }
+    }
+  }
+
+  // 4. Comma splice (seperti "...development, moreover, evidence suggests...")
+  if (Math.random() < 0.15) {
+    result = result.replace(/\.\s+(Moreover|Furthermore|However)\s+/gi, (match, transition) => {
+      return `, ${transition.toLowerCase()}, `;
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Logic 4: Pompous & Awkward Phrasing
+ * Menambahkan 1-2 frase pompous/awkward yang tidak akan di-generate AI.
+ * Ini adalah collocations yang "salah" tapi understandable.
+ */
+export function injectPompousPhrasing(text: string): string {
+  const sentences = splitSentencesForHumanNoise(text);
+  if (sentences.length < 3) return text;
+
+  const pompousPhrases = [
+    { trigger: /\bprove\b/i, replacement: 'vindicate the correctness of' },
+    { trigger: /\bsupport\b/i, replacement: 'substantiate the claim that' },
+    { trigger: /\bhelp\b/i, replacement: 'facilitate the process of' },
+    { trigger: /\bshow\b/i, replacement: 'demonstrate the veracity of' },
+    { trigger: /\bgood parenting\b/i, replacement: 'the effective rearing of children' },
+  ];
+
+  let result = text;
+  for (const { trigger, replacement } of pompousPhrases) {
+    if (trigger.test(result) && Math.random() < 0.15) {
+      result = result.replace(trigger, replacement);
+      break;
+    }
+  }
+
+  // Tambahkan "facilitate, rather than impede" jika ada "help" atau "support"
+  if (/\b(help|support)\b/i.test(result) && Math.random() < 0.2) {
+    result = result.replace(/\b(help|support)\b/i, 'facilitate, rather than impede');
+  }
+
+  return result;
+}
+
+/**
+ * Logic 5: Non-Sequitur / Irrelevant Tangent (Tapi Tidak Random)
+ * Menambahkan 1 kalimat tangent yang on-topic tapi tidak langsung.
+ * Ini berdasarkan data human baseline yang lolos.
+ */
+export function injectRelevantTangent(text: string): string {
+  const lower = text.toLowerCase();
+  let tangents: string[] = [];
+
+  if (/\b(women|gender|feminist|traditional roles|housewife)\b/i.test(lower)) {
+    tangents = [
+      'In Scandinavian countries, gender equality policies have been in place for decades.',
+      'The Nordic model is often cited as a progressive approach to gender roles.',
+      'In countries like Sweden, parental leave is shared equally between parents.',
+    ];
+  } else if (/\b(education|reading|child|learn|play)\b/i.test(lower)) {
+    tangents = [
+      'In Finland, early years\' education focuses on play and creativity.',
+      'The Finnish education system is often cited as a model for the world.',
+      'In Japan, parents often start reading to children at a very young age.',
+    ];
+  } else if (/\b(urban|rural|city|countryside|migration)\b/i.test(lower)) {
+    tangents = [
+      'In China, urbanisation has accelerated over the past 50 years.',
+      'The UK has seen similar patterns of rural-to-urban migration.',
+    ];
+  } else {
+    tangents = [
+      'In many countries, similar patterns can be observed.',
+      'This is not an isolated phenomenon.',
+    ];
+  }
+
+  const sentences = splitSentencesForHumanNoise(text);
+  if (sentences.length < 3) return text;
+
+  // Sisipkan 1 tangent di posisi 40-60%
+  const pos = Math.floor(sentences.length * (0.4 + Math.random() * 0.2));
+  const tangent = tangents[Math.floor(Math.random() * tangents.length)];
+  sentences.splice(pos, 0, tangent);
+
+  return sentences.join(' ');
+}
+
+/**
+ * Logic 6: Repetition Without Synonym Overload
+ * Memaksa repetisi kata utama, bukan ganti sinonim.
+ */
+export function forceNaturalRepetition(text: string): string {
+  // Deteksi topik utama
+  const words = text.split(/\s+/);
+  const wordFreq: Record<string, number> = {};
+  for (const w of words) {
+    const clean = w.toLowerCase().replace(/[^a-z]/g, '');
+    if (clean.length > 3) {
+      wordFreq[clean] = (wordFreq[clean] || 0) + 1;
+    }
+  }
+  // Cari kata paling frequent
+  let topWord = '';
+  let topCount = 0;
+  for (const [word, count] of Object.entries(wordFreq)) {
+    if (count > topCount) { topCount = count; topWord = word; }
+  }
+
+  if (!topWord || topCount < 2) return text;
+
+  // Pilih 1-2 sinonim yang sering muncul dan ganti dengan topWord
+  const synonyms = [
+    ['children', 'youngsters', 'offspring', 'kids', 'infants'],
+    ['parents', 'mothers', 'fathers', 'caregivers'],
+    ['work', 'employment', 'jobs', 'career'],
+    ['benefits', 'advantages', 'gains', 'rewards'],
+  ];
+
+  let result = text;
+  for (const group of synonyms) {
+    if (group.includes(topWord)) {
+      for (const syn of group) {
+        if (syn !== topWord && Math.random() < 0.4) {
+          result = result.replace(new RegExp(`\\b${syn}\\b`, 'gi'), topWord);
+        }
+      }
+      break;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Logic 7: Standalone List Fragment
+ * Menambahkan paragraf yang isinya cuma list (fragment).
+ * Ini adalah fingerprint human paling kuat.
+ */
+export function injectStandaloneListFragment(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+
+  const listFragments = [
+    'cats, dogs, fish, rodents and rabbits — that\'s what most families have.',
+    'part-time, online, flexible hours — those are the real options.',
+    'feeding, grooming, administering medicine, etc).',
+    'school fees, uniforms, books, extracurricular activities — it adds up.',
+  ];
+
+  // Sisipkan di posisi 50-70%
+  if (Math.random() < 0.5) {
+    const insertIdx = Math.floor(paragraphs.length * (0.5 + Math.random() * 0.2));
+    const fragment = listFragments[Math.floor(Math.random() * listFragments.length)];
+    paragraphs.splice(insertIdx, 0, fragment);
+  }
+
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * Logic 8: British Spelling Inconsistency
+ * Menambahkan 1-2 British spelling di tengah text American.
+ * Ini adalah inconsistency yang natural.
+ */
+export function injectBritishSpelling(text: string): string {
+  const britishMap: [RegExp, string][] = [
+    [/\borganize\b/gi, 'organise'],
+    [/\brealize\b/gi, 'realise'],
+    [/\bemphasize\b/gi, 'emphasise'],
+    [/\banalyze\b/gi, 'analyse'],
+    [/\bbehavior\b/gi, 'behaviour'],
+    [/\bcolor\b/gi, 'colour'],
+    [/\bfavor\b/gi, 'favour'],
+    [/\bcenter\b/gi, 'centre'],
+    [/\blabor\b/gi, 'labour'],
+  ];
+
+  let result = text;
+  // Pilih 1-2 kata untuk diubah ke British spelling
+  const shuffled = britishMap.sort(() => Math.random() - 0.5);
+  let count = 0;
+  for (const [pattern, replacement] of shuffled) {
+    if (count >= 2) break;
+    if (pattern.test(result) && Math.random() < 0.3) {
+      result = result.replace(pattern, replacement);
+      count++;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Logic 9: Political Incorrectness / Bias
+ * Menambahkan 1 kata yang politically incorrect atau biased.
+ * Ini adalah fingerprint human yang kuat karena AI modern always neutral.
+ */
+export function injectPoliticalBias(text: string): string {
+  const biasWords = [
+    { trigger: /\bwomen\b/i, replacement: 'housewives' },
+    { trigger: /\bpeople who don't work\b/i, replacement: 'idlers' },
+    { trigger: /\btraditional views\b/i, replacement: 'old-fashioned attitudes' },
+  ];
+
+  let result = text;
+  for (const { trigger, replacement } of biasWords) {
+    if (trigger.test(result) && Math.random() < 0.2) {
+      result = result.replace(trigger, replacement);
+      break;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Logic 10: Emphatic Phrasing
+ * Menambahkan 1 frase emphatic yang redundan.
+ * Ini adalah fingerprint human yang kuat.
+ */
+export function injectEmphaticPhrasing(text: string): string {
+  const emphaticPhrases: [string, string][] = [
+    ['\\bnever\\b', 'not in the least'],
+    ['\\bnot\\b', 'not in any way'],
+    ['\\bclearly\\b', 'as clear as day'],
+    ['\\bobvious\\b', 'staring us in the face'],
+  ];
+
+  let result = text;
+  for (const [pattern, replacement] of emphaticPhrases) {
+    if (new RegExp(pattern, 'i').test(result) && Math.random() < 0.15) {
+      result = result.replace(new RegExp(pattern, 'i'), replacement);
+      break;
+    }
+  }
+
+  return result;
+}
