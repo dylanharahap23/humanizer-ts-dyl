@@ -1217,11 +1217,27 @@ export function getEnglishHumanizerConfig(
   sourceText: string,
   writingPurpose: EnglishWritingPurpose = "General"
 ): HumanizerPromptConfig {
+  // Jika writing purpose adalah Academic, gunakan prompt IELTS
+  if (writingPurpose === "Academic") {
+    return {
+      systemPrompt: `${IELTS_HUMAN_PROMPT}\n\n${HUMAN_IELTS_EXAMPLES}\n\nTASK: Rewrite the user's text in IELTS Academic style.`,
+      temperature: 0.85,
+      topP: 0.92,
+      maxTokens: 1200,
+      frequencyPenalty: 0.15,
+      presencePenalty: 0.1,
+      repetitionPenalty: 1.12,
+      additionalInstruction: "Write with conviction, varied rhythm, specific examples, and a natural student voice.",
+      postProcessTone: "ielts" as HumanizerPostProcessTone,
+    };
+  }
+
   // Deteksi jika teks adalah esai panjang (indikasi IELTS/TOEFL)
   const wordCount = sourceText.split(/\s+/).filter(Boolean).length;
   const isEssay = wordCount > 150 && /\b(?:essay|discuss|argue|believe|opinion)\b/i.test(sourceText);
 
-  if (isEssay && writingPurpose !== "Academic") {
+  // Untuk esai umum (bukan Academic), gunakan prompt human style
+  if (isEssay) {
     // Untuk esai umum, gunakan prompt human style
     return {
       systemPrompt: buildHumanStyleSystemPrompt(),
