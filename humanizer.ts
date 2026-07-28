@@ -4452,36 +4452,60 @@ export function finalHumanize(
     return cleanupEnglishSpacing(text);
   }
 
-  // LOGIC BARU DARI DOSEN: Pipeline lengkap dengan 6 fungsi utama
+  // LOGIC BARU DARI DOSEN: Pipeline lengkap dengan semua fungsi humanisasi
   let result = text.trim();
 
-  console.log('[HUMANIZE] Starting humanization pipeline...');
+  console.log('[HUMANIZE] Starting natural humanization...');
 
-  // 1. PERKUAT STANCE (bukan "partly agree")
+  // 1. HAPUS template transisi (On the one hand → hilangkan)
+  result = removeTemplateTransitions(result);
+  console.log('[HUMANIZE] After removeTemplateTransitions');
+
+  // 2. SEBAR opini ke seluruh paragraf
+  result = disperseOpinion(result);
+  console.log('[HUMANIZE] After disperseOpinion');
+
+  // 3. PERKUAT STANCE (bukan "partly agree")
   result = strengthenStance(result);
   console.log('[HUMANIZE] After strengthenStance');
 
-  // 2. TAMBAHKAN PROPER NOUNS
+  // 4. TAMBAHKAN PROPER NOUNS
   result = ensureProperNouns(result);
   console.log('[HUMANIZE] After ensureProperNouns');
 
-  // 3. GANTI CONTOH GENERIK DENGAN SPESIFIK (grounded examples)
+  // 5. GANTI CONTOH GENERIK DENGAN SPESIFIK (grounded examples)
   result = humanizeWithGroundedExamples(result);
   console.log('[HUMANIZE] After humanizeWithGroundedExamples');
 
-  // 4. TAMBAHKAN IDIOMS CONVERSATIONAL
+  // 6. TAMBAHKAN repetisi kata kunci
+  result = addRepetition(result);
+  console.log('[HUMANIZE] After addRepetition');
+
+  // 7. TAMBAHKAN comma splice (1-2)
+  result = addCommaSplice(result);
+  console.log('[HUMANIZE] After addCommaSplice');
+
+  // 8. TAMBAHKAN kalimat panjang (30-40 kata)
+  result = addLongSentences(result);
+  console.log('[HUMANIZE] After addLongSentences');
+
+  // 9. TAMBAHKAN awkward phrasing (1-2)
+  result = addAwkwardPhrasing(result);
+  console.log('[HUMANIZE] After addAwkwardPhrasing');
+
+  // 10. TAMBAHKAN IDIOMS CONVERSATIONAL
   result = addNaturalIdioms(result);
   console.log('[HUMANIZE] After addNaturalIdioms');
 
-  // 5. TAMBAHKAN BURSTINESS (variasi panjang ekstrem)
+  // 11. TAMBAHKAN BURSTINESS (variasi panjang ekstrem)
   result = addNaturalBurstiness(result);
   console.log('[HUMANIZE] After addNaturalBurstiness');
 
-  // 6. TAMBAHKAN 1 TYPO NATURAL (hanya 1, bukan pattern)
+  // 12. TAMBAHKAN 1 TYPO NATURAL (hanya 1, bukan pattern)
   result = addNaturalImperfection(result);
   console.log('[HUMANIZE] After addNaturalImperfection');
 
-  // 7. HAPUS SISA THESIS STATEMENT
+  // 13. HAPUS SISA THESIS STATEMENT
   result = result.replace(/\bThis essay will (discuss|examine|explore|analyze)\b/gi, '');
 
   // FINAL CLEANUP
@@ -10168,37 +10192,9 @@ export function destroyInspirationalClosers(text: string): string {
 }
 
 /**
- * Menambahkan frase yang sedikit awkward/pompous.
- * Contoh dari human baseline:
- * - "either individually or cooperatively"
- * - "with responsibility for protecting our planet"
- * - "to make the changes necessary"
+ * Menambahkan frase yang sedikit awkward/pompous - DIHAPUS, diganti dengan versi baru dari dosen
+ * Fungsi ini sudah digantikan oleh implementasi baru di akhir file
  */
-export function addAwkwardPhrasing(text: string): string {
-  const awkwardPhrases = [
-    'either individually or cooperatively',
-    'with responsibility for protecting our planet',
-    'to make the changes necessary to have a significant impact',
-    'on our leaders to make this happen',
-    'in relation to industrial pollution',
-  ];
-  
-  const sentences = splitSentences(text);
-  if (sentences.length < 4) return text;
-  
-  // Sisipkan 1-2 frase awkward di posisi acak
-  const count = Math.min(2, awkwardPhrases.length);
-  const shuffled = awkwardPhrases.sort(() => Math.random() - 0.5);
-  
-  for (let i = 0; i < count; i++) {
-    const pos = Math.floor(Math.random() * sentences.length);
-    const phrase = shuffled[i];
-    // Gabungkan dengan kalimat yang ada
-    sentences[pos] = sentences[pos].replace(/\.$/, '') + ', ' + phrase + '.';
-  }
-  
-  return sentences.join(' ');
-}
 
 /**
  * Mengubah list-of-3/4 yang sempurna menjadi tidak simetris.
@@ -10915,8 +10911,9 @@ export function strengthenStance(text: string): string {
   // Detect stance
   const hasPartlyAgree = /\b(partly|somewhat|to some extent)\s+(agree|believe)\b/i.test(result);
   const hasIThink = /\bI\s+(think|believe|feel)\s+that\b/i.test(result);
+  const hasIAgree = /\bI\s+(partly|somewhat|to some extent)?\s*agree\b/i.test(result);
   
-  if (hasPartlyAgree) {
+  if (hasPartlyAgree || hasIAgree) {
     // Replace with strong stance
     const strongStances = [
       'I am firmly convinced that',
@@ -10926,11 +10923,13 @@ export function strengthenStance(text: string): string {
       'I stand with the view that',
     ];
     const replacement = strongStances[Math.floor(Math.random() * strongStances.length)];
+    // Replace "I partly agree" or similar patterns
+    result = result.replace(/\bI\s+(partly|somewhat|to some extent)?\s*agree\b/i, replacement);
     result = result.replace(/\b(partly|somewhat|to some extent)\s+(agree|believe)\b/i, replacement);
   }
   
   // If has "I think", strengthen it
-  if (hasIThink && !hasPartlyAgree) {
+  if (hasIThink && !hasPartlyAgree && !hasIAgree) {
     const strong = ['I am convinced', 'I strongly believe', 'I have no doubt'];
     result = result.replace(/\bI\s+(think|believe|feel)\s+that\b/i, 
       strong[Math.floor(Math.random() * strong.length)] + ' that');
@@ -11050,4 +11049,195 @@ export function ensureProperNouns(text: string): string {
   }
   
   return sentences.join(' ');
+}
+
+// ============================================================
+// SARAN BARU DARI DOSEN - 6 FUNGSI TAMBAHAN
+// ============================================================
+
+/**
+ * 1. ADD COMMA SPLICE - Tanda khas manusia (menyisipkan 1-2 comma splice)
+ */
+export function addCommaSplice(text: string): string {
+  const sentences = splitSentences(text);
+  for (let i = 0; i < sentences.length - 1; i++) {
+    if (sentences[i].split(/\s+/).length > 12 && Math.random() < 0.15) {
+      const first = sentences[i].replace(/[.!?]$/, '');
+      const second = sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
+      sentences[i] = first + ', ' + second;
+      sentences.splice(i + 1, 1);
+      break;
+    }
+  }
+  return sentences.join(' ');
+}
+
+/**
+ * 2. ADD REPETITION - Ulang kata kunci, bukan variasi sinonim
+ */
+export function addRepetition(text: string): string {
+  // Deteksi kata kunci dari teks
+  const words = text.split(/\s+/);
+  const freq: Record<string, number> = {};
+  for (const w of words) {
+    const clean = w.toLowerCase().replace(/[^a-z]/g, '');
+    if (clean.length > 4) freq[clean] = (freq[clean] || 0) + 1;
+  }
+  // Cari kata dengan frekuensi tinggi (kecuali stopwords)
+  const stopwords = new Set(['people', 'things', 'something', 'without', 'about', 'because', 'would', 'could', 'should']);
+  let topWord = '';
+  let topCount = 0;
+  for (const [word, count] of Object.entries(freq)) {
+    if (count > topCount && !stopwords.has(word)) {
+      topCount = count;
+      topWord = word;
+    }
+  }
+  if (!topWord || topCount < 2) return text;
+  
+  // Ganti beberapa sinonim dengan topWord
+  const synonyms: Record<string, string[]> = {
+    'health': ['wellness', 'well-being', 'fitness'],
+    'environment': ['nature', 'planet', 'earth'],
+    'nutrient': ['vitamin', 'mineral', 'supplement'],
+    'protein': ['proteins'],
+    'heart': ['cardiac', 'cardiovascular'],
+    'vegetarian': ['plant-based', 'meat-free'],
+    'education': ['learning', 'schooling', 'teaching'],
+    'economy': ['economic', 'financial'],
+    'government': ['administration', 'authority'],
+    'happiness': ['joy', 'contentment', 'satisfaction'],
+  };
+  
+  let result = text;
+  if (synonyms[topWord]) {
+    for (const syn of synonyms[topWord]) {
+      const regex = new RegExp(`\\b${syn}\\b`, 'gi');
+      if (regex.test(result)) {
+        result = result.replace(regex, topWord);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * 3. ADD AWKWARD PHRASING - Frase sedikit canggung/ambigu
+ */
+export function addAwkwardPhrasing(text: string): string {
+  const awkwardPhrases: Array<[string, string]> = [
+    ['omnivorous more than herbivorous', 'more omnivorous than herbivorous'],
+    ['predisposing to', 'predisposing to'],
+    ['in certain religious groups', 'among certain religious groups'],
+    ['without proper knowledge', 'without having proper knowledge'],
+    ['can have consequences on', 'can have consequences for'],
+    ['effect to', 'effect on'],
+    ['discuss about', 'discuss'],
+    ['emphasize on', 'emphasize'],
+    ['similar with', 'similar to'],
+    ['different than', 'different from'],
+  ];
+  
+  let result = text;
+  for (const [incorrect, correct] of awkwardPhrases) {
+    const regex = new RegExp(`\\b${correct.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
+    if (regex.test(result) && Math.random() < 0.2) {
+      result = result.replace(regex, incorrect);
+      break;
+    }
+  }
+  return result;
+}
+
+/**
+ * 4. ADD LONG SENTENCES - Gabungkan 2 kalimat jadi 1 kalimat panjang (30-40 kata)
+ */
+export function addLongSentences(text: string): string {
+  const sentences = splitSentences(text);
+  for (let i = 0; i < sentences.length - 1; i++) {
+    const combined = sentences[i] + ' ' + sentences[i + 1];
+    if (combined.split(/\s+/).length > 30 && Math.random() < 0.15) {
+      sentences[i] = sentences[i].replace(/[.!?]$/, '') + ', ' + sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
+      sentences.splice(i + 1, 1);
+      break;
+    }
+  }
+  return sentences.join(' ');
+}
+
+/**
+ * 5. DISPERSE OPINION - Sebarkan opini ke seluruh paragraf (bukan blok terpisah)
+ */
+export function disperseOpinion(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+  
+  // Cari paragraf yang terlihat seperti "opinion block" (hanya berisi opini)
+  const opinionMarkers = /\b(I|me|my|in my view|i think|i believe)\b/i;
+  let opinionBlockIdx = -1;
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (opinionMarkers.test(paragraphs[i]) && paragraphs[i].split(/\s+/).length > 20) {
+      opinionBlockIdx = i;
+      break;
+    }
+  }
+  
+  if (opinionBlockIdx !== -1) {
+    // Ambil kalimat-kalimat opini dari blok
+    const sentences = splitSentences(paragraphs[opinionBlockIdx]);
+    const opinionSentences = sentences.filter(s => opinionMarkers.test(s));
+    if (opinionSentences.length > 0) {
+      // Sebarkan ke paragraf lain
+      for (let i = 0; i < paragraphs.length; i++) {
+        if (i !== opinionBlockIdx && i < opinionSentences.length) {
+          const insertIdx = Math.floor(Math.random() * 2); // awal atau akhir
+          const sentencesPara = splitSentences(paragraphs[i]);
+          if (insertIdx === 0) {
+            sentencesPara.unshift(opinionSentences[i % opinionSentences.length]);
+          } else {
+            sentencesPara.push(opinionSentences[i % opinionSentences.length]);
+          }
+          paragraphs[i] = sentencesPara.join(' ');
+        }
+      }
+      // Hapus blok opini atau sisakan hanya 1 kalimat
+      const remaining = splitSentences(paragraphs[opinionBlockIdx]);
+      const nonOpinion = remaining.filter(s => !opinionMarkers.test(s));
+      paragraphs[opinionBlockIdx] = nonOpinion.join(' ') || paragraphs[opinionBlockIdx];
+    }
+  }
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * 6. REMOVE TEMPLATE TRANSITIONS - Ganti label dengan transisi langsung
+ */
+export function removeTemplateTransitions(text: string): string {
+  const transitions: Array<[RegExp, string]> = [
+    [/\bOn the one hand\b,\s*/gi, ''],
+    [/\bOn the other hand\b,\s*/gi, ''],
+    [/\bAnother point is\b,\s*/gi, ''],
+    [/\bOne reason\b,\s*/gi, ''],
+    [/\bIn addition\b,\s*/gi, ''],
+    [/\bFurthermore\b,\s*/gi, ''],
+    [/\bMoreover\b,\s*/gi, ''],
+    [/\bNevertheless\b,\s*/gi, ''],
+    [/\bHowever\b,\s*/gi, ''],
+    [/\bTherefore\b,\s*/gi, ''],
+    [/\bConsequently\b,\s*/gi, ''],
+    [/\bAs a result\b,\s*/gi, ''],
+    [/\bIn conclusion\b,\s*/gi, ''],
+    [/\bTo sum up\b,\s*/gi, ''],
+    [/\bTo conclude\b,\s*/gi, ''],
+  ];
+  
+  let result = text;
+  for (const [pattern, replacement] of transitions) {
+    result = result.replace(pattern, replacement);
+  }
+  // Bersihkan spasi ganda dan kapitalisasi
+  result = result.replace(/\s{2,}/g, ' ');
+  result = result.replace(/(^|[.!?]\s+)([a-z])/g, (m, p, l) => p + l.toUpperCase());
+  return result;
 }
