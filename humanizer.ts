@@ -4452,60 +4452,39 @@ export function finalHumanize(
     return cleanupEnglishSpacing(text);
   }
 
-  // LOGIC BARU DARI DOSEN: Pipeline lengkap dengan semua fungsi humanisasi
+  // ============================================================
+  // SOLUSI FINAL DARI DOSEN: KURANGI LOGIC, HANYA 4 FUNGSI INTI
+  // ============================================================
+  // Hapus over-engineering: jangan gunakan rewriteArgumentSkeleton,
+  // scatterOpinion, addLongComplexSentences, increaseBurstiness,
+  // replaceTransitions, addNaturalIdioms, addNaturalImperfection
+  // ============================================================
+  
   let result = text.trim();
 
-  console.log('[HUMANIZE] Starting new humanization pipeline...');
+  console.log('[HUMANIZE] Starting SIMPLE humanization pipeline (4 functions only)...');
 
-  // 1. REWRITE SKELETON — Ubah struktur argumen (fungsi baru dari dosen)
-  result = rewriteArgumentSkeleton(result);
-  console.log('[HUMANIZE] After rewriteArgumentSkeleton');
+  // 1. PERKUAT STANCE - Ubah "partly agree" jadi stance tegas
+  result = strengthenStance(result);
+  console.log('[HUMANIZE] After strengthenStance');
 
-  // 2. SCATTER OPINION — Sebarkan opini di semua paragraf (fungsi baru dari dosen)
-  result = scatterOpinion(result);
-  console.log('[HUMANIZE] After scatterOpinion');
-
-  // 3. INJECT PROPER NOUNS — Tambahkan nama spesifik (fungsi baru dari dosen)
+  // 2. TAMBAHKAN PROPER NOUNS SPESIFIK - IBM, China, Italy, dll
   result = injectSpecificProperNouns(result);
   console.log('[HUMANIZE] After injectSpecificProperNouns');
 
-  // 4. REPLACE TRANSITIONS — Kurangi formulaic transitions (fungsi baru dari dosen)
-  result = replaceTransitions(result);
-  console.log('[HUMANIZE] After replaceTransitions');
-
-  // 5. ADD LONG COMPLEX SENTENCES — 30+ kata (fungsi baru dari dosen)
-  result = addLongComplexSentences(result);
-  console.log('[HUMANIZE] After addLongComplexSentences');
-
-  // 6. INCREASE BURSTINESS — Variasi ekstrem (fungsi baru dari dosen)
-  result = increaseBurstiness(result);
-  console.log('[HUMANIZE] After increaseBurstiness');
-
-  // 7. ADD NATURAL GRAMMAR ERRORS — Comma splice, missing verb (fungsi baru dari dosen)
+  // 3. TAMBAHKAN GRAMMAR ERRORS NATURAL - comma splice, missing verb, subject-verb agreement
   result = addNaturalGrammarErrors(result);
   console.log('[HUMANIZE] After addNaturalGrammarErrors');
 
-  // 8. ALLOW NATURAL REPETITION — Biarkan repetisi kata kunci (fungsi baru dari dosen)
+  // 4. BIAKKAN REPETISI - Jangan ganti sinonim, biarkan repetisi kata kunci
   result = allowNaturalRepetition(result);
   console.log('[HUMANIZE] After allowNaturalRepetition');
 
-  // 9. TAMBAHKAN IDIOMS CONVERSATIONAL
-  result = addNaturalIdioms(result);
-  console.log('[HUMANIZE] After addNaturalIdioms');
-
-  // 10. TAMBAHKAN 1 TYPO NATURAL (hanya 1, bukan pattern)
-  result = addNaturalImperfection(result);
-  console.log('[HUMANIZE] After addNaturalImperfection');
-
-  // 11. HAPUS SISA THESIS STATEMENT
-  result = result.replace(/\bThis essay will (discuss|examine|explore|analyze)\b/gi, '');
-
-  // FINAL CLEANUP
-  result = cleanupEnglishSpacing(result);
+  // FINAL CLEANUP — MINIMAL! Jangan perbaiki grammar
   result = result.replace(/\s{2,}/g, ' ');
   result = result.replace(/(^|[.!?]\s+)([a-z])/g, (match, prefix, letter) => prefix + letter.toUpperCase());
 
-  console.log('[HUMANIZE] Humanization complete');
+  console.log('[HUMANIZE] Humanization complete (simple pipeline)');
   return result;
 }
 
@@ -11399,54 +11378,33 @@ export function addNaturalGrammarErrors(text: string): string {
   let result = text;
   const sentences = splitSentences(result);
 
-  // 1. Comma splice: gabungkan 2 independent clauses dengan koma (bukan titik atau conjunction)
+  // 1. Comma splice (MAKSIMAL 1 KALI)
   for (let i = 0; i < sentences.length - 1; i++) {
-    if (Math.random() < 0.15 && sentences[i].length > 20 && sentences[i + 1].length > 15) {
+    if (Math.random() < 0.15 && sentences[i].length > 20) {
       const s1 = sentences[i].replace(/[.!?]$/, '');
       const s2 = sentences[i + 1].charAt(0).toLowerCase() + sentences[i + 1].slice(1);
       sentences[i] = s1 + ', ' + s2;
       sentences.splice(i + 1, 1);
-      break;
+      break; // BREAK setelah 1 kali
     }
   }
 
-  // 2. Missing verb (seperti "they enough money" → harusnya "they have enough money")
+  // 2. Missing verb (MAKSIMAL 1 KALI)
   for (let i = 0; i < sentences.length; i++) {
     if (/\b(they|we|you)\s+enough\b/i.test(sentences[i]) && Math.random() < 0.3) {
       sentences[i] = sentences[i].replace(/\b(they|we|you)\s+enough\b/i, (match) => {
-        const pronouns: Record<string, string> = { they: 'have', we: 'have', you: 'have' };
-        const pronoun = match.split(' ')[0].toLowerCase();
-        return `${pronoun} ${pronouns[pronoun] || 'have'} enough`;
+        const p = match.split(' ')[0].toLowerCase();
+        return `${p} have enough`;
       });
+      break; // BREAK setelah 1 kali
     }
   }
 
-  // 3. Subject-verb agreement error
+  // 3. Subject-verb agreement (MAKSIMAL 1 KALI)
   for (let i = 0; i < sentences.length; i++) {
-    if (/\b(companies|corporations|firms|multinationals)\s+(is|has)\b/i.test(sentences[i]) && Math.random() < 0.2) {
-      sentences[i] = sentences[i].replace(/\b(companies|corporations|firms|multinationals)\s+(is|has)\b/i, (match) => {
-        const subject = match.split(' ')[0];
-        return `${subject} are`; // atau "have"
-      });
-    }
-  }
-
-  // 4. Missing article (seperti "large number of" → "a large number of")
-  for (let i = 0; i < sentences.length; i++) {
-    if (/\b(large|significant|substantial)\s+number\b/i.test(sentences[i]) && Math.random() < 0.2) {
-      sentences[i] = sentences[i].replace(/\b(large|significant|substantial)\s+number\b/i, 'a $1 number');
-    }
-  }
-
-  // 5. Awkward phrasing (collocation tidak natural)
-  const awkwardMap: Array<[RegExp, string]> = [
-    [/\bthe nature and the environment\b/gi, 'the nature and environment'],
-    [/\bmaking profit precedence\b/gi, 'making profit take precedence'],
-    [/\bthe multinational type of companies\b/gi, 'multinational companies'],
-  ];
-  for (const [pattern, replacement] of awkwardMap) {
-    if (pattern.test(result) && Math.random() < 0.4) {
-      result = result.replace(pattern, replacement);
+    if (/\b(companies|corporations|firms)\s+(is|has)\b/i.test(sentences[i]) && Math.random() < 0.2) {
+      sentences[i] = sentences[i].replace(/\b(companies|corporations|firms)\s+(is|has)\b/i, '$1 are');
+      break; // BREAK setelah 1 kali
     }
   }
 
@@ -11476,14 +11434,12 @@ export function allowNaturalRepetition(text: string): string {
 
   if (!topWord || topFreq < 2) return text;
 
-  // Pastikan kata ini diulang setidaknya 3 kali
-  // Cari sinonim yang sering dipakai AI dan ganti dengan topWord
+  // Ganti sinonim dengan topWord untuk mempertahankan repetisi
   const synonymGroups: Record<string, string[]> = {
-    'companies': ['firms', 'corporations', 'multinationals', 'enterprises', 'organizations'],
-    'growth': ['development', 'expansion', 'progress', 'advancement'],
-    'benefits': ['advantages', 'gains', 'rewards', 'positive effects'],
-    'environment': ['nature', 'ecosystem', 'planet', 'surroundings'],
-    'economy': ['market', 'industry', 'commerce', 'trade'],
+    'companies': ['firms', 'corporations', 'multinationals', 'enterprises'],
+    'environment': ['nature', 'ecosystem', 'planet'],
+    'education': ['learning', 'schooling', 'instruction'],
+    'television': ['tv', 'broadcast media'],
   };
 
   let result = text;

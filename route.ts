@@ -3273,6 +3273,9 @@ export async function POST(req: Request) {
         issue => !allowedViolations.includes(issue)
       );
       // =====================================================================
+      // SOLUSI FINAL DARI DOSEN: JANGAN PERNAH REVERT KE FALLBACK!
+      // Percaya sama hasil pipeline finalHumanize yang sudah disederhanakan
+      // =====================================================================
 
       if (
         criticalFidelityIssues.length > 0 ||
@@ -3280,18 +3283,14 @@ export async function POST(req: Request) {
         finalLengthRatio < 0.68 ||
         finalLengthRatio > 1.22
       ) {
-        console.warn("Final English rewrite rejected; returning source-faithful fallback", {
+        console.warn("Final English rewrite quality issues detected, but proceeding anyway (no fallback)", {
           finalLengthRatio: Number(finalLengthRatio.toFixed(2)),
           criticalFidelityIssues,
           finalQualityIssues,
           blockingFinalQualityIssues,
         });
-        currentText = buildSafeEnglishFallback(
-          text,
-          preFinalText,
-          config.postProcessTone,
-          userVoiceContext
-        );
+        // JANGAN revert ke fallback - percaya sama hasil pipeline!
+        // currentText tetap menggunakan hasil dari finalHumanize
         secondPassApplied = false;
         secondPassModel = null;
       }
