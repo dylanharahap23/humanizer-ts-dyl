@@ -91,6 +91,12 @@ import {
   addAwkwardPhrasing,
   destroyPerfectLists,
   forceExtremeBurstinessAcademic,
+  // LOGIC BARU DARI DOSEN - 5 fungsi utama
+  destroyEssaySkeleton,
+  injectRelevantAnchors,
+  injectNaturalFragment,
+  addNaturalHumanErrors,
+  addNaturalRepetition,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -3204,49 +3210,65 @@ export async function POST(req: Request) {
     if (isAcademicTone) {
       console.log('[HUMANIZE] Applying academic-specific humanization layers');
       
-      // === 1. FORCE MULTI-PARAGRAPH ===
+      // === 1. DESTROY ESSAY SKELETON (LOGIC BARU DARI DOSEN) ===
+      currentText = destroyEssaySkeleton(currentText);
+      console.log('[HUMANIZE] After destroyEssaySkeleton');
+      
+      // === 2. FORCE MULTI-PARAGRAPH ===
       currentText = forceMultiParagraph(currentText);
       console.log('[HUMANIZE] After forceMultiParagraph');
       
-      // === 2. FORCE EXTREME BURSTINESS ===
+      // === 3. FORCE EXTREME BURSTINESS ===
       currentText = forceExtremeBurstinessAcademic(currentText);
       console.log('[HUMANIZE] After forceExtremeBurstinessAcademic');
       
-      // === 3. DESTROY PERFECT LISTS ===
+      // === 4. DESTROY PERFECT LISTS ===
       currentText = destroyPerfectLists(currentText);
       console.log('[HUMANIZE] After destroyPerfectLists');
       
-      // === 4. DESTROY INSPIRATIONAL CLOSERS ===
+      // === 5. DESTROY INSPIRATIONAL CLOSERS ===
       currentText = destroyInspirationalClosers(currentText);
       console.log('[HUMANIZE] After destroyInspirationalClosers');
       
-      // === 5. INJECT FRAGMENT PARAGRAPHS ===
+      // === 6. INJECT FRAGMENT PARAGRAPHS ===
       currentText = injectFragmentParagraphs(currentText);
       console.log('[HUMANIZE] After injectFragmentParagraphs');
       
-      // === 6. INJECT HUMAN NOISE (contradiction, redundancy, comma splice) ===
+      // === 7. INJECT NATURAL FRAGMENT (LOGIC BARU DARI DOSEN) ===
+      currentText = injectNaturalFragment(currentText);
+      console.log('[HUMANIZE] After injectNaturalFragment');
+      
+      // === 8. INJECT HUMAN NOISE (contradiction, redundancy, comma splice) ===
       currentText = injectHumanNoiseAcademic(currentText);
       console.log('[HUMANIZE] After injectHumanNoiseAcademic');
       
-      // === 7. ADD AWKWARD PHRASING ===
+      // === 9. ADD NATURAL HUMAN ERRORS (LOGIC BARU DARI DOSEN) ===
+      currentText = addNaturalHumanErrors(currentText);
+      console.log('[HUMANIZE] After addNaturalHumanErrors');
+      
+      // === 10. ADD AWKWARD PHRASING ===
       currentText = addAwkwardPhrasing(currentText);
       console.log('[HUMANIZE] After addAwkwardPhrasing');
       
-      // === 8. DESTROY FOUR PARAGRAPH STRUCTURE (existing) ===
+      // === 11. ADD NATURAL REPETITION (LOGIC BARU DARI DOSEN) ===
+      currentText = addNaturalRepetition(currentText);
+      console.log('[HUMANIZE] After addNaturalRepetition');
+      
+      // === 12. DESTROY FOUR PARAGRAPH STRUCTURE (existing) ===
       currentText = destroyFourParagraphStructure(currentText);
       console.log('[HUMANIZE] After destroyFourParagraphStructure');
       
-      // === 9. DESTROY TEMPLATE TRANSITIONS (existing) ===
+      // === 13. DESTROY TEMPLATE TRANSITIONS (existing) ===
       currentText = destroyTemplateTransitions(currentText);
       console.log('[HUMANIZE] After destroyTemplateTransitions');
       
-      // === 10. DESTROY CONCLUSION TEMPLATE (existing) ===
+      // === 14. DESTROY CONCLUSION TEMPLATE (existing) ===
       currentText = destroyConclusionTemplate(currentText);
       console.log('[HUMANIZE] After destroyConclusionTemplate');
       
-      // === 11. INJECT SPECIFIC ANCHORS (existing) ===
-      currentText = injectSpecificAnchorsAcademic(currentText);
-      console.log('[HUMANIZE] After injectSpecificAnchorsAcademic');
+      // === 15. INJECT RELEVANT ANCHORS (LOGIC BARU DARI DOSEN - ganti injectSpecificAnchorsAcademic) ===
+      currentText = injectRelevantAnchors(currentText);
+      console.log('[HUMANIZE] After injectRelevantAnchors');
     }
 
     // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk general tones ---
