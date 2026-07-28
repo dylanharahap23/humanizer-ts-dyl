@@ -1,3 +1,1 @@
-```ts
-
-```
+Nothing should be ignored based on the provided file changes. The added and modified files (`test_dosen_saran_baru.ts` and `humanizer.ts`) are TypeScript source files that should be tracked in version control.
