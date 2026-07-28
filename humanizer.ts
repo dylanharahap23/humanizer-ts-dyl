@@ -4458,13 +4458,12 @@ export function finalHumanize(
   // professions, opinions, or personal experience.
   let result = addHumanTouches(text, tone);
 
-  // TERAPKAN DEEP STRUCTURE HUMANIZATION PIPELINE
+  // TERAPKAN DEEP STRUCTURE HUMANIZATION PIPELINE (NEW DONSEN LOGIC)
   result = destroyIeltsTemplate(result);
-  result = concretizeExamplesWithData(result);
-  result = makeConclusionBold(result);
+  result = strengthenOpinion(result);
+  result = concretizeExamples(result);
   result = addNaturalImperfection(result);
-  result = enforceExtremeVariation(result);
-  result = removeIncoherentSentences(result);
+  result = ensureBurstiness(result);
 
   // Final cleanup (JANGAN perbaiki grammar error yang disengaja)
   result = cleanupEnglishSpacing(result);
@@ -5103,7 +5102,7 @@ function splitSentences(text: string) {
 
   return protectedText
     .split(/(?<=[.!?])\s+/)
-    .map((sentence) => sentence.replaceAll(abbreviationDot, ".").trim())
+    .map((sentence) => sentence.replace(new RegExp(abbreviationDot, "g"), ".").trim())
     .filter(Boolean);
 }
 
@@ -10579,148 +10578,231 @@ export function addNaturalRepetition(text: string): string {
  * Hancurkan transisi template IELTS dengan natural reasoning
  */
 export function destroyIeltsTemplate(text: string): string {
-  // Ganti transisi template dengan natural reasoning
-  const replacements: Array<[RegExp, string]> = [
-    [/\bOn the one hand\b/gi, 'A fundamental reason for this is that'],
-    [/\bOn the other hand\b/gi, 'Another important aspect is that'],
-    [/\bIn conclusion\b/gi, 'To sum up'],
-    [/\bFurthermore\b/gi, 'In addition'],
-    [/\bMoreover\b/gi, 'Additionally'],
-    [/\bFor example\b/gi, 'For instance'],
+  // HAPUS TEMPLATE IELTS YANG SANGAT AI
+  let sentences = splitSentences(text);
+  
+  // 1. Hapus kalimat intro ("This essay will discuss...")
+  sentences = sentences.filter(s => 
+    !/\b(?:This essay|In this essay|I will discuss|The purpose of this essay)\b/i.test(s)
+  );
+  
+  // 2. Ganti "On the one hand" → "One reason why I think this works is"
+  sentences = sentences.map(s => 
+    s.replace(/\bOn the one hand\b/i, 'One reason why I think this works is')
+  );
+  
+  // 3. Ganti "On the other hand" → "But that's not the whole story"
+  sentences = sentences.map(s => 
+    s.replace(/\bOn the other hand\b/i, 'But that\'s not the whole story')
+  );
+  
+  // 4. Ganti "In conclusion" → "To sum up" atau "In the end"
+  sentences = sentences.map(s => 
+    s.replace(/\bIn conclusion\b/i, 'To sum up')
+  );
+  
+  // 5. Jika ada "Furthermore" → "Not only that but"
+  sentences = sentences.map(s => 
+    s.replace(/\bFurthermore\b/i, 'Not only that but')
+  );
+  
+  // 6. Jika ada "Moreover" → "And"
+  sentences = sentences.map(s => 
+    s.replace(/\bMoreover\b/i, 'And')
+  );
+  
+  // 7. Jika ada "However" → "But"
+  sentences = sentences.map(s => 
+    s.replace(/\bHowever\b/i, 'But')
+  );
+  
+  return sentences.join(' ');
+}
+
+/**
+ * Perkuat opini dari "I believe" menjadi opini berani
+ */
+export function strengthenOpinion(text: string): string {
+  const strongOpinions = [
+    'I am firmly convinced that',
+    'I strongly believe that',
+    'There is no doubt in my mind that',
+    'I stand with the view that',
+    'I am a strong advocate of',
+    'In my honest opinion,',
   ];
-
-  let result = text;
-  for (const [pattern, replacement] of replacements) {
-    result = result.replace(pattern, replacement);
-  }
-
-  // Hapus "I partly agree" – ganti dengan opini kuat
-  result = result.replace(/\bI partly agree\b/i, (match) => {
-    const strong = ['I am a strong advocate of this approach', 'I firmly believe that', 'In my view'];
-    return strong[Math.floor(Math.random() * strong.length)];
-  });
-
-  return result;
-}
-
-/**
- * Ganti contoh generik dengan spesifik (negara, data, penelitian)
- */
-export function concretizeExamplesWithData(text: string): string {
-  const genericExamples = [
-    { pattern: /LEGO|building blocks|painting/i, replacement: 'in the UK, many boys are reluctant readers, possibly because of being forced to read' },
-    { pattern: /adventure novels|stories/i, replacement: 'Finland was ranked the sixth-best in the world in terms of reading' },
-    { pattern: /outdoor games|playing/i, replacement: 'through play, youngsters develop social and cognitive skills' },
-  ];
-
-  let result = text;
-  for (const { pattern, replacement } of genericExamples) {
-    if (pattern.test(result)) {
-      result = result.replace(pattern, replacement);
-      break; // cukup 1
-    }
-  }
-  return result;
-}
-
-/**
- * Tambahkan imperfection natural (grammar error kecil, pengulangan, self-correction)
- */
-export function addNaturalImperfection(text: string): string {
-  // 1. Grammar error kecil (seperti "place spend time")
-  if (Math.random() < 0.3) {
-    text = text.replace(/\bplace\s+spend\b/gi, 'place spend'); // biarkan error
-  }
-
-  // 2. Pengulangan kata natural
-  if (Math.random() < 0.3) {
-    text = text.replace(/\b(reading|learn|play)\b/gi, (match) => {
-      const repeats = ['reading reading', 'learn learn', 'play play'];
-      return repeats[Math.floor(Math.random() * repeats.length)] || match;
-    });
-  }
-
-  // 3. Tambahkan self-correction
-  if (Math.random() < 0.2) {
-    const sentences = splitSentences(text);
-    const idx = Math.floor(sentences.length * 0.4);
-    if (idx < sentences.length) {
-      sentences[idx] = sentences[idx].replace(/\.$/, ' — or rather, ') + sentences[idx].slice(0, -1);
-      text = sentences.join(' ');
-    }
-  }
-
-  return text;
-}
-
-/**
- * Variasikan panjang kalimat ekstrem (35 kata ↔ 6 kata)
- */
-export function enforceExtremeVariation(text: string): string {
+  
   const sentences = splitSentences(text);
-  if (sentences.length < 3) return text;
-
-  // Gabungkan 2 kalimat pendek menjadi panjang
-  for (let i = 0; i < sentences.length - 1; i++) {
-    const w1 = sentences[i].split(/\s+/).length;
-    const w2 = sentences[i + 1].split(/\s+/).length;
-    if (w1 < 10 && w2 < 10 && w1 + w2 < 25) {
-      sentences[i] = sentences[i].replace(/\.$/, '') + '; ' + sentences[i + 1].toLowerCase();
-      sentences.splice(i + 1, 1);
+  
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    
+    // Ubah "I believe" → opini lebih kuat
+    if (/\bI\s+(?:believe|think|feel)\s+that\b/i.test(s)) {
+      const replacement = strongOpinions[Math.floor(Math.random() * strongOpinions.length)];
+      sentences[i] = s.replace(/\bI\s+(?:believe|think|feel)\s+that\b/i, replacement);
+      break;
+    }
+    
+    // Jika tidak ada "I" di teks, tambahkan opini di kalimat kedua
+    if (i === 1 && !/\b(?:I|me|my)\b/i.test(text)) {
+      const opener = strongOpinions[Math.floor(Math.random() * strongOpinions.length)];
+      sentences[i] = opener + ' ' + sentences[i].charAt(0).toLowerCase() + sentences[i].slice(1);
       break;
     }
   }
-
-  // Buat 1 kalimat sangat pendek (4-6 kata) di posisi 30-70%
-  if (sentences.length > 4) {
-    const idx = Math.floor(sentences.length * (0.3 + Math.random() * 0.4));
-    const shortOnes = ['So it goes.', 'That is key.', 'This matters.', 'True.', 'No doubt.'];
-    sentences.splice(idx, 0, shortOnes[Math.floor(Math.random() * shortOnes.length)]);
-  }
-
+  
   return sentences.join(' ');
 }
 
 /**
- * Buat kesimpulan berani (tidak klise)
+ * Ganti contoh generik dengan spesifik (proper nouns, angka, detail temporal)
  */
-export function makeConclusionBold(text: string): string {
+export function concretizeExamples(text: string, topic?: string): string {
   const sentences = splitSentences(text);
-  if (sentences.length < 2) return text;
-
-  const last = sentences[sentences.length - 1];
-  // Deteksi klise: "best way", "full potential", "both approaches"
-  if (/\b(best way|full potential|both approaches|balance)\b/i.test(last)) {
-    const boldClosings = [
-      'However, reading as a regular daytime activity should be swapped for something which allows the child to develop other skills.',
-      'Despite being a supporter of this non-reading approach, I strongly recommend incorporating bedtime stories into a child\'s daily routine.',
-      'In fact, I would go further: forcing reading before readiness can backfire, as seen in the UK.',
+  
+  // Deteksi topik
+  const lower = text.toLowerCase();
+  let examples: string[] = [];
+  
+  if (/\b(teenager|adolescence|youth|young people)\b/i.test(lower)) {
+    examples = [
+      'For example, a 17-year-old can spend every weekend at the beach with friends, without worrying about rent or bills.',
+      'Take a typical university student—they have time to hang out, join clubs, and explore hobbies.',
+      'In many countries, teenagers have their own party places that open during week days.',
+      'For instance, my cousin spent his teenage years playing in a band and traveling to local gigs.',
     ];
-    sentences[sentences.length - 1] = boldClosings[Math.floor(Math.random() * boldClosings.length)];
+  } else if (/\b(adult|adulthood|grown-up|responsibility)\b/i.test(lower)) {
+    examples = [
+      'For example, a 35-year-old man can always travel to Spain during summer time.',
+      'Take a 40-year-old professional who has built a career and can afford to take a month off.',
+      'In many countries, adults in their thirties have the financial means to buy a house or start a business.',
+    ];
+  } else if (/\b(education|learning|school|reading|children)\b/i.test(lower)) {
+    examples = [
+      'For example, in the UK, many boys become reluctant readers if they are forced to read.',
+      'Take Finland, where early years education focuses on play and creativity.',
+      'In Japan, parents often start reading to children at a very young age.',
+    ];
+  } else {
+    examples = [
+      'For example, in many countries, this trend is visible.',
+      'Take Germany, where the situation is similar.',
+      'In Australia, research has shown similar patterns.',
+    ];
   }
-
+  
+  // Cari kalimat yang mengandung "for example" atau "for instance"
+  let replaced = false;
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\b(for example|for instance|such as)\b/i.test(sentences[i]) && !replaced) {
+      const example = examples[Math.floor(Math.random() * examples.length)];
+      // Ganti seluruh kalimat dengan contoh spesifik
+      sentences[i] = example;
+      replaced = true;
+      break;
+    }
+  }
+  
+  // Jika tidak ada "for example", sisipkan di kalimat kedua
+  if (!replaced && sentences.length > 1) {
+    const example = examples[Math.floor(Math.random() * examples.length)];
+    sentences.splice(1, 0, example);
+  }
+  
   return sentences.join(' ');
 }
 
 /**
- * Hapus contextual incoherence (kalimat ngawur)
+ * Tambahkan imperfection natural (typo alami, grammar error minor)
  */
-export function removeIncoherentSentences(text: string): string {
-  const incoherent = [
-    /buses or bikes instead of cars/i,
-    /protecting our planet/i,
-    /responsibility for protecting/i,
-    /make the changes necessary/i,
-  ];
-
+export function addNaturalImperfection(text: string): string {
   let result = text;
-  for (const pattern of incoherent) {
-    result = result.replace(pattern, '');
+  const sentences = splitSentences(result);
+  
+  // 1. Tambahkan 1-2 typo alami (bukan di semua kalimat)
+  const typos: Array<[RegExp, string]> = [
+    [/\bresponsibilities\b/gi, 'responsibilties'],
+    [/\bfriends\b/gi, 'firends'],
+    [/\btheir\b/gi, 'thier'],
+    [/\bdefinitely\b/gi, 'definately'],
+    [/\bseparate\b/gi, 'seperate'],
+    [/\boccurred\b/gi, 'occured'],
+    [/\bbeginning\b/gi, 'begining'],
+    [/\bgovernment\b/gi, 'goverment'],
+  ];
+  
+  // Pilih 1-2 typo
+  const shuffled = typos.sort(() => Math.random() - 0.5);
+  let typoCount = 0;
+  for (const [pattern, replacement] of shuffled) {
+    if (typoCount >= 2) break;
+    if (pattern.test(result) && Math.random() < 0.4) {
+      result = result.replace(pattern, replacement);
+      typoCount++;
+    }
   }
-
-  // Hapus fragment yang tidak lengkap
-  result = result.replace(/\s+using\s+[^.!?]+\./gi, '');
-  result = result.replace(/\s+and\s+or\s+playing\s+outdoor games/gi, '');
-
+  
+  // 2. Tambahkan 1 grammar error minor (missing "have" atau "to")
+  if (Math.random() < 0.3) {
+    result = result.replace(/\bthey\s+enough\b/i, 'they enough'); // missing "have"
+    result = result.replace(/\bneed\s+the\s+time\b/i, 'need the time'); // biarkan
+  }
+  
+  // 3. Tambahkan 1 kalimat pendek natural (5-8 kata) di posisi tengah
+  if (sentences.length > 3 && Math.random() < 0.4) {
+    const shorts = [
+      'That is the key.',
+      'It makes sense.',
+      'This is what matters.',
+      'Not always, though.',
+    ];
+    const pos = Math.floor(sentences.length * 0.5);
+    sentences.splice(pos, 0, shorts[Math.floor(Math.random() * shorts.length)]);
+    result = sentences.join(' ');
+  }
+  
   return result;
+}
+
+/**
+ * Pastikan burstiness tinggi (variasi ekstrem panjang kalimat)
+ */
+export function ensureBurstiness(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+  
+  // 1. Cari kalimat pendek (<10 kata) dan kalimat panjang (>30 kata)
+  const shortIndices = sentences.map((s, i) => ({ 
+    index: i, 
+    length: s.split(/\s+/).filter(Boolean).length 
+  })).filter(item => item.length < 10);
+  
+  const longIndices = sentences.map((s, i) => ({ 
+    index: i, 
+    length: s.split(/\s+/).filter(Boolean).length 
+  })).filter(item => item.length > 30);
+  
+  // 2. Jika tidak ada kalimat pendek, tambahkan 1
+  if (shortIndices.length === 0 && sentences.length > 2) {
+    const shorts = [
+      'That is the key.',
+      'It makes sense.',
+      'This matters.',
+      'Not always, though.',
+    ];
+    const pos = Math.floor(sentences.length * 0.3);
+    sentences.splice(pos, 0, shorts[Math.floor(Math.random() * shorts.length)]);
+  }
+  
+  // 3. Jika tidak ada kalimat panjang, gabungkan 2 kalimat
+  if (longIndices.length === 0 && sentences.length > 4) {
+    const idx = Math.floor(Math.random() * (sentences.length - 2)) + 1;
+    const s1 = sentences[idx].replace(/[.!?]$/, '');
+    const s2 = sentences[idx + 1].charAt(0).toLowerCase() + sentences[idx + 1].slice(1);
+    sentences[idx] = s1 + ', and ' + s2;
+    sentences.splice(idx + 1, 1);
+  }
+  
+  return sentences.join(' ');
 }
