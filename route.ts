@@ -84,6 +84,13 @@ import {
   injectBritishSpelling,
   injectPoliticalBias,
   injectEmphaticPhrasing,
+  forceMultiParagraph,
+  injectHumanNoiseAcademic,
+  injectFragmentParagraphs,
+  destroyInspirationalClosers,
+  addAwkwardPhrasing,
+  destroyPerfectLists,
+  forceExtremeBurstinessAcademic,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -3197,82 +3204,49 @@ export async function POST(req: Request) {
     if (isAcademicTone) {
       console.log('[HUMANIZE] Applying academic-specific humanization layers');
       
-      // 1. Hancurkan 4 paragraf standar → 5-7 paragraf
+      // === 1. FORCE MULTI-PARAGRAPH ===
+      currentText = forceMultiParagraph(currentText);
+      console.log('[HUMANIZE] After forceMultiParagraph');
+      
+      // === 2. FORCE EXTREME BURSTINESS ===
+      currentText = forceExtremeBurstinessAcademic(currentText);
+      console.log('[HUMANIZE] After forceExtremeBurstinessAcademic');
+      
+      // === 3. DESTROY PERFECT LISTS ===
+      currentText = destroyPerfectLists(currentText);
+      console.log('[HUMANIZE] After destroyPerfectLists');
+      
+      // === 4. DESTROY INSPIRATIONAL CLOSERS ===
+      currentText = destroyInspirationalClosers(currentText);
+      console.log('[HUMANIZE] After destroyInspirationalClosers');
+      
+      // === 5. INJECT FRAGMENT PARAGRAPHS ===
+      currentText = injectFragmentParagraphs(currentText);
+      console.log('[HUMANIZE] After injectFragmentParagraphs');
+      
+      // === 6. INJECT HUMAN NOISE (contradiction, redundancy, comma splice) ===
+      currentText = injectHumanNoiseAcademic(currentText);
+      console.log('[HUMANIZE] After injectHumanNoiseAcademic');
+      
+      // === 7. ADD AWKWARD PHRASING ===
+      currentText = addAwkwardPhrasing(currentText);
+      console.log('[HUMANIZE] After addAwkwardPhrasing');
+      
+      // === 8. DESTROY FOUR PARAGRAPH STRUCTURE (existing) ===
       currentText = destroyFourParagraphStructure(currentText);
       console.log('[HUMANIZE] After destroyFourParagraphStructure');
       
-      // 2. Hancurkan template transitions (Firstly, Secondly, In conclusion, Therefore)
+      // === 9. DESTROY TEMPLATE TRANSITIONS (existing) ===
       currentText = destroyTemplateTransitions(currentText);
       console.log('[HUMANIZE] After destroyTemplateTransitions');
       
-      // 3. Hancurkan conclusion template
+      // === 10. DESTROY CONCLUSION TEMPLATE (existing) ===
       currentText = destroyConclusionTemplate(currentText);
       console.log('[HUMANIZE] After destroyConclusionTemplate');
       
-      // 4. Tambahkan paragraf 1-kalimat (2-3 kali)
-      currentText = injectOneSentenceParagraphs(currentText);
-      console.log('[HUMANIZE] After injectOneSentenceParagraphs');
-      
-      // 5. Tambahkan detail spesifik (negara, angka)
+      // === 11. INJECT SPECIFIC ANCHORS (existing) ===
       currentText = injectSpecificAnchorsAcademic(currentText);
       console.log('[HUMANIZE] After injectSpecificAnchorsAcademic');
-      
-      // 6. Tambahkan grammar imperfection minor
-      currentText = addNaturalGrammarFlaws(currentText);
-      console.log('[HUMANIZE] After addNaturalGrammarFlaws');
-      
-      // 7. Biarkan repetisi natural (jangan ganti sinonim)
-      currentText = naturalRepetition(currentText);
-      console.log('[HUMANIZE] After naturalRepetition');
-      
-      // 8. Destroy opening template
-      currentText = destroyRestatingOpening(currentText);
-      console.log('[HUMANIZE] After destroyRestatingOpening (academic)');
-      
-      // 9. Destroy thesis template ("I strongly agree that...")
-      currentText = destroyThesisTemplateImproved(currentText);
-      console.log('[HUMANIZE] After destroyThesisTemplateImproved (academic)');
-      
-      // ===== FINAL HUMAN NOISE PIPELINE =====
-      // 10. Fragment sebagai paragraf
-      currentText = injectFragmentParagraph(currentText);
-      console.log('[HUMANIZE] After injectFragmentParagraph');
-      
-      // 11. Incomplete ending
-      currentText = injectIncompleteEnding(currentText);
-      console.log('[HUMANIZE] After injectIncompleteEnding');
-      
-      // 12. Natural grammar errors
-      currentText = injectNaturalGrammarErrors(currentText);
-      console.log('[HUMANIZE] After injectNaturalGrammarErrors');
-      
-      // 13. Pompous phrasing
-      currentText = injectPompousPhrasing(currentText);
-      console.log('[HUMANIZE] After injectPompousPhrasing');
-      
-      // 14. Relevant tangent (on-topic)
-      currentText = injectRelevantTangent(currentText);
-      console.log('[HUMANIZE] After injectRelevantTangent');
-      
-      // 15. Force natural repetition
-      currentText = forceNaturalRepetition(currentText);
-      console.log('[HUMANIZE] After forceNaturalRepetition');
-      
-      // 16. Standalone list fragment
-      currentText = injectStandaloneListFragment(currentText);
-      console.log('[HUMANIZE] After injectStandaloneListFragment');
-      
-      // 17. British spelling inconsistency
-      currentText = injectBritishSpelling(currentText);
-      console.log('[HUMANIZE] After injectBritishSpelling');
-      
-      // 18. Political bias
-      currentText = injectPoliticalBias(currentText);
-      console.log('[HUMANIZE] After injectPoliticalBias');
-      
-      // 19. Emphatic phrasing
-      currentText = injectEmphaticPhrasing(currentText);
-      console.log('[HUMANIZE] After injectEmphaticPhrasing');
     }
 
     // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk general tones ---
@@ -3317,6 +3291,8 @@ export async function POST(req: Request) {
           'outside-name',                 // "Child Safety Institute", "Cambridge"
           'rhetorical-question',          // kadang di intro
           'invented-research-attribution', // "research shows", "found that" → kita sengaja tambah!
+          'logical-contradiction',        // "probably certainly" ← BARU!
+          'human-error',                  // comma splice, word order awkward ← BARU!
         ];
       }
 
