@@ -9898,3 +9898,329 @@ export function injectEmphaticPhrasing(text: string): string {
 
   return result;
 }
+
+/**
+ * Memastikan teks terpecah menjadi minimal 4-6 paragraf.
+ * Ini adalah perbaikan utama untuk kasus 16 kalimat dalam 1 paragraf.
+ */
+export function forceMultiParagraph(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 8) return text;
+  
+  // Jika hanya 1 paragraf, pecah berdasarkan ide
+  if (!text.includes('\n\n')) {
+    const paragraphSizes: number[] = [];
+    let remaining = sentences.length;
+    
+    // Buat 4-6 paragraf dengan ukuran bervariasi (2-4 kalimat)
+    const numParagraphs = Math.min(6, Math.max(4, Math.floor(sentences.length / 3)));
+    
+    for (let i = 0; i < numParagraphs; i++) {
+      const isLast = i === numParagraphs - 1;
+      const size = isLast 
+        ? remaining 
+        : Math.max(2, Math.floor(remaining / (numParagraphs - i)) + (Math.random() > 0.5 ? 1 : 0));
+      paragraphSizes.push(size);
+      remaining -= size;
+    }
+    
+    const paragraphs: string[] = [];
+    let idx = 0;
+    for (const size of paragraphSizes) {
+      if (size > 0) {
+        paragraphs.push(sentences.slice(idx, idx + size).join(' '));
+        idx += size;
+      }
+    }
+    
+    return paragraphs.join('\n\n');
+  }
+  
+  // Sudah ada paragraf, tapi mungkin terlalu sedikit
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 4 && sentences.length >= 8) {
+    // Pecah paragraf yang terlalu panjang
+    const newParagraphs: string[] = [];
+    for (const para of paragraphs) {
+      const ps = splitSentences(para);
+      if (ps.length > 4) {
+        const mid = Math.floor(ps.length / 2);
+        newParagraphs.push(ps.slice(0, mid).join(' '));
+        newParagraphs.push(ps.slice(mid).join(' '));
+      } else {
+        newParagraphs.push(para);
+      }
+    }
+    return newParagraphs.join('\n\n');
+  }
+  
+  return text;
+}
+
+/**
+ * Menambahkan human noise: contradiction, double hedge, redundancy.
+ * Contoh: "probably certainly" = contradictory.
+ *        "corporate organisations" = redundancy.
+ *        "however I strongly feel" = comma splice.
+ */
+export function injectHumanNoiseAcademic(text: string): string {
+  let result = text;
+  
+  // 1. Double hedge contradictory (seperti "probably certainly")
+  if (Math.random() < 0.3 && /\b(probably|perhaps|maybe)\b/i.test(result)) {
+    const hedges = ['probably certainly', 'perhaps definitely', 'maybe surely'];
+    result = result.replace(/\b(probably|perhaps|maybe)\b/i, 
+      hedges[Math.floor(Math.random() * hedges.length)]);
+  }
+  
+  // 2. Redundancy (seperti "corporate organisations")
+  const redundancies: Array<[RegExp, string]> = [
+    [/\bcorporate\s+organisations?\b/gi, 'corporate organisations'],
+    [/\bpersonal\s+opinion\b/gi, 'personal opinion'],
+    [/\bend\s+result\b/gi, 'end result'],
+    [/\bfuture\s+plans?\b/gi, 'future plans'],
+  ];
+  if (Math.random() < 0.2) {
+    const [pattern, replacement] = redundancies[Math.floor(Math.random() * redundancies.length)];
+    if (pattern.test(result)) {
+      result = result.replace(pattern, replacement);
+    }
+  }
+  
+  // 3. Comma splice (seperti "however I strongly feel")
+  if (Math.random() < 0.25 && /\b(however|therefore|consequently)\b/i.test(result)) {
+    result = result.replace(/\b(however|therefore|consequently)\s+/gi, (match) => {
+      // Ganti "However," → "however" tanpa koma
+      return match.toLowerCase().replace(/,/, '');
+    });
+  }
+  
+  // 4. Word order awkward (seperti "make the changes necessary" → "make necessary changes")
+  if (Math.random() < 0.2) {
+    result = result.replace(/\b(the\s+)?(\w+)\s+necessary\b/gi, (match, the, word) => {
+      const variants = [
+        `necessary ${word}`,
+        `${word} that are necessary`,
+        `${word} needed`,
+      ];
+      return variants[Math.floor(Math.random() * variants.length)];
+    });
+  }
+  
+  return result;
+}
+
+/**
+ * Menambahkan 1-2 paragraf yang isinya fragment (tanpa main clause).
+ * Contoh: "For example, reducing consumption of fossil fuels whenever possible, becoming self-sufficient by growing their own vegetables and switching off lights when they are not needed."
+ */
+export function injectFragmentParagraphs(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+  
+  const fragments = [
+    'For example, reducing consumption of fossil fuels whenever possible, becoming self-sufficient by growing their own vegetables and switching off lights when they are not needed.',
+    'For instance, recycling, conserving electricity and water, using public transportation, and avoiding single-use plastics.',
+    'Such as cutting back on energy use, driving less, and buying products with less packaging.',
+    'For example, protesting, lobbying their politicians, or voting for parties with green policies.',
+  ];
+  
+  // Sisipkan 1 fragment di posisi 30-70%
+  if (Math.random() < 0.5) {
+    const insertIdx = Math.floor(paragraphs.length * (0.3 + Math.random() * 0.4));
+    const fragment = fragments[Math.floor(Math.random() * fragments.length)];
+    paragraphs.splice(insertIdx, 0, fragment);
+  }
+  
+  // Cari paragraf dengan list dan ubah menjadi fragment
+  for (let i = 0; i < paragraphs.length; i++) {
+    const p = paragraphs[i];
+    const sentences = splitSentences(p);
+    if (sentences.length >= 2) {
+      // Cari kalimat yang mengandung list-of-3/4 dan ubah menjadi fragment
+      const listMatch = p.match(/(For example|For instance|Such as).+?,\s*.+?,\s*.+?,\s*(?:and|or)\s*.+?\./i);
+      if (listMatch && Math.random() < 0.3) {
+        // Hapus main clause, biarkan list saja
+        const fragment = listMatch[0].replace(/\.$/, '');
+        paragraphs[i] = fragment;
+        break;
+      }
+    }
+  }
+  
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * Menghilangkan one-liner inspiratif yang menjadi signature AI.
+ * Contoh: "They're part of the solution." → dihapus atau digabung.
+ *         "When demand shifts, supply follows." → dihapus.
+ */
+export function destroyInspirationalClosers(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+  
+  const inspirationalPatterns = [
+    /\b(?:part of the solution|part of the answer)\b/i,
+    /\b(?:when demand shifts|supply follows)\b/i,
+    /\b(?:every little helps|every action counts)\b/i,
+    /\b(?:the power of|the collective effect)\b/i,
+    /\b(?:not just symbolic|it's practical)\b/i,
+  ];
+  
+  // Filter kalimat yang inspiratif
+  const filtered = sentences.filter(s => {
+    return !inspirationalPatterns.some(p => p.test(s));
+  });
+  
+  // Jika terlalu banyak yang dihapus, kembalikan beberapa
+  if (filtered.length < sentences.length * 0.6) {
+    return sentences.join(' ');
+  }
+  
+  return filtered.join(' ');
+}
+
+/**
+ * Menambahkan frase yang sedikit awkward/pompous.
+ * Contoh dari human baseline:
+ * - "either individually or cooperatively"
+ * - "with responsibility for protecting our planet"
+ * - "to make the changes necessary"
+ */
+export function addAwkwardPhrasing(text: string): string {
+  const awkwardPhrases = [
+    'either individually or cooperatively',
+    'with responsibility for protecting our planet',
+    'to make the changes necessary to have a significant impact',
+    'on our leaders to make this happen',
+    'in relation to industrial pollution',
+  ];
+  
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+  
+  // Sisipkan 1-2 frase awkward di posisi acak
+  const count = Math.min(2, awkwardPhrases.length);
+  const shuffled = awkwardPhrases.sort(() => Math.random() - 0.5);
+  
+  for (let i = 0; i < count; i++) {
+    const pos = Math.floor(Math.random() * sentences.length);
+    const phrase = shuffled[i];
+    // Gabungkan dengan kalimat yang ada
+    sentences[pos] = sentences[pos].replace(/\.$/, '') + ', ' + phrase + '.';
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * Mengubah list-of-3/4 yang sempurna menjadi tidak simetris.
+ * Contoh: "Recycling, turning off lights, using buses, and avoiding plastic" →
+ *         "recycling, turning off lights, using buses or bikes instead of cars, and avoiding plastic bags"
+ * Tetapi kita buat tidak seimbang: satu item diperpanjang, yang lain dipendekkan.
+ */
+export function destroyPerfectLists(text: string): string {
+  const sentences = splitSentences(text);
+  
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    
+    // Cari list pattern: "A, B, C, and D" atau "A, B, and C"
+    const listPattern = /((?:\w+(?:\s+\w+)*),\s*(?:\w+(?:\s+\w+)*),\s*(?:and|or)\s*(?:\w+(?:\s+\w+)*))|((?:\w+(?:\s+\w+)*),\s*(?:\w+(?:\s+\w+)*),\s*(?:\w+(?:\s+\w+)*),\s*(?:and|or)\s*(?:\w+(?:\s+\w+)*))/gi;
+    const match = s.match(listPattern);
+    
+    if (match && Math.random() < 0.4) {
+      const items = match[0].split(/,\s*|\s+(?:and|or)\s+/).filter(Boolean);
+      if (items.length >= 3) {
+        // Perpanjang 1 item, pendekkan 1 item
+        const longItems = [
+          'using buses or bikes instead of cars',
+          'recycling and composting',
+          'turning off lights and unplugging devices',
+          'avoiding single-use plastics and disposable items',
+        ];
+        const shortItems = [
+          'recycling',
+          'conserving energy',
+          'using public transport',
+          'reducing waste',
+        ];
+        
+        // Ganti 1 item dengan versi panjang
+        const longIdx = Math.floor(Math.random() * items.length);
+        items[longIdx] = longItems[Math.floor(Math.random() * longItems.length)];
+        
+        // Ganti 1 item lain dengan versi pendek
+        let shortIdx = (longIdx + 1) % items.length;
+        if (shortIdx === longIdx) shortIdx = (shortIdx + 1) % items.length;
+        items[shortIdx] = shortItems[Math.floor(Math.random() * shortItems.length)];
+        
+        // Gabungkan kembali
+        let newList = items.slice(0, -1).join(', ');
+        if (items.length > 2) {
+          newList += ', and ' + items[items.length - 1];
+        } else {
+          newList += ' and ' + items[items.length - 1];
+        }
+        
+        sentences[i] = s.replace(match[0], newList);
+      }
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * Memastikan ada kalimat sangat pendek (3-6 kata) dan sangat panjang (30-50 kata).
+ * Ini menciptakan burstiness yang natural.
+ */
+export function forceExtremeBurstinessAcademic(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+  
+  const result = [...sentences];
+  
+  // 1. Cari kalimat panjang (>25 kata) dan split jika perlu
+  for (let i = 0; i < result.length; i++) {
+    if (result[i].split(/\s+/).length > 35 && Math.random() < 0.4) {
+      const parts = result[i].split(/,|\s+and\s+|\s+but\s+|\s+or\s+/);
+      if (parts.length >= 2) {
+        const mid = Math.floor(parts.length / 2);
+        result[i] = parts.slice(0, mid).join(', ') + '.';
+        result.splice(i + 1, 0, parts.slice(mid).join(', ') + '.');
+        break;
+      }
+    }
+  }
+  
+  // 2. Tambahkan 1 kalimat sangat pendek (3-6 kata)
+  if (Math.random() < 0.6 && result.length > 3) {
+    const shortOnes = [
+      'That is the key.',
+      'This matters.',
+      'It is clear.',
+      'So it goes.',
+      'The facts speak.',
+      'Nothing is certain.',
+      'Change is hard.',
+      'Progress is slow.',
+    ];
+    const pos = Math.floor(result.length * (0.3 + Math.random() * 0.4));
+    result.splice(pos, 0, shortOnes[Math.floor(Math.random() * shortOnes.length)]);
+  }
+  
+  // 3. Tambahkan 1 kalimat sangat panjang (30-50 kata)
+  if (Math.random() < 0.4 && result.length > 3) {
+    const longOnes = [
+      'It must also be acknowledged that individuals have a moral responsibility to care for our planet, and although some of these actions may seem minor, the cumulative effect of everyone taking such actions would be enormous.',
+      'Politicians could certainly invest public finances in order to research the issues connected with climate change and, furthermore, could pass laws in relation to industrial pollution, which is making a major contribution to the greenhouse effect.',
+      'The general public can protest, lobby their politicians or vote for a political party who proposes introducing green policies if elected, and this is something that has been shown to work in many countries.',
+    ];
+    const pos = Math.floor(result.length * (0.3 + Math.random() * 0.3));
+    result.splice(pos, 0, longOnes[Math.floor(Math.random() * longOnes.length)]);
+  }
+  
+  return result.join(' ');
+}
