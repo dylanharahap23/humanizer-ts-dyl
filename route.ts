@@ -3206,70 +3206,20 @@ export async function POST(req: Request) {
     }
 
     // ============================================================
-    // ACADEMIC HUMANIZATION LAYERS (BERDASARKAN DATA HUMAN BASELINE)
+    // LOGIC BARU DARI DOSEN: HAPUS SEMUA NOISE INSERTION FUNCTIONS
+    // Signature tool seperti recycling, public transport, Tokyo/London terdeteksi GPTZero
     // ============================================================
     if (isAcademicTone) {
-      console.log('[HUMANIZE] Applying academic-specific humanization layers');
-      
-      // === 1. DESTROY ESSAY SKELETON (LOGIC BARU DARI DOSEN) ===
-      currentText = destroyEssaySkeleton(currentText);
-      console.log('[HUMANIZE] After destroyEssaySkeleton');
-      
-      // === 2. FORCE MULTI-PARAGRAPH ===
-      currentText = forceMultiParagraph(currentText);
-      console.log('[HUMANIZE] After forceMultiParagraph');
-      
-      // === 3. FORCE EXTREME BURSTINESS ===
-      currentText = forceExtremeBurstinessAcademic(currentText);
-      console.log('[HUMANIZE] After forceExtremeBurstinessAcademic');
-      
-      // === 4. DESTROY PERFECT LISTS ===
-      currentText = destroyPerfectLists(currentText);
-      console.log('[HUMANIZE] After destroyPerfectLists');
-      
-      // === 5. DESTROY INSPIRATIONAL CLOSERS ===
-      currentText = destroyInspirationalClosers(currentText);
-      console.log('[HUMANIZE] After destroyInspirationalClosers');
-      
-      // === 6. INJECT FRAGMENT PARAGRAPHS ===
-      currentText = injectFragmentParagraphs(currentText);
-      console.log('[HUMANIZE] After injectFragmentParagraphs');
-      
-      // === 7. INJECT NATURAL FRAGMENT (LOGIC BARU DARI DOSEN) ===
-      currentText = injectNaturalFragment(currentText);
-      console.log('[HUMANIZE] After injectNaturalFragment');
-      
-      // === 8. INJECT HUMAN NOISE (contradiction, redundancy, comma splice) ===
-      currentText = injectHumanNoiseAcademic(currentText);
-      console.log('[HUMANIZE] After injectHumanNoiseAcademic');
-      
-      // === 9. ADD NATURAL HUMAN ERRORS (LOGIC BARU DARI DOSEN) ===
-      currentText = addNaturalHumanErrors(currentText);
-      console.log('[HUMANIZE] After addNaturalHumanErrors');
-      
-      // === 10. ADD AWKWARD PHRASING ===
-      currentText = addAwkwardPhrasing(currentText);
-      console.log('[HUMANIZE] After addAwkwardPhrasing');
-      
-      // === 11. ADD NATURAL REPETITION (LOGIC BARU DARI DOSEN) ===
-      currentText = addNaturalRepetition(currentText);
-      console.log('[HUMANIZE] After addNaturalRepetition');
-      
-      // === 12. DESTROY FOUR PARAGRAPH STRUCTURE (existing) ===
-      currentText = destroyFourParagraphStructure(currentText);
-      console.log('[HUMANIZE] After destroyFourParagraphStructure');
-      
-      // === 13. DESTROY TEMPLATE TRANSITIONS (existing) ===
-      currentText = destroyTemplateTransitions(currentText);
-      console.log('[HUMANIZE] After destroyTemplateTransitions');
-      
-      // === 14. DESTROY CONCLUSION TEMPLATE (existing) ===
-      currentText = destroyConclusionTemplate(currentText);
-      console.log('[HUMANIZE] After destroyConclusionTemplate');
-      
-      // === 15. INJECT RELEVANT ANCHORS (LOGIC BARU DARI DOSEN - ganti injectSpecificAnchorsAcademic) ===
-      currentText = injectRelevantAnchors(currentText);
-      console.log('[HUMANIZE] After injectRelevantAnchors');
+      console.log('[HUMANIZE] Skipping old noise insertion functions (signature tool detected by GPTZero)');
+      // NONAKTIFKAN semua fungsi noise insertion yang menciptakan signature tool:
+      // - injectHumanNoiseAcademic (recycling, composting, public transport)
+      // - injectFragmentParagraphs (fragments ngawur)
+      // - addAwkwardPhrasing (awkward patterns)
+      // - injectRelevantAnchors (anchors berulang)
+      // - addNaturalRepetition (repetition patterns)
+      // - destroyFourParagraphStructure, destroyTemplateTransitions, destroyConclusionTemplate
+      // - forceMultiParagraph, forceExtremeBurstinessAcademic
+      // Template IELTS BUKAN masalah - biarkan tetap ada
     }
 
     // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk general tones ---
