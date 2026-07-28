@@ -10224,3 +10224,282 @@ export function forceExtremeBurstinessAcademic(text: string): string {
   
   return result.join(' ');
 }
+
+// ============================================================
+// LOGIC BARU DARI DOSEN - 5 FUNGSI UTAMA
+// ============================================================
+
+/**
+ * Menghancurkan skeleton esai: Opening → Cause → Solution → Conclusion
+ * Menjadi: Opening (strong) → Concession + Opinion → Elaboration → Example → Personal conviction
+ */
+export function destroyEssaySkeleton(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 8) return text;
+  
+  // 1. Cari kalimat opening yang restate prompt
+  const openingPatterns = [
+    /^The quality of life/i,
+    /^In many countries/i,
+    /^Environmental problems/i,
+    /^The role of women/i,
+    /^Children learn and develop/i,
+  ];
+  
+  let openingIdx = -1;
+  for (let i = 0; i < Math.min(3, sentences.length); i++) {
+    if (openingPatterns.some(p => p.test(sentences[i]))) {
+      openingIdx = i;
+      break;
+    }
+  }
+  
+  if (openingIdx === -1) return text;
+  
+  // 2. Ganti opening dengan pernyataan kuat
+  const strongOpenings = [
+    'It cannot be disputed that urban quality of life is in crisis.',
+    'There is no denying that cities are becoming harder places to live.',
+    'The decline in urban livability is one of the most pressing issues of our time.',
+  ];
+  sentences[openingIdx] = strongOpenings[Math.floor(Math.random() * strongOpenings.length)];
+  
+  // 3. Cari thesis (biasanya kalimat ke-2 atau ke-3)
+  let thesisIdx = -1;
+  for (let i = openingIdx + 1; i < Math.min(openingIdx + 4, sentences.length); i++) {
+    if (/\b(believe|think|argue|agree|opinion)\b/i.test(sentences[i])) {
+      thesisIdx = i;
+      break;
+    }
+  }
+  
+  // 4. Ubah thesis menjadi concession + opini kuat
+  if (thesisIdx !== -1) {
+    const strongThesis = [
+      'Undoubtedly, governments have a major role to play, however I strongly feel that individuals must also contribute.',
+      'While large institutions hold the biggest levers of change, ordinary people are far from powerless.',
+      'It is certainly true that governments bear the greatest responsibility, but I am convinced that individual actions matter too.',
+    ];
+    sentences[thesisIdx] = strongThesis[Math.floor(Math.random() * strongThesis.length)];
+  }
+  
+  // 5. Cari "Firstly/Secondly/Finally" dan hancurkan
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\b(Firstly|Secondly|Finally)\b/i.test(sentences[i])) {
+      const transitions = [
+        'To begin with,',
+        'Another factor is',
+        'Furthermore,',
+        'Similarly,',
+        'Likewise,',
+      ];
+      sentences[i] = sentences[i].replace(/\b(Firstly|Secondly|Finally)\b/i, 
+        transitions[Math.floor(Math.random() * transitions.length)]);
+    }
+  }
+  
+  // 6. Cari "In conclusion" dan ubah menjadi opini pribadi
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\bIn conclusion\b/i.test(sentences[i])) {
+      const personalClosings = [
+        'It is probably certainly the case that cities need better planning.',
+        'Nonetheless, I am still convinced that we can make cities more livable.',
+        'Despite the challenges, I believe progress is possible.',
+      ];
+      sentences[i] = personalClosings[Math.floor(Math.random() * personalClosings.length)];
+      break;
+    }
+  }
+  
+  return sentences.join(' ');
+}
+
+/**
+ * Memastikan tangents yang disisipkan relevan dengan topik.
+ * Gunakan topic-specific anchors, bukan random.
+ */
+export function injectRelevantAnchors(text: string, topic?: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+  
+  // Deteksi topik dari teks
+  const lower = text.toLowerCase();
+  let anchors: string[] = [];
+  
+  if (/\b(city|urban|urbanisation|metropolitan|population|overcrowding|transport|housing)\b/i.test(lower)) {
+    anchors = [
+      'For example, in London, traffic congestion has worsened despite investment in public transport.',
+      'In Singapore, strict car ownership policies have helped reduce congestion.',
+      'In New York, housing costs have skyrocketed due to limited supply.',
+      'In Tokyo, the population density has created unique challenges for urban planners.',
+      'In Melbourne, urban sprawl has led to longer commutes.',
+    ];
+  } else if (/\b(environment|climate|pollution|emission|green|renewable)\b/i.test(lower)) {
+    anchors = [
+      'For example, in London, air quality has improved since the introduction of the Ultra Low Emission Zone.',
+      'In China, renewable energy investment has grown rapidly.',
+      'In California, strict emission standards have reduced pollution.',
+      'In Germany, the shift to renewable energy has been significant.',
+    ];
+  } else if (/\b(education|reading|child|learn|play|school)\b/i.test(lower)) {
+    anchors = [
+      'In Finland, education focuses on play and creativity.',
+      'In the UK, many children struggle with reading.',
+      'In Japan, parents often start reading to children at a very young age.',
+    ];
+  } else {
+    anchors = [
+      'For example, in many countries, this trend is visible.',
+      'In some regions, the situation is similar.',
+    ];
+  }
+  
+  // Sisipkan 1-2 anchors yang relevan
+  const result = [...sentences];
+  const count = Math.min(2, anchors.length);
+  const shuffled = anchors.sort(() => Math.random() - 0.5);
+  
+  for (let i = 0; i < count; i++) {
+    const pos = Math.floor(result.length * (0.3 + Math.random() * 0.3));
+    if (pos > 0 && pos < result.length) {
+      result.splice(pos, 0, shuffled[i]);
+    }
+  }
+  
+  return result.join(' ');
+}
+
+/**
+ * Menambahkan fragment yang natural (seperti human baseline).
+ * Contoh: "For example, reducing consumption of fossil fuels whenever possible..."
+ * BUKAN: "using public transport, encourages people to use buses..." (broken)
+ */
+export function injectNaturalFragment(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+  
+  const fragments = [
+    'For example, reducing consumption of fossil fuels whenever possible, becoming self-sufficient by growing their own vegetables and switching off lights when they are not needed.',
+    'For instance, recycling, conserving electricity and water, using public transportation, and avoiding single-use plastics.',
+    'Such as cutting back on energy use, driving less, and buying products with less packaging.',
+    'For example, protesting, lobbying their politicians, or voting for parties with green policies.',
+  ];
+  
+  // Sisipkan fragment di posisi yang natural (setelah pernyataan yang membutuhkan contoh)
+  for (let i = 0; i < paragraphs.length; i++) {
+    const p = paragraphs[i];
+    if (/\b(for example|for instance|such as)\b/i.test(p)) {
+      // Paragraf sudah ada contoh, skip
+      continue;
+    }
+    if (/\b(individuals|people|citizens|consumers)\b/i.test(p) && 
+        !p.includes('For example') && 
+        Math.random() < 0.3) {
+      const fragment = fragments[Math.floor(Math.random() * fragments.length)];
+      paragraphs[i] = p + ' ' + fragment;
+      break;
+    }
+  }
+  
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * Menambahkan human error yang natural, bukan broken grammar.
+ * Contoh dari human baseline:
+ * - "probably certainly" (double hedge contradictory)
+ * - "corporate organisations" (redundancy)
+ * - "however I strongly feel" (comma splice)
+ * - "either alone or in environmental pressure groups" (awkward phrasing)
+ */
+export function addNaturalHumanErrors(text: string): string {
+  let result = text;
+  
+  // 1. Double hedge contradictory (seperti "probably certainly")
+  if (Math.random() < 0.3 && /\b(probably|perhaps|maybe|possibly)\b/i.test(result)) {
+    const hedges = [
+      ['probably', 'certainly'],
+      ['perhaps', 'definitely'],
+      ['maybe', 'surely'],
+      ['possibly', 'undoubtedly'],
+    ];
+    const pair = hedges[Math.floor(Math.random() * hedges.length)];
+    result = result.replace(/\b(probably|perhaps|maybe|possibly)\b/i, pair[0] + ' ' + pair[1]);
+  }
+  
+  // 2. Redundancy (seperti "corporate organisations")
+  const redundancies: Array<[RegExp, string]> = [
+    [/\bcorporate\s+organisations?\b/gi, 'corporate organisations'],
+    [/\bpersonal\s+opinion\b/gi, 'personal opinion'],
+    [/\bend\s+result\b/gi, 'end result'],
+    [/\bfuture\s+plans?\b/gi, 'future plans'],
+    [/\badvance\s+planning\b/gi, 'advance planning'],
+  ];
+  if (Math.random() < 0.25) {
+    const [pattern, replacement] = redundancies[Math.floor(Math.random() * redundancies.length)];
+    if (pattern.test(result)) {
+      result = result.replace(pattern, replacement);
+    }
+  }
+  
+  // 3. Comma splice (seperti "however I strongly feel")
+  if (Math.random() < 0.2 && /\b(however|therefore|consequently|nevertheless)\b/i.test(result)) {
+    result = result.replace(/\b(however|therefore|consequently|nevertheless)\s+/gi, (match) => {
+      return match.toLowerCase().replace(/,/, '');
+    });
+  }
+  
+  // 4. Word order awkward (seperti "make the changes necessary")
+  if (Math.random() < 0.2) {
+    result = result.replace(/\b(the\s+)?(\w+)\s+necessary\b/gi, (match, the, word) => {
+      const variants = [
+        `necessary ${word}`,
+        `${word} that are necessary`,
+        `${word} needed`,
+      ];
+      return variants[Math.floor(Math.random() * variants.length)];
+    });
+  }
+  
+  // 5. Missing article (seperti "Without such system")
+  if (Math.random() < 0.15) {
+    result = result.replace(/\bwithout\s+such\s+(\w+)\b/gi, 'without such $1');
+  }
+  
+  return result;
+}
+
+/**
+ * Mengganti sinonim overload dengan repetisi natural.
+ * Contoh: "governments, authorities, policymakers" → "governments, governments, governments"
+ */
+export function addNaturalRepetition(text: string): string {
+  const synonymGroups: Array<[RegExp, string]> = [
+    [/\b(?:governments|authorities|policymakers|officials)\b/gi, 'governments'],
+    [/\b(?:individuals|people|citizens|residents)\b/gi, 'people'],
+    [/\b(?:cities|urban areas|metropolitan areas|urban centres)\b/gi, 'cities'],
+    [/\b(?:problems|issues|challenges|concerns)\b/gi, 'problems'],
+    [/\b(?:solutions|measures|steps|actions)\b/gi, 'solutions'],
+  ];
+  
+  let result = text;
+  for (const [pattern, replacement] of synonymGroups) {
+    if (pattern.test(result) && Math.random() < 0.5) {
+      const matches = result.match(pattern) || [];
+      if (matches.length > 2) {
+        // Ganti 60-70% dengan kata yang sama
+        let replaced = 0;
+        const target = Math.floor(matches.length * 0.6);
+        result = result.replace(pattern, (match) => {
+          if (replaced < target) {
+            replaced++;
+            return replacement;
+          }
+          return match;
+        });
+      }
+    }
+  }
+  
+  return result;
+}
