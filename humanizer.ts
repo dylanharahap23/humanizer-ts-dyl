@@ -1355,18 +1355,19 @@ export function getEnglishHumanizerConfig(
   writingPurpose: EnglishWritingPurpose = "General"
 ): HumanizerPromptConfig {
   // ============================================================
-  // IELTS/ACADEMIC: Gunakan ARCHITECTURE PROMPT (DARI DOSEN)
+  // IELTS/ACADEMIC: Gunakan prompt sederhana (NEW ARCHITECTURE FROM DOSEN)
+  // Tidak perlu terlalu banyak constraint karena akan di-regenerate dari graph
   // ============================================================
   if (writingPurpose === "Academic" || isIeltsEssay(sourceText)) {
     return {
-      systemPrompt: buildArchitecturePrompt(sourceText),
-      temperature: 1.1,  // Higher for more variation
-      topP: 0.92,
+      systemPrompt: `You are an IELTS candidate with Band 7 ability. Write a clear essay with varied sentences, some complex, some simple. Use specific examples. Avoid fragmentation. Write naturally.`,
+      temperature: 0.9,
+      topP: 0.95,
       maxTokens: 1600,
-      frequencyPenalty: 0.3,  // Encourage variety
-      presencePenalty: 0.2,
+      frequencyPenalty: 0.2,
+      presencePenalty: 0.1,
       repetitionPenalty: 1.02,
-      additionalInstruction: "Follow all architecture rules. Return only the rewritten text.",
+      additionalInstruction: '',
       postProcessTone: "ielts",
     };
   }
@@ -11926,4 +11927,129 @@ export function addLongComplexSentences(text: string): string {
   sentences.splice(idx, 3, combined);
 
   return sentences.join(' ');
+}
+
+// ============================================================
+// ARGUMENT GRAPH EXTRACTION (NEW ARCHITECTURE FROM DOSEN)
+// Human ≠ AI + noise. Re-author (regenerasi dari semantic graph), bukan rewrite.
+// ============================================================
+
+type ArgumentNode = {
+  id: string;
+  type: 'claim' | 'reason' | 'evidence' | 'counter' | 'concession' | 'conclusion';
+  content: string;
+  children: string[]; // IDs of related nodes
+};
+
+export function extractArgumentGraph(text: string): ArgumentNode[] {
+  const sentences = splitSentences(text);
+  const nodes: ArgumentNode[] = [];
+  const lower = text.toLowerCase();
+
+  // Deteksi posisi
+  let hasIntro = /\b(this essay|in this essay|i will discuss|i believe|in my opinion)\b/i.test(lower);
+  let hasOnOneHand = /\b(on the one hand|firstly|one reason|one advantage)\b/i.test(lower);
+  let hasOnOtherHand = /\b(on the other hand|however|but|nevertheless|yet|although)\b/i.test(lower);
+  let hasConclusion = /\b(in conclusion|to conclude|in summary|to sum up)\b/i.test(lower);
+
+  // Klasifikasi kalimat berdasarkan peran
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    let type: ArgumentNode['type'] = 'claim';
+    if (/\b(because|since|due to|as a result|therefore|thus|consequently)\b/i.test(s)) {
+      type = 'reason';
+    } else if (/\b(for example|for instance|such as|like|take|consider)\b/i.test(s)) {
+      type = 'evidence';
+    } else if (/\b(however|but|nevertheless|yet|although|on the other hand)\b/i.test(s)) {
+      type = 'counter';
+    } else if (/\b(admittedly|granted|it is true that|while it is true)\b/i.test(s)) {
+      type = 'concession';
+    } else if (/\b(in conclusion|to conclude|in summary|overall|in the end)\b/i.test(s)) {
+      type = 'conclusion';
+    } else if (/\b(this essay|i believe|i think|in my opinion)\b/i.test(s) && i < 3) {
+      type = 'claim';
+    }
+    nodes.push({
+      id: `n${i}`,
+      type,
+      content: s,
+      children: []
+    });
+  }
+
+  // Bangun relasi sederhana: setiap kalimat mengacu ke sebelumnya (linear)
+  for (let i = 0; i < nodes.length - 1; i++) {
+    nodes[i].children.push(nodes[i+1].id);
+  }
+
+  return nodes;
+}
+
+// ============================================================
+// REGENERATE FROM GRAPH WITH DIFFERENT AUTHOR PROFILES
+// ============================================================
+
+export function getAuthorProfile(profile: string): string {
+  const profiles: Record<string, string> = {
+    'ielts_band7': `You are an IELTS candidate with Band 7 writing ability. Your writing:
+- Uses some complex sentences with subordinate clauses.
+- Has occasional errors (comma splices, article mistakes) but meaning is clear.
+- Expresses opinion directly but not aggressively.
+- Repeats key words naturally.
+- Gives 1-2 specific examples.
+- Paragraph lengths vary.
+- Does NOT use fragmented sentences (e.g., "That is the key.") unless in direct speech.
+- Uses a mix of simple and compound sentences.`,
+
+    'first_year_student': `You are a first-year university student writing a short essay.
+- Your writing is clear but sometimes wordy or awkward.
+- You use simple vocabulary and repeat the same terms.
+- You sometimes use "I think", "I believe".
+- You give one concrete example, maybe with a place or number.
+- Your sentences are mostly 15-25 words.
+- You don't over-explain.`,
+
+    'newspaper_editor': `You are a newspaper opinion editor writing a concise piece.
+- Your writing is direct and uses varied sentence structures.
+- You use passive voice occasionally.
+- You use specific proper nouns and numbers.
+- You avoid repetition.
+- You use short, punchy sentences sometimes.`
+  };
+
+  return profiles[profile] || profiles['ielts_band7'];
+}
+
+export function regenerateFromGraph(
+  text: string,
+  profile: 'ielts_band7' | 'first_year_student' | 'newspaper_editor' = 'ielts_band7'
+): string {
+  const graph = extractArgumentGraph(text);
+  const profileInstruction = getAuthorProfile(profile);
+
+  // Build a simple summary of the graph for the prompt
+  const claim = graph.find(n => n.type === 'claim')?.content || '';
+  const reasons = graph.filter(n => n.type === 'reason').map(n => n.content).join(' ');
+  const evidence = graph.filter(n => n.type === 'evidence').map(n => n.content).join(' ');
+  const counter = graph.filter(n => n.type === 'counter').map(n => n.content).join(' ');
+  const concession = graph.filter(n => n.type === 'concession').map(n => n.content).join(' ');
+  const conclusion = graph.find(n => n.type === 'conclusion')?.content || '';
+
+  const prompt = `
+You are given the key ideas from an essay. Your task is to write a new essay from scratch using ONLY these ideas. Do NOT copy the original wording or sentence order.
+
+KEY IDEAS:
+- Main claim: ${claim}
+- Supporting reasons: ${reasons || 'none given'}
+- Evidence/examples: ${evidence || 'none given'}
+- Counter-arguments: ${counter || 'none given'}
+- Concession: ${concession || 'none given'}
+- Conclusion: ${conclusion || 'none given'}
+
+${profileInstruction}
+
+Write a complete essay (250-300 words) using these ideas in your own words. Do not copy the original. Return only the essay.
+`;
+
+  return prompt;
 }
