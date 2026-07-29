@@ -732,37 +732,108 @@ Return only the rewritten English text.
 
 export function getTopicExamples(text: string): string {
   const lower = text.toLowerCase();
-  
+
   const examples: Record<string, string> = {
-    'housing': `For example, in Nigeria, people who live in houses spend on average three times more money than those who live in apartments. To illustrate, in Nairobi, the average size of a house measures around 700 square meters, which is large enough to accommodate a private car park, a garden and children's playground.`,
-    
-    'tv': `For instance, if one watches a documentary about the history of London, sound and picture will help to engross a viewer into the atmosphere of the city and the way people behaved themselves.`,
-    
-    'vegetarian': `For example, by following this type of strict diet in certain religious groups in India, people might suffer not only from fatigue and bone fractures, but also from disturbance in their immune system.`,
-    
-    'economy': `In Poland, for example, 30 years after communism collapsed, average salaries offered for a middle-management position have tripled. To illustrate, when Donald Trump, who was a big advocate of a strong economy, became the president of the USA, the funds for jobless migrants were cut.`,
-    
-    'multinational': `For example, IBM, a computer manufacturer, invested hugely in China as part of their plan to establish their manufacturing plants there. For instance, multinational mining companies seeking marble in the mountains of Italy have severely devastated the area and these highlands.`,
-    
-    'politics': `For example, when details of the lavish spending of the Mayor of London were revealed in the SUN, it prompted questions from many sections of society. Recently, the pictures of a famous politician of Milan, while playing football with local school children were published in many newspapers.`,
-    
-    'education': `For example, in the UK, many boys are reluctant readers, possibly because of being forced to read. In Finland, early years' education focuses on playing.`
+    'travel': `Ryanair offers flights for 10 euros. In South Africa, tourists do safaris in Kruger National Park.`,
+
+    'economy': `In Poland, salaries tripled after communism collapsed. Donald Trump cut funds for jobless migrants.`,
+
+    'housing': `In Nigeria, houses cost three times more than apartments. In Nairobi, average house size is 700 square meters.`,
+
+    'education': `In Finland, schools focus on play. In the UK, many boys become reluctant readers.`,
+
+    'politics': `The Mayor of London was criticized in the SUN. A politician from Milan gained popularity after photos with children.`,
+
+    'health': `In India, strict vegetarian diets can cause deficiencies. The WHO recommends 150 minutes of exercise.`,
   };
-  
+
   // Deteksi topik
-  let topic = 'housing';
-  if (/\b(tv|television|watch|documentary|channel|broadcast|programme)\b/i.test(lower)) topic = 'tv';
-  else if (/\b(vegetarian|meat|diet|protein|veg|plant-based)\b/i.test(lower)) topic = 'vegetarian';
-  else if (/\b(economy|economic|growth|wealth|salary|income|job|employment)\b/i.test(lower)) topic = 'economy';
-  else if (/\b(multinational|company|corporation|investment|ibm|china|manufacturing)\b/i.test(lower)) topic = 'multinational';
-  else if (/\b(politician|politics|election|government|minister|mayor|parliament|corruption)\b/i.test(lower)) topic = 'politics';
-  else if (/\b(education|school|teacher|student|reading|learning|child)\b/i.test(lower)) topic = 'education';
-  
-  return examples[topic] || examples['housing'];
+  let topic = 'economy';
+  if (/\b(travel|fly|flight|tourist|holiday|vacation)\b/i.test(lower)) topic = 'travel';
+  else if (/\b(house|apartment|housing|home|rent|mortgage)\b/i.test(lower)) topic = 'housing';
+  else if (/\b(education|school|teacher|student|reading)\b/i.test(lower)) topic = 'education';
+  else if (/\b(politic|government|election|minister|mayor)\b/i.test(lower)) topic = 'politics';
+  else if (/\b(health|diet|exercise|nutrition|vitamin)\b/i.test(lower)) topic = 'health';
+
+  return examples[topic] || examples['economy'];
 }
 
 // ============================================================
-// IELTS HUMAN PROMPT (SESUAI PROFESSOR)
+// ARCHITECTURE-CONTROLLED PROMPT (DARI DOSEN)
+// Mengontrol arsitektur penulisan dari awal, bukan permukaan
+// ============================================================
+
+export function buildArchitecturePrompt(text: string): string {
+  const examples = getTopicExamples(text);
+  
+  return `You are an IELTS student writing an essay in 40 minutes. You have limited time, so your writing is slightly messy and repetitive.
+
+CRITICAL ARCHITECTURE RULES:
+
+1. SENTENCE LENGTH VARIATION:
+   - Make some sentences very short (5-8 words): "That is the key." "It makes sense." "Not always."
+   - Make some sentences very long (30-50 words) with multiple clauses.
+   - NEVER make all sentences the same length.
+
+2. SYNTACTIC DIVERSITY:
+   - Mix simple sentences: "Growth creates jobs."
+   - Complex sentences: "Although growth creates jobs, it also causes pollution."
+   - Compound sentences: "Growth creates jobs, and it also raises incomes."
+   - Parenthetical: "Growth — which is often prioritized — creates jobs."
+   - NEVER use the same sentence structure more than twice in a row.
+
+3. INFORMATION DENSITY:
+   - DO NOT explain everything. Skip obvious connections.
+   - Example: "Economic growth creates jobs." → STOP. No need to explain "because businesses hire more workers."
+   - Let readers fill gaps themselves.
+   - Include some low-information sentences: "It depends." "There are exceptions." "Not everyone agrees."
+
+4. HEDGING & UNCERTAINTY:
+   - Use "may", "might", "tends to", "often", "in many cases", "can sometimes".
+   - DO NOT make every statement absolute.
+   - Example: "Growth often creates jobs" instead of "Growth creates jobs."
+
+5. REPETITION (Human Inefficiency):
+   - Repeat key words naturally. Don't use synonyms excessively.
+   - Example: "Houses are bigger. Bigger houses mean more space. More space means happier families."
+   - Human students don't have time to find synonyms.
+
+6. PARAGRAPH STRUCTURE VARIATION:
+   - Paragraph 1: 2-3 sentences (intro)
+   - Paragraph 2: 5-6 sentences (main argument)
+   - Paragraph 3: 3-4 sentences (counter-argument)
+   - Paragraph 4: 2-3 sentences (conclusion)
+   - NEVER make all paragraphs the same length.
+
+7. TRANSITIONS:
+   - Vary transitions: "One reason", "Another factor", "Besides", "In addition", "Moreover", "Furthermore", "On the one hand", "However", "Yet", "Still".
+   - Use natural transitions: "That said", "At the same time", "Even so".
+   - NEVER use the same transition in every paragraph.
+
+8. CLAUSE HIERARCHY:
+   - Use subordinate clauses: "because", "since", "although", "while", "when", "if".
+   - Use relative clauses: "which", "that", "who".
+   - Mix simple and complex sentences.
+
+9. HUMAN IMPERFECTION:
+   - Use occasional comma splices: "Houses are bigger, they offer more space."
+   - Use occasional awkward phrasing: "This is because of the fact that..."
+   - Use occasional redundancy: "bigger in size", "advance planning".
+   - DO NOT make grammar perfect.
+
+10. EXAMPLE USAGE:
+    - Use 1-2 specific examples total (not 12).
+    - Example: "In Poland, salaries tripled after 1990."
+    - DO NOT list examples in every paragraph.
+
+REFERENCE EXAMPLES (adapt these, don't copy):
+${examples}
+
+Now rewrite the following text following ALL rules above. Return only the rewritten text.`;
+}
+
+// ============================================================
+// IELTS HUMAN PROMPT (SESUAI PROFESSOR) - LEGACY
 // ============================================================
 
 export function buildIeltsPrompt(text: string): string {
@@ -1284,18 +1355,18 @@ export function getEnglishHumanizerConfig(
   writingPurpose: EnglishWritingPurpose = "General"
 ): HumanizerPromptConfig {
   // ============================================================
-  // IELTS/ACADEMIC: Gunakan buildIeltsPrompt
+  // IELTS/ACADEMIC: Gunakan ARCHITECTURE PROMPT (DARI DOSEN)
   // ============================================================
   if (writingPurpose === "Academic" || isIeltsEssay(sourceText)) {
     return {
-      systemPrompt: buildIeltsPrompt(sourceText),
-      temperature: 0.92,  // cukup tinggi untuk variasi
+      systemPrompt: buildArchitecturePrompt(sourceText),
+      temperature: 1.1,  // Higher for more variation
       topP: 0.92,
-      maxTokens: 1400,
-      frequencyPenalty: 0.1,
-      presencePenalty: 0.05,
+      maxTokens: 1600,
+      frequencyPenalty: 0.3,  // Encourage variety
+      presencePenalty: 0.2,
       repetitionPenalty: 1.02,
-      additionalInstruction: "Write in a simple, direct style with natural repetition. Use specific examples with proper nouns.",
+      additionalInstruction: "Follow all architecture rules. Return only the rewritten text.",
       postProcessTone: "ielts",
     };
   }
@@ -4728,59 +4799,11 @@ export function finalHumanize(
 
   if (!text || text.length < 40) return text.trim();
 
-  if (skipHeavyProcessing) {
-    return cleanupEnglishSpacing(text);
-  }
-
-  let result = text.trim();
-
-  console.log('[HUMANIZE] Starting ARCHITECTURE humanization...');
-
-  // 1. SENTENCE LENGTH VARIANCE — buat variasi ekstrem
-  result = applySentenceLengthVariance(result);
-  console.log('[HUMANIZE] After applySentenceLengthVariance');
-
-  // 2. PARAGRAPH RHYTHM — ubah struktur paragraf
-  result = varyParagraphRhythm(result);
-  console.log('[HUMANIZE] After varyParagraphRhythm');
-
-  // 3. SYNTACTIC DIVERSITY — campurkan struktur kalimat
-  result = diversifySyntax(result);
-  console.log('[HUMANIZE] After diversifySyntax');
-
-  // 4. INFORMATION DENSITY — selipkan kalimat low-info
-  result = varyInformationDensity(result);
-  console.log('[HUMANIZE] After varyInformationDensity');
-
-  // 5. PERKUAT STANCE — satu-satunya fungsi yang berhasil
-  result = strengthenStance(result);
-  console.log('[HUMANIZE] After strengthenStance');
-
-  // 6. HAPUS OVER-EXPLANATION — jangan jelaskan semua
-  // Contoh: "The internet helps too. People can book..." → "The internet helps too."
-  // Hanya lakukan 1-2 kali
-  const sentences = splitSentences(result);
-  for (let i = 0; i < sentences.length - 1; i++) {
-    const current = sentences[i];
-    const next = sentences[i + 1];
-    // Jika current adalah claim general dan next adalah explanation, hapus explanation
-    if (
-      current.length < 30 &&
-      next.length > 15 &&
-      /\b(for example|for instance|such as|because|since)\b/i.test(next) &&
-      Math.random() < 0.2
-    ) {
-      sentences[i + 1] = '';
-    }
-  }
-  result = sentences.filter(s => s.trim()).join(' ');
-
-  // 7. CLEANUP
-  result = cleanupEnglishSpacing(result);
+  // HANYA CLEANUP — TIDAK ADA POST-PROCESS LAIN
+  let result = cleanupEnglishSpacing(text);
   result = result.replace(/\s{2,}/g, ' ');
   result = result.replace(/(^|[.!?]\s+)([a-z])/g, (match, prefix, letter) => prefix + letter.toUpperCase());
-
-  console.log('[HUMANIZE] Architecture humanization complete');
+  
   return result;
 }
 
