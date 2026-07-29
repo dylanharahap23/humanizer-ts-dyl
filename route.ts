@@ -98,6 +98,10 @@ import {
   addNaturalHumanErrors,
   addNaturalRepetition,
   buildHumanStyleSystemPrompt,
+  // NEW ARCHITECTURE: Argument Graph Extraction & Regeneration
+  extractArgumentGraph,
+  getAuthorProfile,
+  regenerateFromGraph,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -3066,11 +3070,69 @@ export async function POST(req: Request) {
     // fragments, fabricated specifics, changed certainty, or information loss.
     // Keep final cleanup source-grounded; no fake memories, facts, or deliberate flaws.
     
+    // ============================================================
+    // NEW ARCHITECTURE FROM DOSEN: REGENERATE FROM SEMANTIC GRAPH
+    // Human ≠ AI + noise. Re-author (regenerasi dari semantic graph), bukan rewrite.
+    // ============================================================
+    
     // --- Tentukan tone yang diizinkan untuk humanisasi agresif ---
     const generalTones = ['english-general', 'english-argument', 'english-discursive', 'english-expository', 'english-reflective', 'casual'];
     const academicTones = ['english-academic', 'ielts'];
     const isGeneralTone = generalTones.includes(config.postProcessTone);
     const isAcademicTone = academicTones.includes(config.postProcessTone);
+
+    // === PILIH PROFILE BERDASARKAN SETTINGS ===
+    let profile: 'ielts_band7' | 'first_year_student' | 'newspaper_editor' = 'ielts_band7';
+    if (settings.writingPurpose === 'Academic') {
+      profile = 'ielts_band7';
+    } else if (settings.writingPurpose === 'General') {
+      profile = 'first_year_student';
+    } else {
+      profile = 'newspaper_editor';
+    }
+
+    // === REGENERATE DARI GRAPH (untuk Academic/IELTS) ===
+    if (isAcademicTone || settings.writingPurpose === 'Academic') {
+      console.log('[HUMANIZE] Using new architecture: regenerate from semantic graph');
+      const regenerationPrompt = regenerateFromGraph(currentText, profile);
+
+      // Panggil LLM sekali lagi dengan prompt regenerasi
+      try {
+        const regenerateResponse = await fetch(OPENROUTER_URL, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: MAIN_MODEL,
+            temperature: 0.9, // higher for more variation
+            top_p: 0.95,
+            max_tokens: 1600,
+            messages: [
+              { role: 'system', content: regenerationPrompt },
+              { role: 'user', content: `Original text (for reference only, do not copy wording): ${text}` }
+            ]
+          })
+        });
+
+        if (!regenerateResponse.ok) {
+          console.warn('[HUMANIZE] Regeneration failed, using fallback');
+        } else {
+          const regenData = await regenerateResponse.json();
+          const regenerated = regenData?.choices?.[0]?.message?.content;
+          if (regenerated && regenerated.trim()) {
+            currentText = regenerated.trim();
+            // Hanya cleanup spacing
+            currentText = cleanupEnglishSpacing(currentText);
+            console.log('[HUMANIZE] After regenerateFromGraph:', currentText.slice(0, 200));
+          }
+        }
+      } catch (error) {
+        console.warn('[HUMANIZE] Regeneration error:', error);
+      }
+    }
 
     // --- Terapkan humanisasi agresif (hanya untuk general tones) ---
     if (isGeneralTone) {
