@@ -1400,7 +1400,8 @@ export function detectEnglishWritingProfile(
 
 export function isIeltsEssay(text: string): boolean {
   const wordCount = text.split(/\s+/).filter(Boolean).length;
-  return wordCount > 150 && /\b(?:essay|discuss|argue|believe|opinion|agree|disagree)\b/i.test(text);
+  // Deteksi esai IELTS: > 80 kata DAN ada keywords akademik
+  return wordCount > 80 && /\b(?:essay|discuss|argue|believe|opinion|agree|disagree|cause|solution|i think|i believe|in my opinion)\b/i.test(text);
 }
 
 export function getEnglishHumanizerConfig(
@@ -12024,13 +12025,12 @@ IMPORTANT:
 - Extract CONCEPTS, not full sentences. Labels should be short phrases (3-6 words).
 - Details can be longer context if needed.
 - Include specific names, numbers, organizations from the text.
-- Return valid JSON only, no markdown formatting.
+- Return valid JSON only, no markdown formatting, no code blocks.
 
 Essay:
 ${text}
 
-Return JSON only.
-`;
+Return JSON only.`;
 
   try {
     const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -12048,7 +12048,7 @@ Return JSON only.
         top_p: 0.9,
         max_tokens: 2000,
         messages: [
-          { role: 'system', content: 'You are a semantic analyzer. Extract concepts and relationships from essays. Return ONLY valid JSON.' },
+          { role: 'system', content: 'You are a semantic analyzer. Extract concepts and relationships from essays. Return ONLY valid JSON without markdown formatting.' },
           { role: 'user', content: prompt }
         ]
       })
@@ -12062,18 +12062,31 @@ Return JSON only.
     const data = await response.json();
     const content = (data as any)?.choices?.[0]?.message?.content || '';
     
-    // Parse JSON dari response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
+    // Sanitasi: cari JSON di antara teks lain
+    let jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn('[SemanticGraph] No JSON found in response, using heuristic fallback');
+      return extractSemanticGraphHeuristic(text);
+    }
+    
+    let cleaned = jsonMatch[0];
+    
+    // Fix common JSON errors
+    cleaned = cleaned
+      .replace(/,\s*}/g, '}')  // trailing comma before closing brace
+      .replace(/,\s*\]/g, ']') // trailing comma before closing bracket
+      .replace(/([{,]\s*)(\w+)(:)/g, '$1"$2"$3'); // unquoted keys
+    
+    try {
+      const parsed = JSON.parse(cleaned);
       return {
         nodes: parsed.nodes || [],
         relations: parsed.relations || []
       };
+    } catch (parseError) {
+      console.warn('[SemanticGraph] JSON parse failed after cleanup, using heuristic fallback', parseError);
+      return extractSemanticGraphHeuristic(text);
     }
-    
-    console.warn('[SemanticGraph] No valid JSON found in response');
-    return { nodes: [], relations: [] };
   } catch (error) {
     console.warn('[SemanticGraph] Extraction error:', error);
     return { nodes: [], relations: [] };
@@ -12157,28 +12170,23 @@ export function buildGraphRegenerationPrompt(
   ).join('\n');
 
   return `
-You have a set of ideas (nodes) and their relationships. Write a natural essay explaining these ideas.
+Write a short opinion piece on the topic below. Write naturally, as if you're explaining to a friend.
 
-CRITICAL RULES:
-- DO NOT follow a rigid structure like "introduction → body → conclusion"
-- Start ANYWHERE: a specific example, a question, a controversial claim, or a counter-argument
-- Jump between ideas naturally, like someone explaining from memory
-- Use specific names, years, numbers, and organizations when available
-- DO NOT use "This essay will discuss", "On the one hand", "In conclusion"
-- Keep the essay between 250-350 words
-- Vary sentence length (some very short 5-8 words, some very long 30+ words)
-- Make occasional grammar mistakes (comma splices, missing articles) that don't break meaning
-- Do NOT explain every connection; let readers infer some relationships
-- Include at least one proper name, year, or organization from the nodes
+Key points to include:
+${nodes.filter(n => n.type === 'claim').length > 0 ? `- Main claim: ${nodes.filter(n => n.type === 'claim').map(n => n.label).join(' ')}` : ''}
+${nodes.filter(n => n.type === 'cause').length > 0 || nodes.filter(n => n.type === 'effect').length > 0 ? `- Reasons: ${[...nodes.filter(n => n.type === 'cause'), ...nodes.filter(n => n.type === 'effect')].map(n => n.label).join(' ')}` : ''}
+${nodes.filter(n => n.type === 'evidence').length > 0 ? `- Examples: ${nodes.filter(n => n.type === 'evidence').map(n => n.label).join(' ')}` : ''}
+${nodes.filter(n => n.type === 'solution').length > 0 ? `- Solutions: ${nodes.filter(n => n.type === 'solution').map(n => n.label).join(' ')}` : ''}
+${nodes.filter(n => n.type === 'counter').length > 0 ? `- Counter-arguments: ${nodes.filter(n => n.type === 'counter').map(n => n.label).join(' ')}` : ''}
 
-Ideas (nodes):
-${nodeDescriptions}
+IMPORTANT:
+- Write in plain English, not academic style.
+- Use simple words. Avoid "furthermore", "moreover", "in conclusion", "this essay".
+- Write 3-4 short paragraphs.
+- Do NOT use rhetorical questions, fragments, or dramatic punctuation.
+- Start simply with "Nowadays, ..." or "In recent years, ..." or "It is true that ...".
 
-Relationships:
-${relationDescriptions}
-
-Now write the essay. Return only the essay text.
-`;
+Return only the text. No explanations.`;
 }
 
 // ============================================================
