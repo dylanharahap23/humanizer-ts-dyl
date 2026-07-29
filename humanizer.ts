@@ -726,6 +726,67 @@ Return only the rewritten English text.
 // 3. IELTS PROMPT & EXAMPLE
 // ============================================================
 
+// ============================================================
+// HARD-CODED EXAMPLES PER TOPIK (UNTUK INJECT KE PROMPT)
+// ============================================================
+
+export function getTopicExamples(text: string): string {
+  const lower = text.toLowerCase();
+  
+  const examples: Record<string, string> = {
+    'housing': `For example, in Nigeria, people who live in houses spend on average three times more money than those who live in apartments. To illustrate, in Nairobi, the average size of a house measures around 700 square meters, which is large enough to accommodate a private car park, a garden and children's playground.`,
+    
+    'tv': `For instance, if one watches a documentary about the history of London, sound and picture will help to engross a viewer into the atmosphere of the city and the way people behaved themselves.`,
+    
+    'vegetarian': `For example, by following this type of strict diet in certain religious groups in India, people might suffer not only from fatigue and bone fractures, but also from disturbance in their immune system.`,
+    
+    'economy': `In Poland, for example, 30 years after communism collapsed, average salaries offered for a middle-management position have tripled. To illustrate, when Donald Trump, who was a big advocate of a strong economy, became the president of the USA, the funds for jobless migrants were cut.`,
+    
+    'multinational': `For example, IBM, a computer manufacturer, invested hugely in China as part of their plan to establish their manufacturing plants there. For instance, multinational mining companies seeking marble in the mountains of Italy have severely devastated the area and these highlands.`,
+    
+    'politics': `For example, when details of the lavish spending of the Mayor of London were revealed in the SUN, it prompted questions from many sections of society. Recently, the pictures of a famous politician of Milan, while playing football with local school children were published in many newspapers.`,
+    
+    'education': `For example, in the UK, many boys are reluctant readers, possibly because of being forced to read. In Finland, early years' education focuses on playing.`
+  };
+  
+  // Deteksi topik
+  let topic = 'housing';
+  if (/\b(tv|television|watch|documentary|channel|broadcast|programme)\b/i.test(lower)) topic = 'tv';
+  else if (/\b(vegetarian|meat|diet|protein|veg|plant-based)\b/i.test(lower)) topic = 'vegetarian';
+  else if (/\b(economy|economic|growth|wealth|salary|income|job|employment)\b/i.test(lower)) topic = 'economy';
+  else if (/\b(multinational|company|corporation|investment|ibm|china|manufacturing)\b/i.test(lower)) topic = 'multinational';
+  else if (/\b(politician|politics|election|government|minister|mayor|parliament|corruption)\b/i.test(lower)) topic = 'politics';
+  else if (/\b(education|school|teacher|student|reading|learning|child)\b/i.test(lower)) topic = 'education';
+  
+  return examples[topic] || examples['housing'];
+}
+
+// ============================================================
+// IELTS HUMAN PROMPT (SESUAI PROFESSOR)
+// ============================================================
+
+export function buildIeltsPrompt(text: string): string {
+  const examples = getTopicExamples(text);
+  
+  return `You are an IELTS student with band 6.5 writing level. You are writing an essay in 40 minutes.
+
+Your writing style:
+- Use simple, direct language. Do NOT use sophisticated vocabulary like "tranquillity", "autonomy", "enclosure", "capital outlay", "notable trade-offs".
+- Repeat the same words instead of finding synonyms.
+- Use specific examples with proper nouns (country names, city names, numbers). Below are examples you can adapt.
+- Make occasional grammar mistakes that don't break meaning: comma splices, missing articles, awkward prepositions.
+- Use short sentences mixed with occasional very long run-on sentences.
+- Express opinions directly and sometimes repetitively.
+- Do NOT use poetic metaphors, em-dashes for drama, or literary language.
+- Do NOT write perfect parallel structures.
+- Write like you're explaining to a friend, not presenting to a professor.
+
+EXAMPLES OF SPECIFIC DETAILS (adapt these to your essay):
+${examples}
+
+Now rewrite the following text in this style. Return only the rewritten text.`;
+}
+
 const IELTS_HUMAN_PROMPT = `
 You are rewriting text in IELTS Academic style as a real Band 8 student with a clear opinion and a distinct voice.
 
@@ -1213,22 +1274,29 @@ export function detectEnglishWritingProfile(
   return "general";
 }
 
+function isIeltsEssay(text: string): boolean {
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  return wordCount > 150 && /\b(?:essay|discuss|argue|believe|opinion|agree|disagree)\b/i.test(text);
+}
+
 export function getEnglishHumanizerConfig(
   sourceText: string,
   writingPurpose: EnglishWritingPurpose = "General"
 ): HumanizerPromptConfig {
-  // Jika writing purpose adalah Academic, gunakan prompt IELTS
-  if (writingPurpose === "Academic") {
+  // ============================================================
+  // IELTS/ACADEMIC: Gunakan buildIeltsPrompt
+  // ============================================================
+  if (writingPurpose === "Academic" || isIeltsEssay(sourceText)) {
     return {
-      systemPrompt: `${IELTS_HUMAN_PROMPT}\n\n${HUMAN_IELTS_EXAMPLES}\n\nTASK: Rewrite the user's text in IELTS Academic style.`,
-      temperature: 0.85,
+      systemPrompt: buildIeltsPrompt(sourceText),
+      temperature: 0.92,  // cukup tinggi untuk variasi
       topP: 0.92,
-      maxTokens: 1200,
-      frequencyPenalty: 0.15,
-      presencePenalty: 0.1,
-      repetitionPenalty: 1.12,
-      additionalInstruction: "Write with conviction, varied rhythm, specific examples, and a natural student voice.",
-      postProcessTone: "ielts" as HumanizerPostProcessTone,
+      maxTokens: 1400,
+      frequencyPenalty: 0.1,
+      presencePenalty: 0.05,
+      repetitionPenalty: 1.02,
+      additionalInstruction: "Write in a simple, direct style with natural repetition. Use specific examples with proper nouns.",
+      postProcessTone: "ielts",
     };
   }
 
@@ -4447,7 +4515,6 @@ export function applyRandomTangentMethod(text: string): string {
 // ============================================================
 // 10. finalHumanize
 // ============================================================
-
 export function finalHumanize(
   text: string,
   tone: HumanizerPostProcessTone = "casual",
@@ -4463,44 +4530,26 @@ export function finalHumanize(
 
   if (!text || text.length < 40) return text.trim();
 
-  // Jika skipHeavyProcessing true (general tones), kita langsung jalankan cleanup spacing
+  // Jika skipHeavyProcessing true, hanya cleanup
   if (skipHeavyProcessing) {
     return cleanupEnglishSpacing(text);
   }
 
-  // ============================================================
-  // SOLUSI FINAL DARI DOSEN: KURANGI LOGIC, HANYA 4 FUNGSI INTI
-  // ============================================================
-  // Hapus over-engineering: jangan gunakan rewriteArgumentSkeleton,
-  // scatterOpinion, addLongComplexSentences, increaseBurstiness,
-  // replaceTransitions, addNaturalIdioms, addNaturalImperfection
-  // ============================================================
-  
   let result = text.trim();
 
-  console.log('[HUMANIZE] Starting SIMPLE humanization pipeline (4 functions only)...');
+  console.log('[HUMANIZE] Starting SIMPLE pipeline...');
 
-  // 1. PERKUAT STANCE - Ubah "partly agree" jadi stance tegas
+  // HANYA 2 FUNGSI:
+  // 1. Perkuat stance
   result = strengthenStance(result);
   console.log('[HUMANIZE] After strengthenStance');
 
-  // 2. TAMBAHKAN PROPER NOUNS SPESIFIK - IBM, China, Italy, dll
-  result = injectSpecificProperNouns(result);
-  console.log('[HUMANIZE] After injectSpecificProperNouns');
-
-  // 3. TAMBAHKAN GRAMMAR ERRORS NATURAL - comma splice, missing verb, subject-verb agreement
-  result = addNaturalGrammarErrors(result);
-  console.log('[HUMANIZE] After addNaturalGrammarErrors');
-
-  // 4. BIAKKAN REPETISI - Jangan ganti sinonim, biarkan repetisi kata kunci
-  result = allowNaturalRepetition(result);
-  console.log('[HUMANIZE] After allowNaturalRepetition');
-
-  // FINAL CLEANUP — MINIMAL! Jangan perbaiki grammar
+  // 2. Cleanup spacing
+  result = cleanupEnglishSpacing(result);
   result = result.replace(/\s{2,}/g, ' ');
   result = result.replace(/(^|[.!?]\s+)([a-z])/g, (match, prefix, letter) => prefix + letter.toUpperCase());
 
-  console.log('[HUMANIZE] Humanization complete (simple pipeline)');
+  console.log('[HUMANIZE] Complete');
   return result;
 }
 
