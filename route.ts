@@ -98,10 +98,15 @@ import {
   addNaturalHumanErrors,
   addNaturalRepetition,
   buildHumanStyleSystemPrompt,
-  // NEW ARCHITECTURE: Argument Graph Extraction & Regeneration
+  // NEW ARCHITECTURE: Semantic Graph Extraction & Regeneration (DOSEN'S SOLUTION)
   extractArgumentGraph,
   getAuthorProfile,
   regenerateFromGraph,
+  extractSemanticGraph,
+  extractSemanticGraphHeuristic,
+  buildGraphRegenerationPrompt,
+  type SemanticNode,
+  type SemanticRelation,
   type HumanizerPromptConfig,
 } from "@/lib/humanizer";
 
@@ -3091,13 +3096,16 @@ export async function POST(req: Request) {
       profile = 'newspaper_editor';
     }
 
-    // === REGENERATE DARI GRAPH (untuk Academic/IELTS) ===
+    // === REGENERATE DARI SEMANTIC GRAPH (untuk Academic/IELTS) ===
+    // NEW ARCHITECTURE FROM DOSEN: extract concepts → regenerate from graph
     if (isAcademicTone || settings.writingPurpose === 'Academic') {
       console.log('[HUMANIZE] Using new architecture: regenerate from semantic graph');
-      const regenerationPrompt = regenerateFromGraph(currentText, profile);
-
-      // Panggil LLM sekali lagi dengan prompt regenerasi
+      
       try {
+        // Ekstrak semantic graph dan build prompt (async)
+        const regenerationPrompt = await regenerateFromGraph(currentText, profile);
+
+        // Panggil LLM sekali lagi dengan prompt regenerasi
         const regenerateResponse = await fetch(OPENROUTER_URL, {
           method: 'POST',
           headers: {
