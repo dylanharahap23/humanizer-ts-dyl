@@ -4515,6 +4515,204 @@ export function applyRandomTangentMethod(text: string): string {
 // ============================================================
 // 10. finalHumanize
 // ============================================================
+
+// ============================================================
+// SENTENCE LENGTH VARIANCE ENGINE
+// Membuat variasi panjang kalimat ekstrem (5-50 kata)
+// ============================================================
+
+export function applySentenceLengthVariance(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  // 1. Cari kalimat yang terlalu seragam panjangnya
+  const lengths = sentences.map(s => s.split(/\s+/).filter(Boolean).length);
+  const avg = lengths.reduce((a,b) => a + b, 0) / lengths.length;
+  const variance = lengths.reduce((sum, l) => sum + Math.pow(l - avg, 2), 0) / lengths.length;
+
+  // Jika variance < 10, kita perlu mengacak
+  if (variance < 10) {
+    // 2. Pilih 2-3 kalimat untuk diperpendek drastis (5-8 kata)
+    const shortIndices: number[] = [];
+    for (let i = 0; i < sentences.length && shortIndices.length < 2; i++) {
+      if (sentences[i].split(/\s+/).length > 12 && Math.random() < 0.25) {
+        shortIndices.push(i);
+      }
+    }
+    const shortPool = [
+      'That is the key.',
+      'It makes sense.',
+      'This matters.',
+      'Not always.',
+      'It depends.',
+      'True.',
+      'Still.',
+      'Exactly.',
+    ];
+    for (const idx of shortIndices) {
+      sentences[idx] = shortPool[Math.floor(Math.random() * shortPool.length)];
+    }
+
+    // 3. Pilih 1-2 kalimat untuk diperpanjang (gabung dengan kalimat tetangga)
+    const longIndices: number[] = [];
+    for (let i = 1; i < sentences.length - 1 && longIndices.length < 2; i++) {
+      if (sentences[i].split(/\s+/).length < 20 && Math.random() < 0.2) {
+        longIndices.push(i);
+      }
+    }
+    for (const idx of longIndices) {
+      if (idx < sentences.length - 1) {
+        const s1 = sentences[idx].replace(/[.!?]$/, '');
+        const s2 = sentences[idx + 1];
+        sentences[idx] = s1 + ', ' + s2.charAt(0).toLowerCase() + s2.slice(1);
+        sentences.splice(idx + 1, 1);
+      }
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+// ============================================================
+// PARAGRAPH RHYTHM MODEL
+// Membuat variasi struktur antar paragraf
+// ============================================================
+
+export function varyParagraphRhythm(text: string): string {
+  let paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  if (paragraphs.length < 3) return text;
+
+  // 1. Ubah panjang paragraf: satu paragraf pendek (1-2 kalimat)
+  const shortIdx = Math.floor(Math.random() * paragraphs.length);
+  const sentencesShort = splitSentences(paragraphs[shortIdx]);
+  if (sentencesShort.length > 2) {
+    paragraphs[shortIdx] = sentencesShort.slice(0, 1 + Math.floor(Math.random() * 1)).join(' ');
+  }
+
+  // 2. Satu paragraf panjang (6-8 kalimat) — gabung 2 paragraf
+  const longIdx = (shortIdx + 1) % paragraphs.length;
+  if (longIdx < paragraphs.length - 1) {
+    paragraphs[longIdx] = paragraphs[longIdx] + ' ' + paragraphs[longIdx + 1];
+    paragraphs.splice(longIdx + 1, 1);
+  }
+
+  // 3. Ubah urutan topic sentence: kadang contoh sebelum claim
+  for (let i = 0; i < paragraphs.length; i++) {
+    const sentencesPara = splitSentences(paragraphs[i]);
+    if (sentencesPara.length > 2 && Math.random() < 0.3) {
+      // Pindahkan kalimat kedua ke awal (contoh dulu, baru claim)
+      const temp = sentencesPara[0];
+      sentencesPara[0] = sentencesPara[1];
+      sentencesPara[1] = temp;
+      paragraphs[i] = sentencesPara.join(' ');
+    }
+  }
+
+  return paragraphs.join('\n\n');
+}
+
+// ============================================================
+// SYNTACTIC DIVERSITY ENGINE
+// Campurkan struktur kalimat yang berbeda-beda
+// ============================================================
+
+export function diversifySyntax(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 4) return text;
+
+  // 1. Ubah 1-2 kalimat menjadi complex sentence dengan subordinate clause
+  for (let i = 0; i < sentences.length && i < 2; i++) {
+    const s = sentences[i];
+    if (s.includes('because') || s.includes('since')) continue;
+    if (s.split(/\s+/).length > 10 && Math.random() < 0.3) {
+      const starters = [
+        'Although it is true that ',
+        'While some people argue that ',
+        'Given that ',
+        'Considering that ',
+      ];
+      const starter = starters[Math.floor(Math.random() * starters.length)];
+      sentences[i] = starter + s.charAt(0).toLowerCase() + s.slice(1);
+    }
+  }
+
+  // 2. Ubah 1-2 kalimat menjadi parenthetical (dengan sisipan)
+  for (let i = 0; i < sentences.length && i < 2; i++) {
+    const s = sentences[i];
+    if (s.includes('—') || s.includes('(')) continue;
+    if (s.split(/\s+/).length > 15 && Math.random() < 0.2) {
+      const parentheticals = [
+        '— and this is worth noting —',
+        '— which is quite interesting —',
+        '— or so it seems —',
+        '— in many cases —',
+      ];
+      const words = s.split(' ');
+      const insertPos = Math.floor(words.length * 0.5);
+      const paren = parentheticals[Math.floor(Math.random() * parentheticals.length)];
+      words.splice(insertPos, 0, paren);
+      sentences[i] = words.join(' ');
+    }
+  }
+
+  // 3. Ubah 1 kalimat menjadi short fragment (tanpa verb)
+  for (let i = 0; i < sentences.length && i < 1; i++) {
+    const s = sentences[i];
+    if (s.split(/\s+/).length > 8 && Math.random() < 0.15) {
+      const fragments = [
+        'Anyway.',
+        'That said.',
+        'To be fair.',
+        'Not really.',
+        'Fair enough.',
+      ];
+      sentences.splice(i + 1, 0, fragments[Math.floor(Math.random() * fragments.length)]);
+      break;
+    }
+  }
+
+  return sentences.join(' ');
+}
+
+// ============================================================
+// INFORMATION DENSITY CONTROLLER
+// Selipkan kalimat dengan kepadatan informasi rendah
+// ============================================================
+
+export function varyInformationDensity(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 5) return text;
+
+  // 1. Sisipkan 1-2 kalimat "low information" (filler natural)
+  const lowInfoSentences = [
+    'It is hard to say for sure.',
+    'This is not always the case.',
+    'Of course, there are exceptions.',
+    'In many ways, this makes sense.',
+    'It depends on the situation.',
+    'There are different views on this.',
+    'At times, this can be complicated.',
+  ];
+
+  for (let i = 0; i < Math.min(2, sentences.length / 3); i++) {
+    const pos = Math.floor(sentences.length * (0.2 + Math.random() * 0.4));
+    sentences.splice(pos, 0, lowInfoSentences[Math.floor(Math.random() * lowInfoSentences.length)]);
+  }
+
+  // 2. Ubah 1-2 kalimat menjadi lebih "ambiguous" / kurang spesifik
+  for (let i = 0; i < sentences.length && i < 2; i++) {
+    if (/\b(is|are|will|must)\b/i.test(sentences[i]) && Math.random() < 0.3) {
+      sentences[i] = sentences[i]
+        .replace(/\b(is)\b/i, 'may be')
+        .replace(/\b(are)\b/i, 'may be')
+        .replace(/\b(will)\b/i, 'might')
+        .replace(/\b(must)\b/i, 'may need to');
+    }
+  }
+
+  return sentences.join(' ');
+}
+
 export function finalHumanize(
   text: string,
   tone: HumanizerPostProcessTone = "casual",
@@ -4530,26 +4728,59 @@ export function finalHumanize(
 
   if (!text || text.length < 40) return text.trim();
 
-  // Jika skipHeavyProcessing true, hanya cleanup
   if (skipHeavyProcessing) {
     return cleanupEnglishSpacing(text);
   }
 
   let result = text.trim();
 
-  console.log('[HUMANIZE] Starting SIMPLE pipeline...');
+  console.log('[HUMANIZE] Starting ARCHITECTURE humanization...');
 
-  // HANYA 2 FUNGSI:
-  // 1. Perkuat stance
+  // 1. SENTENCE LENGTH VARIANCE — buat variasi ekstrem
+  result = applySentenceLengthVariance(result);
+  console.log('[HUMANIZE] After applySentenceLengthVariance');
+
+  // 2. PARAGRAPH RHYTHM — ubah struktur paragraf
+  result = varyParagraphRhythm(result);
+  console.log('[HUMANIZE] After varyParagraphRhythm');
+
+  // 3. SYNTACTIC DIVERSITY — campurkan struktur kalimat
+  result = diversifySyntax(result);
+  console.log('[HUMANIZE] After diversifySyntax');
+
+  // 4. INFORMATION DENSITY — selipkan kalimat low-info
+  result = varyInformationDensity(result);
+  console.log('[HUMANIZE] After varyInformationDensity');
+
+  // 5. PERKUAT STANCE — satu-satunya fungsi yang berhasil
   result = strengthenStance(result);
   console.log('[HUMANIZE] After strengthenStance');
 
-  // 2. Cleanup spacing
+  // 6. HAPUS OVER-EXPLANATION — jangan jelaskan semua
+  // Contoh: "The internet helps too. People can book..." → "The internet helps too."
+  // Hanya lakukan 1-2 kali
+  const sentences = splitSentences(result);
+  for (let i = 0; i < sentences.length - 1; i++) {
+    const current = sentences[i];
+    const next = sentences[i + 1];
+    // Jika current adalah claim general dan next adalah explanation, hapus explanation
+    if (
+      current.length < 30 &&
+      next.length > 15 &&
+      /\b(for example|for instance|such as|because|since)\b/i.test(next) &&
+      Math.random() < 0.2
+    ) {
+      sentences[i + 1] = '';
+    }
+  }
+  result = sentences.filter(s => s.trim()).join(' ');
+
+  // 7. CLEANUP
   result = cleanupEnglishSpacing(result);
   result = result.replace(/\s{2,}/g, ' ');
   result = result.replace(/(^|[.!?]\s+)([a-z])/g, (match, prefix, letter) => prefix + letter.toUpperCase());
 
-  console.log('[HUMANIZE] Complete');
+  console.log('[HUMANIZE] Architecture humanization complete');
   return result;
 }
 
