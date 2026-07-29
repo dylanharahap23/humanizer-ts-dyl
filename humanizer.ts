@@ -858,6 +858,59 @@ ${examples}
 Now rewrite the following text in this style. Return only the rewritten text.`;
 }
 
+// ============================================================
+// PROMPT: BORING IELTS STUDENT (BUKAN CREATIVE WRITER)
+// ============================================================
+
+export function buildBoringIeltsPrompt(text: string): string {
+  const examples = getTopicExamples(text);
+  
+  return `You are an IELTS student writing an essay in 40 minutes. You are NOT a creative writer. You are NOT a blogger. You are NOT trying to impress anyone.
+
+CRITICAL RULES (Follow strictly):
+
+1. OPENING:
+   - Start simply. Use: "Nowadays, ..." or "In recent years, ..." or "It is true that ...".
+   - DO NOT use rhetorical questions.
+   - DO NOT use ellipsis (...) or em-dashes (—) for dramatic effect.
+
+2. SENTENCES:
+   - Write in COMPLETE sentences. Do NOT use fragments like "That backfires." or "Trust erodes."
+   - Vary length naturally, but do NOT force it. Just write normally.
+   - DO NOT use cinematic one-liners.
+
+3. STRUCTURE:
+   - DO NOT use numbered headings like "1 Fear of Missing Out" (that's too mechanical, just use paragraphs).
+   - Paragraph 1: Introduction.
+   - Paragraph 2: Reason 1 + example.
+   - Paragraph 3: Reason 2 / counter-argument + example.
+   - Paragraph 4: Conclusion.
+
+4. EXAMPLES:
+   - Use 1-2 specific examples total. Make them specific: mention a country, a platform, or a simple scenario.
+   - Example: "In South Korea, young people use Wechat to share their activities."
+   - AVOID generic academic citations like "a 2017 study from the APA".
+   - AVOID personal anecdotes like "my sister".
+
+5. VOCABULARY:
+   - Use simple, direct language. Do NOT try to be "sophisticated".
+   - Repeat key words naturally. Do NOT search for synonyms.
+   - Example: "children" → "children" → "children". Not "youngsters", "adolescents", "offspring".
+
+6. TONE:
+   - Be neutral and plain. Do NOT be emotional, dramatic, or inspirational.
+   - Do NOT write like a LinkedIn post or a self-help book.
+
+7. GRAMMAR:
+   - Correct grammar is fine, but occasional minor errors are acceptable (comma splice, missing article).
+   - DO NOT add deliberate "humanizer" typos.
+
+REFERENCE EXAMPLES (adapt the style, don't copy content):
+${examples}
+
+Now rewrite the following text following ALL rules above. Return only the rewritten text.`;
+}
+
 const IELTS_HUMAN_PROMPT = `
 You are rewriting text in IELTS Academic style as a real Band 8 student with a clear opinion and a distinct voice.
 
@@ -1345,7 +1398,7 @@ export function detectEnglishWritingProfile(
   return "general";
 }
 
-function isIeltsEssay(text: string): boolean {
+export function isIeltsEssay(text: string): boolean {
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   return wordCount > 150 && /\b(?:essay|discuss|argue|believe|opinion|agree|disagree)\b/i.test(text);
 }
@@ -1355,19 +1408,19 @@ export function getEnglishHumanizerConfig(
   writingPurpose: EnglishWritingPurpose = "General"
 ): HumanizerPromptConfig {
   // ============================================================
-  // IELTS/ACADEMIC: Gunakan prompt sederhana (NEW ARCHITECTURE FROM DOSEN)
-  // Tidak perlu terlalu banyak constraint karena akan di-regenerate dari graph
+  // IELTS/ACADEMIC: Gunakan BORING PROMPT (DARI DOSEN)
+  // Melarang kreativitas, memaksa tulisan biasa dan membosankan
   // ============================================================
   if (writingPurpose === "Academic" || isIeltsEssay(sourceText)) {
     return {
-      systemPrompt: `You are an IELTS candidate with Band 7 ability. Write a clear essay with varied sentences, some complex, some simple. Use specific examples. Avoid fragmentation. Write naturally.`,
-      temperature: 0.9,
-      topP: 0.95,
-      maxTokens: 1600,
-      frequencyPenalty: 0.2,
-      presencePenalty: 0.1,
+      systemPrompt: buildBoringIeltsPrompt(sourceText),
+      temperature: 0.85,  // Jangan terlalu tinggi
+      topP: 0.92,
+      maxTokens: 1400,
+      frequencyPenalty: 0.1,
+      presencePenalty: 0.05,
       repetitionPenalty: 1.02,
-      additionalInstruction: '',
+      additionalInstruction: "Write plainly. No creative writing tricks. Return only the rewritten text.",
       postProcessTone: "ielts",
     };
   }
@@ -4800,11 +4853,16 @@ export function finalHumanize(
 
   if (!text || text.length < 40) return text.trim();
 
-  // HANYA CLEANUP — TIDAK ADA POST-PROCESS LAIN
+  // UNTUK ACADEMIC/IELTS: SKIP SEMUA POST-PROCESSING
+  if (skipHeavyProcessing) {
+    return cleanupEnglishSpacing(text);
+  }
+
+  // HANYA CLEANUP DASAR — TIDAK ADA POST-PROCESS LAIN
   let result = cleanupEnglishSpacing(text);
   result = result.replace(/\s{2,}/g, ' ');
   result = result.replace(/(^|[.!?]\s+)([a-z])/g, (match, prefix, letter) => prefix + letter.toUpperCase());
-  
+
   return result;
 }
 
