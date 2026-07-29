@@ -11930,8 +11930,201 @@ export function addLongComplexSentences(text: string): string {
 }
 
 // ============================================================
-// ARGUMENT GRAPH EXTRACTION (NEW ARCHITECTURE FROM DOSEN)
+// SEMANTIC GRAPH EXTRACTION (NEW ARCHITECTURE FROM DOSEN)
 // Human ≠ AI + noise. Re-author (regenerasi dari semantic graph), bukan rewrite.
+// Ekstrak IDE/KONSEP, bukan kalimat utuh.
+// ============================================================
+
+export type SemanticNode = {
+  id: string;
+  type: 'cause' | 'effect' | 'evidence' | 'solution' | 'claim' | 'counter';
+  label: string;        // konsep inti (short concept)
+  detail?: string;      // konteks tambahan
+};
+
+export type SemanticRelation = {
+  from: string;
+  to: string;
+  type: 'causes' | 'exemplifies' | 'supports' | 'contradicts' | 'alternative';
+};
+
+/**
+ * Ekstrak semantic graph dari teks menggunakan LLM.
+ * Node = konsep/ide, BUKAN kalimat utuh.
+ * Ini memungkinkan regenerasi yang benar-benar baru dari ide-ide dasar.
+ */
+export async function extractSemanticGraph(text: string): Promise<{ nodes: SemanticNode[]; relations: SemanticRelation[] }> {
+  // Gunakan LLM untuk ekstrak konsep dan relasi semantik
+  // Prompt ini meminta JSON dengan nodes (konsep) dan relations (relasi antar konsep)
+  const prompt = `
+Extract the semantic graph of this essay. Return ONLY JSON with nodes and relations.
+
+NODES: each node has id, type (cause/effect/evidence/solution/claim/counter), label (short concept 3-6 words), detail (optional context)
+RELATIONS: each relation has from, to, type (causes/exemplifies/supports/contradicts/alternative)
+
+IMPORTANT:
+- Extract CONCEPTS, not full sentences. Labels should be short phrases (3-6 words).
+- Details can be longer context if needed.
+- Include specific names, numbers, organizations from the text.
+- Return valid JSON only, no markdown formatting.
+
+Essay:
+${text}
+
+Return JSON only.
+`;
+
+  try {
+    const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+    const apiKey = process.env.OPENROUTER_API_KEY || '';
+    
+    const response = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: "qwen/qwen3-30b-a3b-instruct-2507",
+        temperature: 0.3, // low temp for consistent extraction
+        top_p: 0.9,
+        max_tokens: 2000,
+        messages: [
+          { role: 'system', content: 'You are a semantic analyzer. Extract concepts and relationships from essays. Return ONLY valid JSON.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('[SemanticGraph] Extraction failed, returning empty graph');
+      return { nodes: [], relations: [] };
+    }
+
+    const data = await response.json();
+    const content = (data as any)?.choices?.[0]?.message?.content || '';
+    
+    // Parse JSON dari response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        nodes: parsed.nodes || [],
+        relations: parsed.relations || []
+      };
+    }
+    
+    console.warn('[SemanticGraph] No valid JSON found in response');
+    return { nodes: [], relations: [] };
+  } catch (error) {
+    console.warn('[SemanticGraph] Extraction error:', error);
+    return { nodes: [], relations: [] };
+  }
+}
+
+/**
+ * Fallback heuristik jika LLM extraction gagal.
+ * Ekstrak konsep sederhana dari pola kalimat.
+ */
+export function extractSemanticGraphHeuristic(text: string): { nodes: SemanticNode[]; relations: SemanticRelation[] } {
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  const nodes: SemanticNode[] = [];
+  const relations: SemanticRelation[] = [];
+  
+  let nodeId = 0;
+  
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i].trim();
+    const lower = s.toLowerCase();
+    
+    // Klasifikasi berdasarkan pola
+    let type: SemanticNode['type'] = 'claim';
+    let label = s.substring(0, 50); // ambil bagian awal sebagai label
+    let detail: string | undefined;
+    
+    if (/\b(because|since|due to|leads to|results in)\b/i.test(lower)) {
+      type = 'cause';
+    } else if (/\b(therefore|thus|consequently|as a result|so)\b/i.test(lower)) {
+      type = 'effect';
+    } else if (/\b(for example|for instance|such as|like|including)\b/i.test(lower)) {
+      type = 'evidence';
+      // Coba ekstrak proper noun atau angka
+      const properNoun = s.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/);
+      const number = s.match(/\b(\d+(?:\.\d+)?)\b/);
+      if (properNoun || number) {
+        detail = s;
+        label = properNoun ? properNoun[0] : (number ? number[0] : 'Example');
+      }
+    } else if (/\b(solution|should|must|need to|have to|recommend)\b/i.test(lower)) {
+      type = 'solution';
+    } else if (/\b(however|but|nevertheless|yet|although|on the other hand)\b/i.test(lower)) {
+      type = 'counter';
+    }
+    
+    nodes.push({
+      id: `n${nodeId++}`,
+      type,
+      label,
+      detail
+    });
+    
+    // Relasi linear sederhana
+    if (nodes.length > 1) {
+      relations.push({
+        from: nodes[nodes.length - 2].id,
+        to: nodes[nodes.length - 1].id,
+        type: 'supports'
+      });
+    }
+  }
+  
+  return { nodes, relations };
+}
+
+// ============================================================
+// BUILD GRAPH REGENERATION PROMPT (DOSEN'S SOLUTION)
+// Prompt yang tidak memaksa struktur linear/template
+// ============================================================
+
+export function buildGraphRegenerationPrompt(
+  nodes: SemanticNode[],
+  relations: SemanticRelation[]
+): string {
+  const nodeDescriptions = nodes.map(n =>
+    `- ${n.id}: [${n.type}] ${n.label}${n.detail ? ` (${n.detail})` : ''}`
+  ).join('\n');
+
+  const relationDescriptions = relations.map(r =>
+    `- ${r.from} → ${r.to} (${r.type})`
+  ).join('\n');
+
+  return `
+You have a set of ideas (nodes) and their relationships. Write a natural essay explaining these ideas.
+
+CRITICAL RULES:
+- DO NOT follow a rigid structure like "introduction → body → conclusion"
+- Start ANYWHERE: a specific example, a question, a controversial claim, or a counter-argument
+- Jump between ideas naturally, like someone explaining from memory
+- Use specific names, years, numbers, and organizations when available
+- DO NOT use "This essay will discuss", "On the one hand", "In conclusion"
+- Keep the essay between 250-350 words
+- Vary sentence length (some very short 5-8 words, some very long 30+ words)
+- Make occasional grammar mistakes (comma splices, missing articles) that don't break meaning
+- Do NOT explain every connection; let readers infer some relationships
+- Include at least one proper name, year, or organization from the nodes
+
+Ideas (nodes):
+${nodeDescriptions}
+
+Relationships:
+${relationDescriptions}
+
+Now write the essay. Return only the essay text.
+`;
+}
+
+// ============================================================
+// LEGACY: Argument Graph Extraction (deprecated, kept for compatibility)
 // ============================================================
 
 type ArgumentNode = {
@@ -11945,12 +12138,6 @@ export function extractArgumentGraph(text: string): ArgumentNode[] {
   const sentences = splitSentences(text);
   const nodes: ArgumentNode[] = [];
   const lower = text.toLowerCase();
-
-  // Deteksi posisi
-  let hasIntro = /\b(this essay|in this essay|i will discuss|i believe|in my opinion)\b/i.test(lower);
-  let hasOnOneHand = /\b(on the one hand|firstly|one reason|one advantage)\b/i.test(lower);
-  let hasOnOtherHand = /\b(on the other hand|however|but|nevertheless|yet|although)\b/i.test(lower);
-  let hasConclusion = /\b(in conclusion|to conclude|in summary|to sum up)\b/i.test(lower);
 
   // Klasifikasi kalimat berdasarkan peran
   for (let i = 0; i < sentences.length; i++) {
@@ -11987,6 +12174,7 @@ export function extractArgumentGraph(text: string): ArgumentNode[] {
 
 // ============================================================
 // REGENERATE FROM GRAPH WITH DIFFERENT AUTHOR PROFILES
+// Updated to use Semantic Graph instead of Argument Graph
 // ============================================================
 
 export function getAuthorProfile(profile: string): string {
@@ -12020,36 +12208,20 @@ export function getAuthorProfile(profile: string): string {
   return profiles[profile] || profiles['ielts_band7'];
 }
 
-export function regenerateFromGraph(
+export async function regenerateFromGraph(
   text: string,
   profile: 'ielts_band7' | 'first_year_student' | 'newspaper_editor' = 'ielts_band7'
-): string {
-  const graph = extractArgumentGraph(text);
-  const profileInstruction = getAuthorProfile(profile);
-
-  // Build a simple summary of the graph for the prompt
-  const claim = graph.find(n => n.type === 'claim')?.content || '';
-  const reasons = graph.filter(n => n.type === 'reason').map(n => n.content).join(' ');
-  const evidence = graph.filter(n => n.type === 'evidence').map(n => n.content).join(' ');
-  const counter = graph.filter(n => n.type === 'counter').map(n => n.content).join(' ');
-  const concession = graph.filter(n => n.type === 'concession').map(n => n.content).join(' ');
-  const conclusion = graph.find(n => n.type === 'conclusion')?.content || '';
-
-  const prompt = `
-You are given the key ideas from an essay. Your task is to write a new essay from scratch using ONLY these ideas. Do NOT copy the original wording or sentence order.
-
-KEY IDEAS:
-- Main claim: ${claim}
-- Supporting reasons: ${reasons || 'none given'}
-- Evidence/examples: ${evidence || 'none given'}
-- Counter-arguments: ${counter || 'none given'}
-- Concession: ${concession || 'none given'}
-- Conclusion: ${conclusion || 'none given'}
-
-${profileInstruction}
-
-Write a complete essay (250-300 words) using these ideas in your own words. Do not copy the original. Return only the essay.
-`;
-
-  return prompt;
+): Promise<string> {
+  // Ekstrak semantic graph (konsep, bukan kalimat)
+  const graph = await extractSemanticGraph(text);
+  
+  // Jika graph kosong, gunakan fallback heuristic
+  if (graph.nodes.length === 0) {
+    console.log('[RegenerateFromGraph] Using heuristic fallback');
+    const heuristicGraph = extractSemanticGraphHeuristic(text);
+    return buildGraphRegenerationPrompt(heuristicGraph.nodes, heuristicGraph.relations);
+  }
+  
+  // Build prompt dari semantic graph
+  return buildGraphRegenerationPrompt(graph.nodes, graph.relations);
 }
