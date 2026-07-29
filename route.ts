@@ -3296,8 +3296,8 @@ export async function POST(req: Request) {
 
     // --- Sekarang jalankan finalHumanize dengan skipHeavyProcessing untuk academic tones ---
     const preFinalText = currentText;
-    // PERBAIKAN: skipHeavyProcessing = true untuk academic, false untuk general
-    const shouldSkipHeavyProcessing = isAcademicTone || config.postProcessTone === 'english-sensitive';
+    // PERBAIKAN: skipHeavyProcessing = true untuk academic/ielts, false untuk general
+    const shouldSkipHeavyProcessing = isAcademicTone || config.postProcessTone === 'ielts' || config.postProcessTone === 'english-academic';
     currentText = config.postProcessTone.startsWith("english-")
       ? finalHumanize(currentText, config.postProcessTone, shouldSkipHeavyProcessing)
       : cleanupEnglishSpacing(currentText);
