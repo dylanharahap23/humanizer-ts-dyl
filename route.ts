@@ -16,6 +16,8 @@ import { isSupabaseServerConfigured } from "@/lib/supabase/server";
 import { applyMicroSurprise } from "@/lib/micro-suprise";
 import { applyHumanizePostProcess } from "@/lib/humanize-postprocess";
 import { applyCognitiveRoughener } from "@/lib/cognitive-roughener";
+import { applyStructuralSanitizer } from "@/lib/structural-sanitizer"; 
+import { applyFinalPolish } from "@/lib/final-polish";
 
 const HUMANIZE_TIMEOUT_MS = Math.max(
   45_000,
@@ -325,22 +327,22 @@ if (action === "humanize") {
     apiKey,
     signal: controller.signal,
   });
-      
-      // Apply micro-surprise only for English text
-     if (targetLanguage === 'English') {
-    // 1. Micro-surprise (token-level)
-    let result = applyMicroSurprise(generated.text);
-    
-    // 2. Humanize post-process (collocation, errors, I, conclusion)
-    result = applyHumanizePostProcess(result);
-    
-    // 3. Cognitive roughener (naive opening, meaning that, examples, etc.)
-    // Deteksi topik dari sourceText untuk memberi konteks ke cognitive roughener
-    const topic = extractTopic(sourceText); // fungsi sederhana
-    result = applyCognitiveRoughener(result, topic);
-    
-    generated.text = result;
-  }
+  
+  // ---- FINAL POST-PROCESSING PIPELINE ----
+  if (targetLanguage === 'English') {
+  let result = generated.text;
+  
+  result = applyMicroSurprise(result);
+  result = applyHumanizePostProcess(result);
+  const topic = extractTopic(sourceText);
+  result = applyCognitiveRoughener(result, topic);
+  result = applyStructuralSanitizer(result);
+  
+  // FINAL POLISH — PALING AKHIR
+  result = applyFinalPolish(result, topic);
+  
+  generated.text = result;
+}
       
       const deduction = await deductGenerationCredits(creditAccess.context);
       if (deduction && !deduction.ok) {
