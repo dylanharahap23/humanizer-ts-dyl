@@ -16,7 +16,7 @@ import { isSupabaseServerConfigured } from "@/lib/supabase/server";
 import { applyMicroSurprise } from "@/lib/micro-suprise";
 import { applyHumanizePostProcess } from "@/lib/humanize-postprocess";
 import { applyCognitiveRoughener } from "@/lib/cognitive-roughener";
-import { applyStructuralSanitizer } from "@/lib/structural-sanitizer"; 
+import { applyStructuralSanitizer, buildBand9HumanPrompt, validateBand9Human } from "@/lib/structural-sanitizer"; 
 import { applyFinalPolish } from "@/lib/final-polish";
 
 const HUMANIZE_TIMEOUT_MS = Math.max(
@@ -316,14 +316,20 @@ if (action === "humanize") {
     signingSecret,
   });
   const bundle = verifyFactBundle(extraction.factBundle, signingSecret);
+  
+  // 🔥 GENERATE DENGAN BAND 9 PROMPT UNTUK ACADEMIC VOICE
+  const band9Prompt = buildBand9HumanPrompt(sourceText);
   const generated = await authorDocument({
     bundle,
-    authorBrief: createAutomaticBrief(
-      extraction.facts,
-      body.tone,
-      body.settings,
-      body.userVoiceContext
-    ),
+    authorBrief: {
+      ...createAutomaticBrief(
+        extraction.facts,
+        body.tone,
+        body.settings,
+        body.userVoiceContext
+      ),
+      customPrompt: band9Prompt, // ← Band 9 academic prompt
+    },
     apiKey,
     signal: controller.signal,
   });
@@ -332,13 +338,13 @@ if (action === "humanize") {
   if (targetLanguage === 'English') {
   let result = generated.text;
   
-  result = applyMicroSurprise(result);
-  result = applyHumanizePostProcess(result);
-  const topic = extractTopic(sourceText);
-  result = applyCognitiveRoughener(result, topic);
-  result = applyStructuralSanitizer(result);
+  // ⚠️ HANYA POST-PROCESS RINGAN - JANGAN INJECT ERROR, JANGAN UBAH VOICE
+  result = applyMicroSurprise(result); // Fix collocation saja
+  result = validateBand9Human(result); // Fix \"I\" overuse, kontraksi, burstiness
+  result = applyStructuralSanitizer(result, sourceText); // Coherence enforcer + structural fix
   
   // FINAL POLISH — PALING AKHIR
+  const topic = extractTopic(sourceText);
   result = applyFinalPolish(result, topic);
   
   generated.text = result;

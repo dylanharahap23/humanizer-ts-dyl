@@ -593,3 +593,128 @@ function extractTopicKeywords(text: string): string[] {
 
   return topicMap[bestTopic] || [];
 }
+
+// ============================================================
+// 9. BAND 9 HUMAN PROMPT BUILDER – Academic Voice Natural
+// ============================================================
+
+/**
+ * Build prompt untuk generate IELTS Band 9 academic essay
+ * dengan natural rhythm seperti educated native speaker
+ */
+export function buildBand9HumanPrompt(sourceText: string): string {
+  return `You are writing an IELTS Band 9 essay. You must sound like an educated native speaker, NOT a casual blogger.
+
+CRITICAL RULES:
+
+1. VOCABULARY (Band 9, not Band 6):
+   - ✅ Use: "throughout history", "constant component", "opponents argue", "comparatively", "negligible benefit", "allocation of resources"
+   - ❌ NEVER use: "I used to think", "honestly", "I mean", "you're", "can't", "it's about"
+   - ✅ Use formal register: "one" instead of "you", "people" instead of "they"
+
+2. STRUCTURE (Academic Essay):
+   - Opening: Historical/general statement → Personal position (1 sentence only!)
+   - Body 1: Counter-argument with examples
+   - Body 2: Your argument with evidence
+   - Conclusion: Restate position (1-2 sentences)
+
+3. PERSONAL VOICE (Subtle, not overwhelming):
+   - Only 1 "I" sentence in the entire essay (in the conclusion).
+   - Example: "It seems to me that..." or "I believe that..."
+   - DO NOT put "I" in every paragraph!
+
+4. SENTENCE LENGTH (Burstiness):
+   - 30% of sentences: 25-35 words (complex, with clauses)
+   - 50% of sentences: 15-25 words (normal)
+   - 20% of sentences: 8-14 words (short, punchy)
+
+5. GRAMMAR:
+   - 100% correct grammar (NO "can't", "don't", "you're")
+   - Use: "cannot", "do not", "it is"
+
+6. FORBIDDEN PHRASES (BANNED):
+   - ❌ "I mean", "honestly", "you know", "like"
+   - ❌ "several things such as" → use "including" or "for example"
+   - ❌ "it is clear that" → use "it is evident that" or "clearly"
+
+7. CONCLUSION:
+   - MUST contain "I believe" or "It seems to me"
+   - MUST mirror the opening topic
+   - Example: Opening = "learning a foreign language has been a constant component" → Conclusion = "It seems to me that learning a foreign language is part of intellectual development"
+
+Original facts:
+${sourceText}
+
+Write a Band 9 academic essay following these rules. Return ONLY the essay.`;
+}
+
+// ============================================================
+// 10. BAND 9 HUMAN VALIDATOR – Academic Voice Natural
+// ============================================================
+
+export function validateBand9Human(text: string): string {
+  let result = text;
+
+  // 1. Cek "I" count → maksimal 3 per essay
+  const iCount = (result.match(/\bI\b/g) || []).length;
+  if (iCount > 3) {
+    // Ganti "I" yang berlebihan dengan "one" atau "people"
+    // Implementasi sederhana: hapus "I think" berlebihan
+    result = result.replace(/\bI think\b/g, 'It is thought');
+    result = result.replace(/\bI believe\b/g, 'It is believed');
+    // Pertahankan 1 "I" di conclusion
+  }
+
+  // 2. Cek kontraksi → ganti dengan formal
+  result = result.replace(/\bdon't\b/gi, 'do not');
+  result = result.replace(/\bcan't\b/gi, 'cannot');
+  result = result.replace(/\bwon't\b/gi, 'will not');
+  result = result.replace(/\bit's\b/gi, 'it is');
+  result = result.replace(/\byou're\b/gi, 'one is');
+  result = result.replace(/\bthey're\b/gi, 'they are');
+  result = result.replace(/\bwe're\b/gi, 'we are');
+  result = result.replace(/\bdoesn't\b/gi, 'does not');
+  result = result.replace(/\bdidn't\b/gi, 'did not');
+  result = result.replace(/\bhasn't\b/gi, 'has not');
+  result = result.replace(/\bhaven't\b/gi, 'have not');
+  result = result.replace(/\bwouldn't\b/gi, 'would not');
+  result = result.replace(/\bcouldn't\b/gi, 'could not');
+  result = result.replace(/\bisn't\b/gi, 'is not');
+  result = result.replace(/\baren't\b/gi, 'are not');
+
+  // 3. Cek "honestly" → hapus
+  result = result.replace(/\bhonestly\b/gi, '');
+
+  // 4. Cek "I mean" → hapus
+  result = result.replace(/\bI mean\b/gi, '');
+
+  // 5. Cek "you know" → hapus
+  result = result.replace(/\byou know\b/gi, '');
+
+  // 6. Cek "like" (casual filler) → hapus jika sebagai filler
+  result = result.replace(/\b, like\b/gi, ',');
+
+  // 7. Cek burstiness (variasi panjang kalimat)
+  const sentences = result.match(/[^.!?]+[.!?]+/g) || [];
+  if (sentences.length >= 3) {
+    const lengths = sentences.map(s => s.split(/\s+/).length);
+    const avg = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+    const variance = lengths.reduce((sum, l) => sum + Math.pow(l - avg, 2), 0) / lengths.length;
+
+    if (variance < 8) {
+      // Sisipkan 1 kalimat kompleks (30+ kata) di tengah
+      const complexSentence = `When one considers the broader implications of this issue, it becomes evident that the benefits extend far beyond the immediate context and have lasting effects on individuals and society as a whole.`;
+      const midIdx = Math.floor(sentences.length / 2);
+      sentences.splice(midIdx, 0, complexSentence);
+      result = sentences.join(' ');
+    }
+  }
+
+  // 8. Ganti "several things such as" → "including"
+  result = result.replace(/\bseveral things such as\b/gi, 'including');
+
+  // 9. Ganti "it is clear that" → "clearly" atau "it is evident that"
+  result = result.replace(/\bit is clear that\b/gi, 'it is evident that');
+
+  return cleanup(result);
+}
