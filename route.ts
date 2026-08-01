@@ -13,7 +13,7 @@ import {
   verifyFactBundle,
 } from "@/lib/authoring-pipeline";
 import { isSupabaseServerConfigured } from "@/lib/supabase/server";
-import { applyMicroSurprise } from "@/lib/micro-surprise";
+import { applyMicroSurprise } from "@/lib/micro-suprise";
 
 const HUMANIZE_TIMEOUT_MS = Math.max(
   45_000,
