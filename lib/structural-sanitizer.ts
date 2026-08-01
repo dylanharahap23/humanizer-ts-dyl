@@ -14,7 +14,7 @@
 // MAIN ENTRY
 // ============================================================
 
-export function applyStructuralSanitizer(text: string): string {
+export function applyStructuralSanitizer(text: string, sourceText?: string): string {
   if (!text || text.length < 100) return text;
 
   let result = text;
@@ -34,7 +34,13 @@ export function applyStructuralSanitizer(text: string): string {
   // 5. Force paragraph segmentation (INI PALING PENTING)
   result = enforceParagraphSegmentation(result);
 
-  // Final cleanup
+  // 6. Deduplicate conclusion (jika ada)
+  result = deduplicateConclusion(result);
+
+  // 7. COHERENCE ENFORCER (baru) - menjaga kekacauan tetap koheren
+  result = applyCoherenceEnforcer(result, sourceText);
+
+  // 8. Final cleanup
   return cleanup(result);
 }
 
@@ -347,4 +353,243 @@ function cleanup(text: string): string {
     .replace(/([.!?])\1+/g, '$1')
     .replace(/(^|[.!?]\s+)([a-z])/g, (_, p, l) => p + l.toUpperCase())
     .trim();
+}
+
+// ============================================================
+// 6. DEDUPLICATE CONCLUSION (helper baru)
+// ============================================================
+
+function deduplicateConclusion(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length < 3) return text;
+
+  // Cari semua kalimat conclusion
+  const conclusionIndices: number[] = [];
+  for (let i = 0; i < sentences.length; i++) {
+    if (/\b(In conclusion|To sum up|To conclude|Overall|In summary)\b/i.test(sentences[i])) {
+      conclusionIndices.push(i);
+    }
+  }
+
+  // Jika ada lebih dari 1 conclusion, simpan hanya yang terakhir
+  if (conclusionIndices.length > 1) {
+    const lastConclusionIdx = conclusionIndices[conclusionIndices.length - 1];
+    const filtered = sentences.filter((_, i) => {
+      // Hapus semua conclusion kecuali yang terakhir
+      if (conclusionIndices.includes(i) && i !== lastConclusionIdx) {
+        return false;
+      }
+      return true;
+    });
+    return filtered.join(' ');
+  }
+
+  return text;
+}
+
+// ============================================================
+// 7. COHERENCE ENFORCER – menjaga kekacauan tetap koheren
+// ============================================================
+
+function applyCoherenceEnforcer(text: string, sourceText?: string): string {
+  if (!text || text.length < 100) return text;
+
+  let result = text;
+
+  // A. Topic Integrity Lock – setiap kalimat harus punya keyword topik
+  result = enforceTopicIntegrity(result, sourceText);
+
+  // B. Natural Error Cap – perbaiki structural errors, biarkan 1 subtle error
+  result = capNaturalErrors(result);
+
+  // C. Filler Validator – pastikan filler diikuti konten
+  result = validateFillers(result);
+
+  // D. List Restrictor – hanya 1 list observational, hapus policy lists
+  result = restrictLists(result);
+
+  // E. Conclusion Topic Checker – conclusion wajib punya keyword topik
+  result = validateConclusionTopic(result, sourceText);
+
+  return result;
+}
+
+// --------------------------------------------------------------
+// A. Topic Integrity Lock
+// --------------------------------------------------------------
+
+function enforceTopicIntegrity(text: string, sourceText?: string): string {
+  if (!sourceText) return text;
+
+  // Ekstrak keyword topik dari source (kata benda utama)
+  const keywords = extractTopicKeywords(sourceText);
+  if (keywords.length === 0) return text;
+
+  const sentences = splitSentences(text);
+  const filtered = sentences.filter(s => {
+    // Pertahankan kalimat yang mengandung minimal 1 keyword
+    return keywords.some(kw => s.toLowerCase().includes(kw));
+  });
+
+  // Jika terlalu banyak yang hilang (>30%), kembalikan asli
+  if (filtered.length < sentences.length * 0.7) {
+    return text;
+  }
+
+  return filtered.join(' ');
+}
+
+// --------------------------------------------------------------
+// B. Natural Error Cap – perbaiki structural collapse, biarkan 1 subtle
+// --------------------------------------------------------------
+
+function capNaturalErrors(text: string): string {
+  let result = text;
+
+  // Pola structural collapse yang harus diperbaiki
+  const structuralPatterns: Array<[RegExp, string]> = [
+    // "would be response is" → "would be to"
+    [/\bwould be response is\b/gi, 'would be to'],
+    // "obesity obesity" → "obesity" (repetition typo)
+    [/\bobesity\s+obesity\b/gi, 'obesity'],
+    // "a important" → "an important"
+    [/\ba\s+important\b/gi, 'an important'],
+    // "a essential" → "an essential"
+    [/\ba\s+essential\b/gi, 'an essential'],
+    // double "to to"
+    [/\bto\s+to\b/gi, 'to'],
+  ];
+
+  for (const [pattern, replacement] of structuralPatterns) {
+    result = result.replace(pattern, replacement);
+  }
+
+  // Biarkan 1 error subtle (misal "unhealthily habits") – tidak diperbaiki
+  // Kita hanya perbaiki yang structural collapse
+
+  return result;
+}
+
+// --------------------------------------------------------------
+// C. Filler Validator – pastikan filler diikuti konten
+// --------------------------------------------------------------
+
+function validateFillers(text: string): string {
+  const sentences = splitSentences(text);
+  const result: string[] = [];
+
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    // Deteksi filler
+    const fillerMatch = s.match(
+      /\b(One must also consider|To understand why this matters|It is worth noting|This raises the question)\b/i
+    );
+    if (fillerMatch) {
+      // Cek kalimat berikutnya, jika ada dan tidak terlalu pendek, pertahankan
+      const next = sentences[i + 1] || '';
+      if (next.split(/\s+/).length < 5) {
+        // Filler tidak diikuti konten → hapus kalimat filler
+        continue;
+      }
+    }
+    result.push(s);
+  }
+
+  return result.join(' ');
+}
+
+// --------------------------------------------------------------
+// D. List Restrictor – hanya 1 list observational, hapus policy lists
+// --------------------------------------------------------------
+
+function restrictLists(text: string): string {
+  // Deteksi list pattern: "A, B, C, and D" atau "A, B, and C"
+  const listPattern = /\b(\w+(?:\s+\w+)*),\s*(\w+(?:\s+\w+)*),\s*(?:and|or)\s*(\w+(?:\s+\w+)*)\b/i;
+  const matches = text.match(new RegExp(listPattern, 'gi')) || [];
+
+  // Hanya boleh 1 list
+  if (matches.length <= 1) return text;
+
+  // Pertahankan hanya 1 list yang paling pendek/observational
+  // Ambil yang pertama, hapus yang lainnya
+  let firstList = matches[0];
+  let result = text;
+
+  for (let i = 1; i < matches.length; i++) {
+    // Hapus list ke-i (ganti dengan deskripsi sederhana)
+    const toRemove = matches[i];
+    const replacement = 'several things such as ' + toRemove.split(',').slice(0, 2).join(', ');
+    result = result.replace(toRemove, replacement);
+  }
+
+  return result;
+}
+
+// --------------------------------------------------------------
+// E. Conclusion Topic Checker – conclusion wajib punya keyword topik
+// --------------------------------------------------------------
+
+function validateConclusionTopic(text: string, sourceText?: string): string {
+  if (!sourceText) return text;
+
+  const keywords = extractTopicKeywords(sourceText);
+  if (keywords.length === 0) return text;
+
+  const sentences = splitSentences(text);
+  if (sentences.length < 2) return text;
+
+  // Cari kalimat conclusion (yang mengandung "In conclusion" atau di akhir)
+  let conclusionIdx = -1;
+  for (let i = sentences.length - 1; i >= 0; i--) {
+    if (/\b(In conclusion|To conclude|To sum up)\b/i.test(sentences[i])) {
+      conclusionIdx = i;
+      break;
+    }
+  }
+
+  // Jika tidak ada conclusion, cari kalimat terakhir
+  if (conclusionIdx === -1) {
+    conclusionIdx = sentences.length - 1;
+  }
+
+  const conclusion = sentences[conclusionIdx];
+  const hasKeyword = keywords.some(kw => conclusion.toLowerCase().includes(kw));
+
+  // Jika conclusion tidak punya keyword, hapus dan biarkan tanpa conclusion
+  if (!hasKeyword) {
+    const filtered = sentences.filter((_, i) => i !== conclusionIdx);
+    return filtered.join(' ');
+  }
+
+  return text;
+}
+
+// --------------------------------------------------------------
+// Helper: Extract Topic Keywords
+// --------------------------------------------------------------
+
+function extractTopicKeywords(text: string): string[] {
+  const lower = text.toLowerCase();
+  // Prioritaskan kata kunci yang paling spesifik
+  const topicMap: Record<string, string[]> = {
+    coeducation: ['boys', 'girls', 'gender', 'single-sex', 'mixed', 'coeducational', 'separate', 'together', 'school', 'classroom'],
+    obesity: ['obesity', 'overweight', 'diet', 'exercise', 'weight', 'food', 'eat', 'cook', 'meal', 'health', 'lifestyle'],
+    population: ['population', 'growth', 'countries', 'economy', 'crisis', 'workforce', 'inhabitants', 'birth'],
+    education: ['education', 'school', 'teacher', 'student', 'curriculum', 'learn', 'subject', 'knowledge'],
+    finance: ['financial', 'money', 'savings', 'budget', 'debt', 'income', 'spend', 'save', 'invest'],
+    punishment: ['punishment', 'discipline', 'physical', 'corporal', 'child', 'parent', 'force', 'spank'],
+  };
+
+  // Cari topik yang paling banyak keyword-nya
+  let bestTopic = 'general';
+  let bestCount = 0;
+  for (const [topic, keywords] of Object.entries(topicMap)) {
+    const count = keywords.filter(kw => lower.includes(kw)).length;
+    if (count > bestCount) {
+      bestCount = count;
+      bestTopic = topic;
+    }
+  }
+
+  return topicMap[bestTopic] || [];
 }
