@@ -15,6 +15,7 @@ import {
 import { isSupabaseServerConfigured } from "@/lib/supabase/server";
 import { applyMicroSurprise } from "@/lib/micro-suprise";
 import { applyHumanizePostProcess } from "@/lib/humanize-postprocess";
+import { applyCognitiveRoughener } from "@/lib/cognitive-roughener";
 
 const HUMANIZE_TIMEOUT_MS = Math.max(
   45_000,
@@ -53,6 +54,21 @@ function detectSourceLanguage(text: string): "English" | "Indonesian" {
     /\b(?:yang|dan|dengan|dari|ini|itu|orang|harus|karena|adalah|akan|sudah)\b/gi
   );
   return indonesian > english ? "Indonesian" : "English";
+}
+
+function extractTopic(text: string): string {
+  const lower = text.toLowerCase();
+  const topics = [
+    { words: ['education', 'school', 'teacher', 'student', 'curriculum', 'learn'], label: 'education' },
+    { words: ['obesity', 'health', 'diet', 'exercise', 'weight', 'food'], label: 'obesity' },
+    { words: ['punishment', 'discipline', 'child', 'parent', 'physical'], label: 'punishment' },
+    { words: ['technology', 'internet', 'social media', 'digital'], label: 'technology' },
+    { words: ['environment', 'pollution', 'climate', 'recycling'], label: 'environment' },
+  ];
+  for (const t of topics) {
+    if (t.words.some(w => lower.includes(w))) return t.label;
+  }
+  return 'general';
 }
 
 function resolveTargetLanguage(
@@ -311,12 +327,19 @@ if (action === "humanize") {
   });
       
       // Apply micro-surprise only for English text
-      if (targetLanguage === 'English') {
-    // Step 1: Micro-surprise (token-level)
-    const microSurprised = applyMicroSurprise(generated.text);
-    // Step 2: Humanize post-process (structure, collocation, errors, I, conclusion)
-    const humanized = applyHumanizePostProcess(microSurprised);
-    generated.text = humanized;
+     if (targetLanguage === 'English') {
+    // 1. Micro-surprise (token-level)
+    let result = applyMicroSurprise(generated.text);
+    
+    // 2. Humanize post-process (collocation, errors, I, conclusion)
+    result = applyHumanizePostProcess(result);
+    
+    // 3. Cognitive roughener (naive opening, meaning that, examples, etc.)
+    // Deteksi topik dari sourceText untuk memberi konteks ke cognitive roughener
+    const topic = extractTopic(sourceText); // fungsi sederhana
+    result = applyCognitiveRoughener(result, topic);
+    
+    generated.text = result;
   }
       
       const deduction = await deductGenerationCredits(creditAccess.context);
