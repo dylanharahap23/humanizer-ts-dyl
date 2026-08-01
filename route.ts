@@ -14,6 +14,7 @@ import {
 } from "@/lib/authoring-pipeline";
 import { isSupabaseServerConfigured } from "@/lib/supabase/server";
 import { applyMicroSurprise } from "@/lib/micro-suprise";
+import { applyHumanizePostProcess } from "@/lib/humanize-postprocess";
 
 const HUMANIZE_TIMEOUT_MS = Math.max(
   45_000,
@@ -282,38 +283,41 @@ export async function POST(req: Request) {
     timeout = setTimeout(() => controller.abort(), HUMANIZE_TIMEOUT_MS);
     const signingSecret = getSigningSecret(apiKey);
 
-    if (action === "humanize") {
-      const sourceText = readSourceText(body);
-      const targetLanguage = resolveTargetLanguage(
-        sourceText,
-        body.tone,
-        body.settings
-      );
-      const extraction = await extractAtomicFacts({
-        sourceText,
-        targetLanguage,
-        apiKey,
-        signal: controller.signal,
-        signingSecret,
-      });
-      const bundle = verifyFactBundle(extraction.factBundle, signingSecret);
-      const generated = await authorDocument({
-        bundle,
-        authorBrief: createAutomaticBrief(
-          extraction.facts,
-          body.tone,
-          body.settings,
-          body.userVoiceContext
-        ),
-        apiKey,
-        signal: controller.signal,
-      });
+if (action === "humanize") {
+  const sourceText = readSourceText(body);
+  const targetLanguage = resolveTargetLanguage(
+    sourceText,
+    body.tone,
+    body.settings
+  );
+  const extraction = await extractAtomicFacts({
+    sourceText,
+    targetLanguage,
+    apiKey,
+    signal: controller.signal,
+    signingSecret,
+  });
+  const bundle = verifyFactBundle(extraction.factBundle, signingSecret);
+  const generated = await authorDocument({
+    bundle,
+    authorBrief: createAutomaticBrief(
+      extraction.facts,
+      body.tone,
+      body.settings,
+      body.userVoiceContext
+    ),
+    apiKey,
+    signal: controller.signal,
+  });
       
       // Apply micro-surprise only for English text
       if (targetLanguage === 'English') {
-        const microSurprised = applyMicroSurprise(generated.text);
-        generated.text = microSurprised;
-      }
+    // Step 1: Micro-surprise (token-level)
+    const microSurprised = applyMicroSurprise(generated.text);
+    // Step 2: Humanize post-process (structure, collocation, errors, I, conclusion)
+    const humanized = applyHumanizePostProcess(microSurprised);
+    generated.text = humanized;
+  }
       
       const deduction = await deductGenerationCredits(creditAccess.context);
       if (deduction && !deduction.ok) {
