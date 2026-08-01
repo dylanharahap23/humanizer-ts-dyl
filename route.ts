@@ -13,6 +13,7 @@ import {
   verifyFactBundle,
 } from "@/lib/authoring-pipeline";
 import { isSupabaseServerConfigured } from "@/lib/supabase/server";
+import { applyMicroSurprise } from "@/lib/micro-surprise";
 
 const HUMANIZE_TIMEOUT_MS = Math.max(
   45_000,
@@ -271,7 +272,11 @@ export async function POST(req: Request) {
     const body = (await req.json()) as AuthoringRequest;
     const action = body.action ?? "humanize";
     const creditAccess = await requireCredits(req);
-    if (!creditAccess.ok) return creditAccess.response;
+    if (!creditAccess.ok) {
+      // TypeScript type narrowing for discriminated union
+      const failedAccess = creditAccess as { ok: false; response: NextResponse };
+      return failedAccess.response;
+    }
 
     const controller = new AbortController();
     timeout = setTimeout(() => controller.abort(), HUMANIZE_TIMEOUT_MS);
@@ -279,13 +284,14 @@ export async function POST(req: Request) {
 
     if (action === "humanize") {
       const sourceText = readSourceText(body);
+      const targetLanguage = resolveTargetLanguage(
+        sourceText,
+        body.tone,
+        body.settings
+      );
       const extraction = await extractAtomicFacts({
         sourceText,
-        targetLanguage: resolveTargetLanguage(
-          sourceText,
-          body.tone,
-          body.settings
-        ),
+        targetLanguage,
         apiKey,
         signal: controller.signal,
         signingSecret,
@@ -302,6 +308,13 @@ export async function POST(req: Request) {
         apiKey,
         signal: controller.signal,
       });
+      
+      // Apply micro-surprise only for English text
+      if (targetLanguage === 'English') {
+        const microSurprised = applyMicroSurprise(generated.text);
+        generated.text = microSurprised;
+      }
+      
       const deduction = await deductGenerationCredits(creditAccess.context);
       if (deduction && !deduction.ok) {
         return NextResponse.json(
